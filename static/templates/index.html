@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-8YRT8MN2FY"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-8YRT8MN2FY');
+  </script>
+
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4080167727413874"
+     crossorigin="anonymous"></script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Reports on CVEs (Common Vulnerabilities and Exposures) with custom filters for vendors and severity.">
+  <meta name="keywords" content="CVE, security, vulnerabilities, report, vendor, severity">
+  <meta name="robots" content="index, follow">
+
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" as="style">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+
+  <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" as="style">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&family=Rubik:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* Estilos para tipografia e espaçamento aprimorados */
+    body {
+      font-family: 'Rubik', sans-serif; /* Fonte para o corpo do texto */
+      line-height: 1.6; /* Aumenta a altura da linha para melhor legibilidade */
+      color: #333; /* Cor de texto mais suave */
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Poppins', sans-serif; /* Fonte para títulos */
+      font-weight: 600;
+      color: #212529; /* Cor mais escura para títulos */
+    }
+
+    .navbar-brand .fw-semibold {
+        font-family: 'Poppins', sans-serif;
+    }
+
+    .main-content {
+      padding-top: 20px; /* Adiciona um pouco mais de espaçamento no topo do conteúdo principal */
+      padding-bottom: 20px;
+    }
+
+    .filter-container {
+      margin-bottom: 2rem !important; /* Mais espaçamento abaixo do formulário de filtro */
+    }
+
+    .table-responsive {
+      margin-top: 1.5rem; /* Espaçamento acima da tabela */
+    }
+
+    .spinner {
+      margin: 20px auto;
+      border: 4px solid rgba(0, 0, 0, .1);
+      border-left-color: #0d6efd; /* Cor do spinner para combinar com o botão primário */
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .loading-message {
+      text-align: center;
+      margin-top: 10px;
+      font-weight: 500;
+      color: #555;
+    }
+
+    /* Estilo para links ativos na navegação */
+    .navbar-nav .nav-item .nav-link.active {
+      color: #fff; /* Cor do texto para link ativo */
+      background-color: rgba(255, 255, 255, 0.1); /* Um leve destaque no fundo */
+      border-radius: .25rem;
+    }
+
+    /* Efeito de hover e active para botões */
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    .btn-primary:active {
+        transform: translateY(0);
+        box-shadow: none;
+    }
+
+    .btn-secondary:hover, .btn-info:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    .btn-secondary:active, .btn-info:active {
+        transform: translateY(0);
+        box-shadow: none;
+    }
+
+    /* Estilo para a paginação */
+    .pagination .page-link {
+        color: #0d6efd;
+    }
+    .pagination .page-item.active .page-link {
+        background-color: #0d6efd;
+        border-color: #0d6efd;
+        color: #fff;
+    }
+  </style>
+
+</head>
+<body>
+  <header>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark shadow-sm" style="min-height: 70px;">
+  <div class="container">
+    <a class="navbar-brand d-flex align-items-center flex-shrink-0" href="{{ url_for('main.index') }}">
+      <img src="{{ url_for('static', filename='images/logo.webp') }}" alt="Open CVE Report Logo"
+           style="max-height: 50px; width: auto;" class="img-fluid" loading="lazy">
+      <span class="ms-2 fw-semibold">Open CVE Report</span> {# Adicionado texto do logo para clareza #}
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}" href="{{ url_for('main.index') }}">
+            <i class="fas fa-home me-1"></i> Home
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'main.about' %}active{% endif %}" href="{{ url_for('main.about') }}">
+            <i class="fas fa-info-circle me-1"></i> About
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'main.contact' %}active{% endif %}" href="{{ url_for('main.contact') }}">
+            <i class="fas fa-envelope me-1"></i> Newsletter
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint == 'main.analytics' %}active{% endif %}" href="{{ url_for('main.analytics') }}">
+            <i class="fas fa-chart-line me-1"></i> Analytics
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  </header>
+
+  <main class="main-content">
+    <div class="container mt-4 mb-5">
+      <h1 class="text-center mb-4 text-uppercase fw-bold">
+        <i class="fas fa-exclamation-triangle text-warning me-2"></i> CVE Warnings
+      </h1>
+
+      <div id="loading" style="display: none;">
+        <div class="spinner" role="status" aria-label="Loading"></div>
+        <p class="loading-message">Loading CVEs, please wait...</p>
+      </div>
+
+      <section class="filter-section">
+        <form class="filter-container mb-4 p-3 bg-light rounded shadow-sm" role="form">
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label for="year" class="form-label">
+                <i class="fas fa-calendar-alt"></i> Year
+              </label>
+              <select id="year" class="form-select" aria-label="Select Year">
+                <option value="">Select</option>
+                <option value="2025" {% if request.args.get('year') == '2025' %}selected{% endif %}>2025</option>
+                <option value="2024" {% if request.args.get('year') == '2024' %}selected{% endif %}>2024</option>
+                <option value="2023" {% if request.args.get('year') == '2023' %}selected{% endif %}>2023</option>
+                <option value="2022" {% if request.args.get('year') == '2022' %}selected{% endif %}>2022</option>
+                <option value="2021" {% if request.args.get('year') == '2021' %}selected{% endif %}>2021</option>
+                <option value="2020" {% if request.args.get('year') == '2020' %}selected{% endif %}>2020</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="vendor" class="form-label">
+                <i class="fas fa-industry"></i> Vendor
+              </label>
+              <select id="vendor" class="form-select" aria-label="Select Vendor">
+                <option value="">All</option>
+                {% for v in vendors %}
+                  <option value="{{ v }}" {% if v == request.args.get('vendor') %}selected{% endif %}>{{ v }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="severity" class="form-label">
+                <i class="fas fa-exclamation-circle"></i> Severity
+              </label>
+              <select id="severity" class="form-select" aria-label="Select Severity">
+                <option value="">All</option>
+                {% for s in severities %}
+                  <option value="{{ s }}" {% if s == request.args.get('severity') %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+              <button id="clearFiltersBtn" class="btn btn-secondary me-2" aria-label="Clear Filters" data-bs-toggle="tooltip" data-bs-placement="top" title="Reset all applied filters">
+                <i class="fas fa-times"></i> Clear Filters
+              </button>
+              <button id="generateReportBtn" class="btn btn-primary" disabled aria-label="Download CSV" data-bs-toggle="tooltip" data-bs-placement="top" title="Download current filtered data as CSV">
+                <i class="fas fa-file-alt"></i> Download CSV
+              </button>
+              <a href="{{ url_for('main.analytics') }}" class="btn btn-info ms-2" role="button" aria-label="View Analytics" data-bs-toggle="tooltip" data-bs-placement="top" title="Go to the analytics dashboard">
+                <i class="fas fa-chart-line"></i> Analytics
+              </a>
+            </div>
+          </div>
+        </form>
+      </section>
+
+{# Macro to process and render the reference link #}
+{% macro render_reference_link(ref_links, cve_id) %}
+  {% if ref_links %}
+    {# Splits the string by comma and removes white spaces #}
+    {% set links = ref_links.split(',') %}
+    {% set first_link = links[0] | trim %}
+    {# If the link does not start with "http", adds the prefix #}
+    {% if first_link and not first_link.startswith('http') %}
+      {% set first_link = 'http://' ~ first_link %}
+    {% endif %}
+    {# Removido o <p>Link processado: {{ first_link }}</p> para uma UI mais limpa #}
+    <a href="{{ first_link }}" target="_blank" rel="noopener noreferrer" aria-label="More details for {{ cve_id }}">
+      {{ cve_id }} <i class="fas fa-external-link-alt fa-xs ms-1"></i> {# Ícone de link externo #}
+    </a>
+  {% else %}
+    {{ cve_id }}
+  {% endif %}
+{% endmacro %}
+
+
+<div class="table-responsive">
+  <table class="table table-striped table-hover">
+    <thead class="table-dark">
+      <tr>
+        <th>CVE ID</th>
+        <th>Description</th>
+        <th class="text-center">Publication Date</th>
+        <th class="text-center">Severity</th>
+        <th class="text-center">Vendor</th>
+        <th class="text-center">CVSS Score</th>
+        <th class="text-center">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="vulnTableBody">
+      {% for vuln in vulnerabilities %}
+      <tr>
+        <td>
+          {{ render_reference_link(vuln['reference_links'], vuln['CVE ID']) }}
+        </td>
+        <td>{{ vuln['description'] }}</td>
+        <td class="text-center">{{ vuln['published_date'] }}</td>
+        <td class="text-center">
+          <span class="badge {% if vuln['baseSeverity'] == 'CRITICAL' %}bg-danger{% elif vuln['baseSeverity'] == 'HIGH' %}bg-warning{% elif vuln['baseSeverity'] == 'MEDIUM' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+            {{ vuln['baseSeverity'] }}
+          </span>
+        </td> {# Adicionado badge para severidade #}
+        <td class="text-center">{{ vuln['vendor'] }}</td>
+        <td class="text-center">{{ vuln['cvssScore'] }}</td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-outline-secondary" aria-label="View details for {{ vuln['CVE ID'] }}" data-bs-toggle="tooltip" data-bs-placement="top" title="View full details">
+            <i class="fas fa-eye"></i>
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p id="noResultsMessage" class="text-center text-muted" style="display: none;">No CVEs found matching your criteria.</p>
+</div>
+
+
+      <nav aria-label="Page navigation" class="mb-4">
+        <ul id="pagination" class="pagination justify-content-center"></ul>
+      </nav>
+    </section>
+
+      <script id="vulnData" type="application/json">
+        {{ vulnerabilities | tojson | safe }}
+      </script>
+    </div>
+  </main>
+
+  <footer class="bg-dark text-white py-4">
+    <div class="container text-center">
+      <p>
+        &copy; 2025 Open CVE Report. All rights reserved.
+        <a href="{{ url_for('main.contact') }}" class="text-white" aria-label="Contact us for inquiries">
+          <i class="fas fa-headset"></i> Contact
+        </a>
+      </p>
+    </div>
+  </footer>
+
+  <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script defer src="{{ url_for('static', filename='js/script.js') }}"></script>
+  <script>
+    // Inicializar tooltips do Bootstrap
+    document.addEventListener('DOMContentLoaded', function () {
+      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+      })
+    });
+
+    // Exemplo de como você controlaria o spinner e a mensagem de "sem resultados"
+    // Isso seria feito em `script.js` após a busca/filtragem de dados
+    function showLoading() {
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('vulnTableBody').innerHTML = ''; // Limpa a tabela
+      document.getElementById('noResultsMessage').style.display = 'none'; // Esconde a mensagem de sem resultados
+    }
+
+    function hideLoading() {
+      document.getElementById('loading').style.display = 'none';
+    }
+
+    function showNoResults() {
+        document.getElementById('noResultsMessage').style.display = 'block';
+        document.getElementById('vulnTableBody').innerHTML = '';
+        document.getElementById('pagination').innerHTML = ''; // Limpa a paginação
+    }
+
+    // Exemplo de atualização do link ativo na navegação (poderia ser mais dinâmico com JS)
+    // document.addEventListener('DOMContentLoaded', function() {
+    //   const currentPath = window.location.pathname;
+    //   document.querySelectorAll('.navbar-nav .nav-link').forEach(link => {
+    //     if (link.getAttribute('href') === currentPath) {
+    //       link.classList.add('active');
+    //     } else {
+    //       link.classList.remove('active');
+    //     }
+    //   });
+    // });
+  </script>
+</body>
+</html>
