@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report.title }} - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4" data-page="report-shared">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-white">{{ report.title }}</h1>
+            <p class="text-muted mb-0">
+                <i class="fas fa-calendar me-1"></i>
+                Generated {{ report.created_at.strftime('%Y-%m-%d %H:%M') if report.created_at else 'N/A' }}
+            </p>
+        </div>
+        <div>
+            <span class="badge bg-primary">{{ report.report_type }}</span>
+        </div>
+    </div>
+
+    <!-- Report Content -->
+    <div class="card">
+        <div class="card-body">
+            {% if report.description %}
+            <p class="text-muted mb-4">{{ report.description }}</p>
+            {% endif %}
+
+            {% if report.data %}
+                {% if report.report_type == 'EXECUTIVE' %}
+                    <!-- Executive Summary -->
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <div class="h2 text-primary mb-0">{{ report.data.total_cves or 0 }}</div>
+                                <small class="text-muted">Total CVEs</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <div class="h2 text-danger mb-0">{{ report.data.by_severity.CRITICAL or 0 if report.data.by_severity else 0 }}</div>
+                                <small class="text-muted">Critical</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <div class="h2 text-warning mb-0">{{ report.data.by_severity.HIGH or 0 if report.data.by_severity else 0 }}</div>
+                                <small class="text-muted">High</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 bg-light rounded">
+                                <div class="h2 text-info mb-0">{{ report.data.cisa_kev or 0 }}</div>
+                                <small class="text-muted">CISA KEV</small>
+                            </div>
+                        </div>
+                    </div>
+                {% elif report.report_type == 'RISK_ASSESSMENT' %}
+                    <!-- Risk Assessment -->
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="text-center p-3 bg-light rounded">
+                                <div class="h2 text-primary mb-0">{{ report.data.total_assets or 0 }}</div>
+                                <small class="text-muted">Total Assets</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center p-3 bg-light rounded">
+                                <div class="h2 text-danger mb-0">{{ report.data.assets_with_vulns or 0 }}</div>
+                                <small class="text-muted">At Risk</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center p-3 bg-light rounded">
+                                <div class="h2 text-warning mb-0">{{ (report.data.high_risk_assets|length) if report.data.high_risk_assets else 0 }}</div>
+                                <small class="text-muted">High Risk</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if report.data.high_risk_assets %}
+                    <h5 class="mb-3">High Risk Assets</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Asset</th>
+                                    <th>Risk Score</th>
+                                    <th>Vulnerabilities</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset in report.data.high_risk_assets %}
+                                <tr>
+                                    <td>{{ asset.name }}</td>
+                                    <td><span class="badge badge-critical">{{ asset.risk_score }}</span></td>
+                                    <td>{{ asset.vulnerabilities }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                {% else %}
+                    <!-- Generic Data Display -->
+                    <pre class="bg-light p-3 rounded">{{ report.data | tojson(indent=2) }}</pre>
+                {% endif %}
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <h5 class="empty-state-title">No Data Available</h5>
+                    <p class="empty-state-text">This report does not contain any data yet.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-muted mt-4">
+        <small>
+            <i class="fas fa-shield-alt me-1"></i>
+            Generated by Open-Monitor
+        </small>
+    </div>
+</div>
+{% endblock %}

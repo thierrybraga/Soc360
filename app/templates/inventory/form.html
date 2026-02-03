@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Add Asset - Open-Monitor{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <div class="page-header d-flex align-items-center justify-content-between mb-4">
+        <div class="page-header__title">
+            <h1 class="mb-1"><i class="fas fa-plus-circle"></i> Add New Asset</h1>
+            <p class="text-muted mb-0">Register a new infrastructure asset for monitoring</p>
+        </div>
+        <div class="page-header__actions">
+            <a href="{{ url_for('inventory.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Inventory
+            </a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-10">
+            <div class="card">
+                <div class="card-body p-4">
+                    <form id="asset-form">
+                        <div class="form-section mb-4">
+                            <h3 class="mb-3">Basic Information</h3>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label required">Asset Name</label>
+                                    <input type="text" id="asset-name" name="name" class="form-input" required placeholder="e.g., prod-db-01">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label required">Type</label>
+                                    <select id="asset-type" name="type" class="form-select" required>
+                                        <option value="">Select Type</option>
+                                        <option value="SERVER">Server</option>
+                                        <option value="WORKSTATION">Workstation</option>
+                                        <option value="NETWORK_DEVICE">Network Device</option>
+                                        <option value="APPLICATION">Application</option>
+                                        <option value="DATABASE">Database</option>
+                                        <option value="CLOUD_SERVICE">Cloud Resource</option>
+                                        <option value="CONTAINER">Container</option>
+                                        <option value="IOT_DEVICE">IoT Device</option>
+                                        <option value="MOBILE_DEVICE">Mobile Device</option>
+                                        <option value="OTHER">Other</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">IP Address</label>
+                                    <input type="text" id="asset-ip" name="ip_address" class="form-input" 
+                                           pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+                                           placeholder="e.g., 192.168.1.10">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Hostname</label>
+                                    <input type="text" id="asset-hostname" name="hostname" class="form-input" placeholder="e.g., db01.internal">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Operating System</label>
+                                    <input type="text" id="asset-os" name="operating_system" class="form-input" 
+                                           placeholder="e.g., Ubuntu 22.04, Windows Server 2022">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label required">Criticality</label>
+                                    <select id="asset-criticality" name="criticality" class="form-select" required>
+                                        <option value="LOW">Low</option>
+                                        <option value="MEDIUM" selected>Medium</option>
+                                        <option value="HIGH">High</option>
+                                        <option value="CRITICAL">Critical</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Description</label>
+                                    <textarea id="asset-description" name="description" class="form-textarea" rows="3" placeholder="Brief description of the asset's role and function..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section mb-4">
+                            <h3 class="mb-3">Business Impact Analysis</h3>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">RTO (hours)</label>
+                                    <input type="number" id="asset-rto" name="rto_hours" class="form-input" 
+                                           min="0" step="0.5" placeholder="Recovery Time Objective">
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">RPO (hours)</label>
+                                    <input type="number" id="asset-rpo" name="rpo_hours" class="form-input" 
+                                           min="0" step="0.5" placeholder="Recovery Point Objective">
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">Cost/Hour ($)</label>
+                                    <input type="number" id="asset-cost" name="operational_cost_per_hour" class="form-input" 
+                                           min="0" step="0.01" placeholder="Downtime cost">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3 class="mb-0">Installed Software</h3>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="add-software-btn">
+                                    <i class="fas fa-plus"></i> Add Software
+                                </button>
+                            </div>
+                            <p class="text-muted small mb-3">Add software to automatically match against CVE database</p>
+                            <div id="software-list" class="software-list">
+                                <!-- Dynamic software entries -->
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <a href="{{ url_for('inventory.index') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Create Asset
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/inventory/form.js') }}"></script>
+{% endblock %}

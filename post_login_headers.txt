@@ -1,0 +1,17 @@
+HTTP/1.1 302 FOUND
+Server: nginx/1.25.5
+Date: Tue, 03 Feb 2026 13:33:23 GMT
+Content-Type: text/html; charset=utf-8
+Content-Length: 207
+Connection: keep-alive
+Location: /dashboard
+X-Response-Time: 0.174s
+X-Request-ID: 9ff94e1c-4dc5-4cc6-9fac-4ef4c727a17c
+Set-Cookie: remember_token=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; Path=/
+Vary: Cookie
+Set-Cookie: session=.eJwljjtuAzEMBe-iOgWpD0X5Mgt-YSNAAuzaVZC7W0HK94qZ-SlHnnHdy-15vuKjHA8vt2KqzLS0r-qpQ1ofoSZEK73btOUiiTgcuaGsKd0n2TKBRt0FmYNQ6jJPQ2HwpowdnJq0hAXQJnKumTCim1n0UcmqADCxVC475HXF-V-De9p15vH8_oyvfbACBDnF4JyizhHanXDBBrU__aYTavl9A3yhQAs.aYH5Iw.DUl3EwaDoSk_g4yQ6RtnvAhoYM8; HttpOnly; Path=/; SameSite=Lax
+X-Frame-Options: SAMEORIGIN
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+

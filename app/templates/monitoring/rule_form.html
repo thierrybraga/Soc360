@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}{{ 'Edit Rule' if rule else 'Create Rule' }} - Open-Monitor{% endblock %}
+
+{% block extra_css %}
+<style>
+    .type-option {
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 2px solid var(--gray-700);
+    }
+    .type-option:hover { border-color: var(--primary-400); }
+    .type-option.active {
+        border-color: var(--primary-500);
+        background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+    }
+    .type-option .type-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+    }
+    .channel-option {
+        cursor: pointer;
+        padding: 0.75rem 1rem;
+        border: 2px solid var(--gray-700);
+        border-radius: 8px;
+        transition: all 0.2s;
+        text-align: center;
+    }
+    .channel-option:hover { border-color: var(--primary-400); }
+    .channel-option.active {
+        border-color: var(--primary-500);
+        background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+    }
+    .config-section {
+        border-left: 3px solid var(--primary-500);
+        padding-left: 1.25rem;
+    }
+    .step-number {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--primary-500);
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+    .step-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--gray-400);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4" data-page="monitoring-rule-form">
+
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb mb-0 small">
+            <li class="breadcrumb-item"><a href="{{ url_for('monitoring.index') }}" class="text-muted text-decoration-none">Monitoring</a></li>
+            <li class="breadcrumb-item active text-white">{{ 'Edit Rule' if rule else 'Create Rule' }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-white">{{ 'Edit Rule' if rule else 'Create Rule' }}</h1>
+            <p class="text-muted mb-0">Configure monitoring parameters and alert channels</p>
+        </div>
+        <a href="{{ url_for('monitoring.index') }}" class="btn btn-ghost btn-sm text-muted">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+    </div>
+
+    <form id="rule-form">
+        {% if rule %}
+        <input type="hidden" id="rule-id" value="{{ rule.id }}">
+        {% endif %}
+
+        <div class="row g-4">
+            <!-- Left Column: Main Settings -->
+            <div class="col-lg-8">
+
+                <!-- Step 1: Basic Info -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <span class="step-number">1</span>
+                            <span class="step-title">Basic Information</span>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label required">Rule Name</label>
+                            <input type="text" id="rule-name" class="form-input" required
+                                   placeholder="e.g., Critical CVE Alert"
+                                   value="{{ rule.name if rule else '' }}">
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label">Description</label>
+                            <textarea id="rule-description" class="form-textarea" rows="2"
+                                      placeholder="Describe what this rule monitors...">{{ rule.description if rule else '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Rule Type -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <span class="step-number">2</span>
+                            <span class="step-title">Rule Type</span>
+                        </div>
+                        <div class="row g-3 mb-3" id="type-selector">
+                            <div class="col-6 col-md-3">
+                                <div class="type-option card p-3" data-type="NEW_CVE">
+                                    <div class="type-icon bg-info bg-opacity-25 text-info mb-2">
+                                        <i class="fas fa-plus-circle"></i>
+                                    </div>
+                                    <div class="fw-bold small">New CVE</div>
+                                    <div class="text-muted" style="font-size: 0.7rem;">Alert on new CVEs published</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="type-option card p-3" data-type="SEVERITY_THRESHOLD">
+                                    <div class="type-icon bg-danger bg-opacity-25 text-danger mb-2">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                    </div>
+                                    <div class="fw-bold small">Severity</div>
+                                    <div class="text-muted" style="font-size: 0.7rem;">Threshold-based alerts</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="type-option card p-3" data-type="VENDOR_SPECIFIC">
+                                    <div class="type-icon bg-primary bg-opacity-25 text-primary mb-2">
+                                        <i class="fas fa-building"></i>
+                                    </div>
+                                    <div class="fw-bold small">Vendor</div>
+                                    <div class="text-muted" style="font-size: 0.7rem;">Vendor-specific monitoring</div>
+                                </div>
+                            </div>
+                            <div class="col-6 col-md-3">
+                                <div class="type-option card p-3" data-type="CISA_KEV">
+                                    <div class="type-icon bg-warning bg-opacity-25 text-warning mb-2">
+                                        <i class="fas fa-shield-virus"></i>
+                                    </div>
+                                    <div class="fw-bold small">CISA KEV</div>
+                                    <div class="text-muted" style="font-size: 0.7rem;">Known exploited vulns</div>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="rule-type" value="{{ rule.rule_type if rule else '' }}">
+
+                        <!-- Severity Options -->
+                        <div class="config-section mt-3" id="severity-options" style="display: none;">
+                            <h6 class="text-white fw-bold mb-2">Severity Settings</h6>
+                            <div class="mb-0">
+                                <label class="form-label">Minimum Severity</label>
+                                <select id="rule-min-severity" class="form-select">
+                                    <option value="LOW">Low (4.0+)</option>
+                                    <option value="MEDIUM">Medium (4.0+)</option>
+                                    <option value="HIGH" selected>High (7.0+)</option>
+                                    <option value="CRITICAL">Critical (9.0+)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Vendor Options -->
+                        <div class="config-section mt-3" id="vendor-options" style="display: none;">
+                            <h6 class="text-white fw-bold mb-2">Vendor Settings</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Vendor</label>
+                                    <select id="rule-vendor" class="form-select">
+                                        <option value="">Select Vendor</option>
+                                        <!-- Populated by JS -->
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Product (Optional)</label>
+                                    <select id="rule-product" class="form-select">
+                                        <option value="">All Products</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Alert Channel -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <span class="step-number">3</span>
+                            <span class="step-title">Alert Channel</span>
+                        </div>
+                        <div class="row g-3 mb-3" id="channel-selector">
+                            <div class="col-4">
+                                <div class="channel-option" data-channel="EMAIL">
+                                    <i class="fas fa-envelope fa-lg mb-1 d-block"></i>
+                                    <div class="fw-bold small">Email</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="channel-option" data-channel="WEBHOOK">
+                                    <i class="fas fa-code fa-lg mb-1 d-block"></i>
+                                    <div class="fw-bold small">Webhook</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="channel-option" data-channel="SLACK">
+                                    <i class="fab fa-slack fa-lg mb-1 d-block"></i>
+                                    <div class="fw-bold small">Slack</div>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="rule-channel" value="">
+
+                        <!-- Email Config -->
+                        <div class="config-section mt-3" id="email-options" style="display: none;">
+                            <h6 class="text-white fw-bold mb-2">Email Settings</h6>
+                            <div class="mb-0">
+                                <label class="form-label required">Recipients</label>
+                                <input type="text" id="rule-recipients" class="form-input"
+                                       placeholder="email1@example.com, email2@example.com">
+                                <div class="form-text">Comma-separated email addresses</div>
+                            </div>
+                        </div>
+
+                        <!-- Webhook Config -->
+                        <div class="config-section mt-3" id="webhook-options" style="display: none;">
+                            <h6 class="text-white fw-bold mb-2">Webhook Settings</h6>
+                            <div class="mb-0">
+                                <label class="form-label required">Webhook URL</label>
+                                <input type="url" id="rule-webhook-url" class="form-input"
+                                       placeholder="https://your-webhook-endpoint.com/alerts">
+                            </div>
+                        </div>
+
+                        <!-- Slack Config -->
+                        <div class="config-section mt-3" id="slack-options" style="display: none;">
+                            <h6 class="text-white fw-bold mb-2">Slack Settings</h6>
+                            <div class="mb-3">
+                                <label class="form-label required">Slack Webhook URL</label>
+                                <input type="url" id="rule-slack-url" class="form-input"
+                                       placeholder="https://hooks.slack.com/services/...">
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label">Channel (Optional)</label>
+                                <input type="text" id="rule-slack-channel" class="form-input"
+                                       placeholder="#security-alerts">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Settings & Actions -->
+            <div class="col-lg-4">
+                <!-- Settings -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h6 class="text-white fw-bold mb-3"><i class="fas fa-cog me-2"></i>Settings</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Cooldown (minutes)</label>
+                            <input type="number" id="rule-cooldown" class="form-input"
+                                   min="0" value="{{ rule.cooldown_minutes if rule else 60 }}" placeholder="60">
+                            <div class="form-text">Minimum interval between alerts</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Max Alerts per Day</label>
+                            <input type="number" id="rule-max-alerts" class="form-input"
+                                   min="1" value="{{ rule.max_alerts_per_day if rule else 10 }}" placeholder="10">
+                        </div>
+                        <div class="form-check form-switch">
+                            <input type="checkbox" id="rule-enabled" class="form-check-input"
+                                   {{ 'checked' if not rule or rule.is_active else '' }}>
+                            <label class="form-check-label" for="rule-enabled">Rule Enabled</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <button type="button" class="btn btn-primary w-100 mb-2" id="save-rule-btn">
+                            <i class="fas fa-save me-1"></i> {{ 'Update Rule' if rule else 'Create Rule' }}
+                        </button>
+                        {% if rule %}
+                        <button type="button" class="btn btn-outline-secondary w-100 mb-2" id="test-rule-btn">
+                            <i class="fas fa-vial me-1"></i> Test Rule
+                        </button>
+                        {% endif %}
+                        <a href="{{ url_for('monitoring.index') }}" class="btn btn-ghost w-100 text-muted">
+                            Cancel
+                        </a>
+                    </div>
+                </div>
+
+                {% if rule %}
+                <!-- Rule Info -->
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="text-white fw-bold mb-3"><i class="fas fa-info-circle me-2"></i>Rule Info</h6>
+                        <table class="table table-sm table-borderless mb-0">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted">Created</td>
+                                    <td class="text-white">{{ rule.created_at.strftime('%d/%m/%Y %H:%M') if rule.created_at else 'N/A' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Last Triggered</td>
+                                    <td class="text-white">{{ rule.last_triggered_at.strftime('%d/%m/%Y %H:%M') if rule.last_triggered_at else 'Never' }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Trigger Count</td>
+                                    <td class="text-white">{{ rule.trigger_count or 0 }}</td>
+                                </tr>
+                                {% if rule.last_error %}
+                                <tr>
+                                    <td class="text-muted">Last Error</td>
+                                    <td class="text-danger small">{{ rule.last_error }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/monitoring/rule_form.js') }}"></script>
+{% if rule %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        if (window.ruleFormModule) {
+            window.ruleFormModule.loadRuleData({{ rule.to_dict()|tojson }});
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

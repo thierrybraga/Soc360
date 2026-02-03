@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4" data-page="dashboard">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <h1 class="mb-2 fw-bold" style="font-size: 2.5rem; letter-spacing: -0.03em;">Dashboard</h1>
+            <p class="text-muted mb-0" style="font-size: 1.1rem;">Overview of your security posture</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <select class="form-select form-select-sm" data-time-range style="width: auto; min-width: 140px;">
+                <option value="7">Last 7 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+            </select>
+            <button class="btn btn-outline-secondary btn-sm" id="dashboard-refresh-btn" title="Refresh Data">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <button class="btn btn-primary btn-sm" id="dashboard-export-btn">
+                <i class="fas fa-download"></i> Export
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="row g-4 mb-4">
+        <!-- Total Vulnerabilities -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100" data-stat="total">
+                <div class="stat-icon primary">
+                    <i class="fas fa-bug"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50"></span>
+                    <span class="stat-label">Total Vulnerabilities</span>
+                </div>
+                <div class="stat-change mt-2">
+                    <span class="skeleton-text w-25 d-inline-block"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Critical -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100" data-stat="critical">
+                <div class="stat-icon danger">
+                    <i class="fas fa-radiation"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50"></span>
+                    <span class="stat-label">Critical Vulnerabilities</span>
+                </div>
+                <div class="stat-change mt-2">
+                    <span class="skeleton-text w-25 d-inline-block"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CISA KEV -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100" data-stat="cisa-kev">
+                <div class="stat-icon warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50"></span>
+                    <span class="stat-label">CISA KEV Exploited</span>
+                </div>
+                <div class="stat-change mt-2">
+                    <span class="skeleton-text w-25 d-inline-block"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Assets -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100" data-stat="assets">
+                <div class="stat-icon success">
+                    <i class="fas fa-server"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50"></span>
+                    <span class="stat-label">Monitored Assets</span>
+                </div>
+                <div class="stat-change mt-2">
+                    <span class="skeleton-text w-25 d-inline-block"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-4 mb-4">
+        <!-- Vulnerability Trends -->
+        <div class="col-12 col-lg-8">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-area"></i> Vulnerability Trends
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="trendsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Severity Distribution -->
+        <div class="col-12 col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-chart-pie"></i> Severity Distribution
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 200px;">
+                        <canvas id="severityChart"></canvas>
+                    </div>
+                    <div class="mt-4" id="severityLegend">
+                        <!-- Legend populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Tables Row -->
+    <div class="row g-4 mb-4">
+        <!-- Recent Critical Vulnerabilities -->
+        <div class="col-12 col-xl-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-radiation"></i> Recent Critical Vulnerabilities
+                    </h5>
+                    <a href="{{ url_for('nvd.index') }}" class="btn btn-sm btn-outline-secondary">View All</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="critical-vulns-table">
+                            <thead>
+                                <tr>
+                                    <th>CVE ID</th>
+                                    <th>Published</th>
+                                    <th>CVSS</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated by JS -->
+                                <tr>
+                                    <td colspan="4" class="p-4">
+                                        <div class="skeleton-text mb-2"></div>
+                                        <div class="skeleton-text mb-2"></div>
+                                        <div class="skeleton-text mb-2"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Vendors -->
+        <div class="col-12 col-xl-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-building"></i> Top Affected Vendors
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="vendorsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Risk & Remediation Row -->
+    <div class="row g-4">
+        <!-- Assets at Risk (Risk Matrix) -->
+        <div class="col-12 col-xl-8">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-exclamation-circle"></i> Assets at Risk
+                    </h5>
+                    <a href="{{ url_for('inventory.index') }}" class="btn btn-sm btn-outline-secondary">Manage Assets</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="risk-matrix-table">
+                            <thead>
+                                <tr>
+                                    <th>Asset</th>
+                                    <th>Type</th>
+                                    <th>Risk Score</th>
+                                    <th>Vulns (Total)</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="5" class="p-4">
+                                        <div class="skeleton-text mb-2"></div>
+                                        <div class="skeleton-text mb-2"></div>
+                                        <div class="skeleton-text mb-2"></div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Remediation Status -->
+        <div class="col-12 col-xl-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i class="fas fa-tasks"></i> Remediation Status
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container" style="height: 200px;">
+                        <canvas id="remediationChart"></canvas>
+                    </div>
+                    <div class="mt-4" id="remediationLegend"></div>
+                    <div class="mt-3">
+                         <div class="row g-2">
+                             <div class="col-6">
+                                 <div class="p-2 border rounded bg-light text-center">
+                                     <small class="d-block text-muted">Overdue</small>
+                                     <span class="fw-bold text-danger" id="remediation-overdue">-</span>
+                                 </div>
+                             </div>
+                             <div class="col-6">
+                                 <div class="p-2 border rounded bg-light text-center">
+                                     <small class="d-block text-muted">SLA Warning</small>
+                                     <span class="fw-bold text-warning" id="remediation-sla">-</span>
+                                 </div>
+                             </div>
+                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

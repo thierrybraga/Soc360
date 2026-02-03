@@ -1,0 +1,18 @@
+
+from celery import Celery
+from flask import Flask
+
+celery = Celery()
+
+
+def init_celery(app: Flask) -> None:
+    """Initialize Celery with Flask app config."""
+    celery.conf.update(app.config)
+    
+    class ContextTask(celery.Task):
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+
+    celery.Task = ContextTask
+    app.extensions['celery'] = celery

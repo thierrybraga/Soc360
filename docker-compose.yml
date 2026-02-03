@@ -1,0 +1,413 @@
+# Open-Monitor v3.0 - Docker Compose Configuration
+# Production-ready multi-container deployment
+
+x-airflow-common:
+  &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.8.0}
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres-airflow/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/1
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+    AIRFLOW_CONN_OPEN_MONITOR_API: 'http://openmonitor-nginx:80'
+    AIRFLOW_VAR_OPEN_MONITOR_API_CONN_ID: ${AIRFLOW_VAR_OPEN_MONITOR_API_CONN_ID:-open_monitor_api}
+    AIRFLOW_VAR_ADMIN_EMAIL: ${AIRFLOW_VAR_ADMIN_EMAIL:-admin@openmonitor.local}
+    RATELIMIT_STORAGE_URI: redis://:@redis:6379/2
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    &airflow-common-depends-on
+    redis:
+      condition: service_healthy
+    postgres-airflow:
+      condition: service_healthy
+
+services:
+  # ==========================================================================
+  # Application Service
+  # ==========================================================================
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: open-monitor:3.0.0
+    container_name: openmonitor-app
+    restart: unless-stopped
+    depends_on:
+      db-core:
+        condition: service_healthy
+      db-public:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment: &app-env
+      # Flask Configuration
+      - FLASK_APP=app:create_app
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - SECRET_KEY=${SECRET_KEY:?Secret key is required}
+      
+      # Core Database (Users, Assets, Rules)
+      - CORE_DATABASE_URL=postgresql://${POSTGRES_USER:-openmonitor}:${POSTGRES_PASSWORD:?Database password required}@db-core:5432/${POSTGRES_CORE_DB:-openmonitor_core}
+      - DB_CORE_HOST=db-core
+      - DB_CORE_PORT=5432
+      - DB_CORE_NAME=${POSTGRES_CORE_DB:-openmonitor_core}
+      - DB_CORE_USER=${POSTGRES_USER:-openmonitor}
+      - DB_CORE_PASSWORD=${POSTGRES_PASSWORD:?Database password required}
+      
+      # Public Database (CVEs, NVD Data)
+      - PUBLIC_DATABASE_URL=postgresql://${POSTGRES_USER:-openmonitor}:${POSTGRES_PASSWORD}@db-public:5432/${POSTGRES_PUBLIC_DB:-openmonitor_public}
+      - DB_PUBLIC_HOST=db-public
+      - DB_PUBLIC_PORT=5432
+      - DB_PUBLIC_NAME=${POSTGRES_PUBLIC_DB:-openmonitor_public}
+      - DB_PUBLIC_USER=${POSTGRES_USER:-openmonitor}
+      - DB_PUBLIC_PASSWORD=${POSTGRES_PASSWORD:?Database password required}
+      
+      # Redis Configuration
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:-}@redis:6379/1
+      
+      # NVD API Configuration
+      - NVD_API_KEY=${NVD_API_KEY:-}
+      
+      # OpenAI Configuration (for AI-powered reports)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      
+      # Email Configuration
+      - MAIL_SERVER=${MAIL_SERVER:-}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USE_TLS=${MAIL_USE_TLS:-true}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER:-noreply@openmonitor.local}
+      
+      # Security Settings
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
+      - CSRF_ENABLED=${CSRF_ENABLED:-true}
+      
+      # Application Settings
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - WORKERS=${WORKERS:-4}
+      - THREADS=${THREADS:-2}
+    volumes:
+      - ./app:/app/app
+      - ./docker/entrypoint.sh:/entrypoint.sh:ro
+      - app-logs:/app/logs
+      - app-uploads:/app/uploads
+      - app-reports:/app/reports
+    networks:
+      - openmonitor-network
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # Celery Services
+  # ==========================================================================
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: open-monitor:3.0.0
+    container_name: openmonitor-celery-worker
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-core:
+        condition: service_healthy
+    environment: *app-env
+    volumes:
+      - ./app:/app/app
+      - app-logs:/app/logs
+      - app-uploads:/app/uploads
+      - app-reports:/app/reports
+    networks:
+      - openmonitor-network
+    healthcheck:
+      disable: true
+    command: celery -A app.celery_worker.celery worker --loglevel=info
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: open-monitor:3.0.0
+    container_name: openmonitor-celery-beat
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      db-core:
+        condition: service_healthy
+    environment: *app-env
+    volumes:
+      - ./app:/app/app
+      - app-logs:/app/logs
+      - app-uploads:/app/uploads
+      - app-reports:/app/reports
+    networks:
+      - openmonitor-network
+    healthcheck:
+      disable: true
+    command: celery -A app.celery_worker.celery beat --loglevel=info
+
+  # ==========================================================================
+  # Core Database (Users, Assets, Rules, Reports)
+  # ==========================================================================
+  db-core:
+    image: postgres:15-alpine
+    container_name: openmonitor-db-core
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-openmonitor}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Database password required}
+      - POSTGRES_DB=${POSTGRES_CORE_DB:-openmonitor_core}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      - "${DB_CORE_PORT:-5432}:5432"
+    volumes:
+      - db-core-data:/var/lib/postgresql/data
+      - ./docker/init-scripts/core:/docker-entrypoint-initdb.d:ro
+    networks:
+      - openmonitor-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openmonitor} -d ${POSTGRES_CORE_DB:-openmonitor_core}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  # ==========================================================================
+  # Public Database (CVEs, NVD Data)
+  # ==========================================================================
+  db-public:
+    image: postgres:15-alpine
+    container_name: openmonitor-db-public
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-openmonitor}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Database password required}
+      - POSTGRES_DB=${POSTGRES_PUBLIC_DB:-openmonitor_public}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"
+    volumes:
+      - db-public-data:/var/lib/postgresql/data
+      - ./docker/init-scripts/public:/docker-entrypoint-initdb.d:ro
+    networks:
+      - openmonitor-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openmonitor} -d ${POSTGRES_PUBLIC_DB:-openmonitor_public}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # Redis (Caching & Session Store)
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: openmonitor-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      ${REDIS_PASSWORD:+--requirepass ${REDIS_PASSWORD}}
+    volumes:
+      - redis-data:/data
+    networks:
+      - openmonitor-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # ==========================================================================
+  # NGINX Reverse Proxy
+  # ==========================================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: openmonitor-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      - ./docker/nginx/html:/usr/share/nginx/html:ro
+      - ./app/static:/app/app/static:ro
+      - nginx-logs:/var/log/nginx
+      - app-uploads:/app/uploads:ro
+      - app-reports:/app/reports:ro
+    networks:
+      - openmonitor-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # ==========================================================================
+  # Airflow Services
+  # ==========================================================================
+  postgres-airflow:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - postgres-airflow-data:/var/lib/postgresql/data
+    networks:
+      - openmonitor-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+    networks:
+      - openmonitor-network
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+    networks:
+      - openmonitor-network
+
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    restart: always
+    networks:
+      - openmonitor-network
+
+  airflow-triggerer:
+    <<: *airflow-common
+    command: triggerer
+    restart: always
+    networks:
+      - openmonitor-network
+
+  airflow-init:
+    <<: *airflow-common
+    command: version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+    networks:
+      - openmonitor-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  openmonitor-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.45.0.0/16
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  db-core-data:
+    driver: local
+  db-public-data:
+    driver: local
+  redis-data:
+    driver: local
+  app-logs:
+    driver: local
+  app-uploads:
+    driver: local
+  app-reports:
+    driver: local
+  nginx-logs:
+    driver: local
+  postgres-airflow-data:
+    driver: local

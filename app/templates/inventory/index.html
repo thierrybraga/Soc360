@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Asset Inventory - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4" data-page="inventory">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1 text-white">Asset Inventory</h1>
+            <p class="text-muted mb-0">Manage your infrastructure assets and track vulnerabilities</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-outline-secondary btn-sm" id="scan-all-btn">
+                <i class="fas fa-search"></i> Scan All
+            </button>
+            <a href="{{ url_for('inventory.create') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> Add Asset
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-4 mb-4">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon primary">
+                    <i class="fas fa-server"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-total-assets"></span>
+                    <span class="stat-label">Total Assets</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-critical-vulns"></span>
+                    <span class="stat-label">Critical Vulns</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon warning">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-pending"></span>
+                    <span class="stat-label">Pending Review</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon success">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-mitigated"></span>
+                    <span class="stat-label">Mitigated</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label">Search</label>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" id="asset-search" class="form-control" placeholder="Search assets...">
+                    </div>
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label class="form-label">Type</label>
+                    <select id="asset-type" class="form-select">
+                        <option value="">All Types</option>
+                        <option value="SERVER">Server</option>
+                        <option value="WORKSTATION">Workstation</option>
+                        <option value="NETWORK_DEVICE">Network Device</option>
+                        <option value="APPLICATION">Application</option>
+                        <option value="DATABASE">Database</option>
+                        <option value="CLOUD_SERVICE">Cloud Resource</option>
+                        <option value="CONTAINER">Container</option>
+                        <option value="IOT_DEVICE">IoT Device</option>
+                        <option value="MOBILE_DEVICE">Mobile Device</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label class="form-label">Criticality</label>
+                    <select id="asset-criticality" class="form-select">
+                        <option value="">All</option>
+                        <option value="CRITICAL">Critical</option>
+                        <option value="HIGH">High</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="LOW">Low</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label class="form-label">Status</label>
+                    <select id="asset-status" class="form-select">
+                        <option value="">All</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Inactive</option>
+                        <option value="MAINTENANCE">Maintenance</option>
+                        <option value="DECOMMISSIONED">Decommissioned</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto ms-auto">
+                    <button class="btn btn-ghost w-100" id="clear-filters-btn">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assets Table -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title mb-0"><i class="fas fa-list"></i> Assets List</h3>
+            <div class="d-flex align-items-center gap-2">
+                <label class="text-muted text-sm mb-0">Per page:</label>
+                <select id="per-page-select" class="form-select form-select-sm" style="width: auto;">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-container">
+            <div class="table-loading" id="table-loading" style="display: none;">
+                <div class="spinner"></div>
+                <span>Loading assets...</span>
+            </div>
+            
+            <table class="table table-hover" id="assets-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-sort="name">
+                            Name <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-sort="type">
+                            Type <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-sort="criticality">
+                            Criticality <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-sort="vuln_count">
+                            Vulnerabilities <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th class="sortable" data-sort="risk_score">
+                            Risk Score <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th>Status</th>
+                        <th>Last Scan</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="assets-table-body">
+                    <!-- Dynamic content -->
+                </tbody>
+            </table>
+            
+            <div class="empty-state" id="empty-state" style="display: none;">
+                <div class="empty-state-icon">
+                    <i class="fas fa-server"></i>
+                </div>
+                <h5 class="empty-state-title">No Assets Found</h5>
+                <p class="empty-state-text">Add your first asset to start tracking vulnerabilities</p>
+                <a href="{{ url_for('inventory.create') }}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> Add Asset
+                </a>
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <div class="pagination-info" id="pagination-info"></div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Asset Detail Modal -->
+<div class="modal fade" id="asset-detail-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detail-modal-title">Asset Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="detail-modal-content">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/inventory/index.js') }}"></script>
+{% endblock %}

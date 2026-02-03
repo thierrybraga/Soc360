@@ -1,0 +1,891 @@
+/**
+ * Open-Monitor v3.0 - Main Application JavaScript
+ * Global utilities, API client, and UI components
+ */
+
+'use strict';
+
+// =============================================================================
+// APPLICATION NAMESPACE
+// =============================================================================
+
+window.OpenMonitor = window.OpenMonitor || {};
+
+// =============================================================================
+// CONFIGURATION
+// =============================================================================
+
+OpenMonitor.config = {
+    apiBaseUrl: '',
+    csrfToken: document.querySelector('meta[name="csrf-token"]')?.content,
+    defaultTimeout: 30000,
+    toastDuration: 5000,
+    dateFormat: 'YYYY-MM-DD',
+    dateTimeFormat: 'YYYY-MM-DD HH:mm:ss'
+};
+
+// =============================================================================
+// API CLIENT
+// =============================================================================
+
+OpenMonitor.api = {
+    /**
+     * Generic request method
+     */
+    async request(endpoint, options = {}) {
+        const url = `${OpenMonitor.config.apiBaseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+        
+        const defaultHeaders = {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': OpenMonitor.config.csrfToken
+        };
+
+        const config = {
+            ...options,
+            headers: {
+                ...defaultHeaders,
+                ...options.headers
+            }
+        };
+
+        try {
+            const response = await fetch(url, config);
+            
+            // Handle 401 Unauthorized (redirect to login)
+            if (response.status === 401) {
+                window.location.href = '/auth/login';
+                return;
+            }
+
+            // Handle different response types
+            if (options.responseType === 'blob') {
+                if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+                return await response.blob();
+            }
+            
+            if (options.responseType === 'text') {
+                if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
+                return await response.text();
+            }
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(data.error || data.message || `Request failed with status ${response.status}`);
+            }
+
+            return data;
+        } catch (error) {
+            console.error(`API Error (${endpoint}):`, error);
+            throw error;
+        }
+    },
+
+    get(endpoint, params = {}, options = {}) {
+        const queryString = OpenMonitor.utils.buildQueryString(params);
+        const url = queryString ? `${endpoint}?${queryString}` : endpoint;
+        return this.request(url, { method: 'GET', ...options });
+    },
+
+    post(endpoint, body = {}) {
+        return this.request(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(body)
+        });
+    },
+
+    put(endpoint, body = {}) {
+        return this.request(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(body)
+        });
+    },
+
+    delete(endpoint) {
+        return this.request(endpoint, { method: 'DELETE' });
+    }
+};
+
+// =============================================================================
+// UTILITIES
+// =============================================================================
+
+OpenMonitor.utils = {
+    /**
+     * Debounce function execution
+     */
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    },
+
+    /**
+     * Throttle function execution
+     */
+    throttle(func, limit) {
+        let inThrottle;
+        return function executedFunction(...args) {
+            if (!inThrottle) {
+                func(...args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
+    },
+
+    /**
+     * Format date to locale string
+     */
+    formatDate(dateString, options = {}) {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('pt-BR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            ...options
+        });
+    },
+
+    /**
+     * Format datetime to locale string
+     */
+    formatDateTime(dateString, options = {}) {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return date.toLocaleString('pt-BR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            ...options
+        });
+    },
+
+    /**
+     * Format relative time (e.g., "2 hours ago")
+     */
+    formatRelativeTime(dateString) {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 1) return 'just now';
+        if (diffMins < 60) return `${diffMins} min ago`;
+        if (diffHours < 24) return `${diffHours} hours ago`;
+        if (diffDays < 7) return `${diffDays} days ago`;
+        return this.formatDate(dateString);
+    },
+
+    /**
+     * Format number with thousand separators
+     */
+    formatNumber(num) {
+        if (num === null || num === undefined) return '0';
+        return num.toLocaleString('pt-BR');
+    },
+
+    /**
+     * Escape HTML entities
+     */
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    },
+
+    /**
+     * Parse query string to object
+     */
+    parseQueryString(queryString) {
+        const params = new URLSearchParams(queryString);
+        const result = {};
+        for (const [key, value] of params) {
+            result[key] = value;
+        }
+        return result;
+    },
+
+    /**
+     * Build query string from object
+     */
+    buildQueryString(params) {
+        return Object.entries(params)
+            .filter(([_, v]) => v !== null && v !== undefined && v !== '')
+            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+            .join('&');
+    },
+
+    /**
+     * Copy text to clipboard
+     */
+    async copyToClipboard(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (err) {
+            console.error('Failed to copy:', err);
+            return false;
+        }
+    },
+
+    /**
+     * Get severity color class
+     */
+    getSeverityClass(severity) {
+        const classes = {
+            'CRITICAL': 'badge-critical',
+            'HIGH': 'badge-high',
+            'MEDIUM': 'badge-medium',
+            'LOW': 'badge-low',
+            'NONE': 'badge-none'
+        };
+        return classes[severity?.toUpperCase()] || 'badge-none';
+    },
+
+    /**
+     * Get severity color
+     */
+    getSeverityColor(severity) {
+        const colors = {
+            'CRITICAL': '#8b0000',
+            'HIGH': '#ef4444',
+            'MEDIUM': '#eab308',
+            'LOW': '#22c55e',
+            'NONE': '#6b7280'
+        };
+        return colors[severity?.toUpperCase()] || colors.NONE;
+    },
+
+    /**
+     * Calculate CVSS severity from score
+     */
+    getCvssSeverity(score) {
+        if (score >= 9.0) return 'CRITICAL';
+        if (score >= 7.0) return 'HIGH';
+        if (score >= 4.0) return 'MEDIUM';
+        if (score > 0) return 'LOW';
+        return 'NONE';
+    },
+
+    /**
+     * Generate unique ID
+     */
+    generateId() {
+        return `om_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+};
+
+// =============================================================================
+// UI COMPONENTS
+// =============================================================================
+
+OpenMonitor.ui = {
+    /**
+     * Show toast notification
+     */
+    toast(message, type = 'info', duration = OpenMonitor.config.toastDuration) {
+        const container = document.querySelector('.toast-container') || this.createToastContainer();
+        
+        const icons = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            warning: 'fa-exclamation-triangle',
+            info: 'fa-info-circle'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <i class="toast-icon fas ${icons[type]}"></i>
+            <div class="toast-content">
+                <div class="toast-message">${OpenMonitor.utils.escapeHtml(message)}</div>
+            </div>
+            <button class="toast-close">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+
+        // Bind close event
+        toast.querySelector('.toast-close').addEventListener('click', function() {
+            this.parentElement.remove();
+        });
+
+        container.appendChild(toast);
+
+        if (duration > 0) {
+            setTimeout(() => {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
+        return toast;
+    },
+
+    /**
+     * Create toast container if not exists
+     */
+    createToastContainer() {
+        const container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+        return container;
+    },
+
+    /**
+     * Show loading overlay
+     */
+    showLoading(message = 'Loading...') {
+        let overlay = document.querySelector('.loading-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'loading-overlay';
+            overlay.innerHTML = `
+                <div class="spinner"></div>
+                <span class="loading-text">${OpenMonitor.utils.escapeHtml(message)}</span>
+            `;
+            document.body.appendChild(overlay);
+        } else {
+            overlay.querySelector('.loading-text').textContent = message;
+            overlay.style.display = 'flex';
+        }
+        return overlay;
+    },
+
+    /**
+     * Hide loading overlay
+     */
+    hideLoading() {
+        const overlay = document.querySelector('.loading-overlay');
+        if (overlay) {
+            overlay.style.display = 'none';
+        }
+    },
+
+    /**
+     * Show confirmation dialog
+     */
+    async confirm(message, options = {}) {
+        return new Promise((resolve) => {
+            const modal = document.createElement('div');
+            modal.className = 'modal show';
+            modal.innerHTML = `
+                <div class="modal-header">
+                    <h3 class="modal-title">
+                        <i class="fas ${options.icon || 'fa-question-circle'}"></i>
+                        ${options.title || 'Confirm'}
+                    </h3>
+                </div>
+                <div class="modal-body">
+                    <p>${OpenMonitor.utils.escapeHtml(message)}</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-action="cancel">
+                        ${options.cancelText || 'Cancel'}
+                    </button>
+                    <button class="btn ${options.confirmClass || 'btn-primary'}" data-action="confirm">
+                        ${options.confirmText || 'Confirm'}
+                    </button>
+                </div>
+            `;
+
+            const backdrop = document.createElement('div');
+            backdrop.className = 'modal-backdrop show';
+
+            document.body.appendChild(backdrop);
+            document.body.appendChild(modal);
+
+            const cleanup = () => {
+                modal.classList.remove('show');
+                backdrop.classList.remove('show');
+                setTimeout(() => {
+                    modal.remove();
+                    backdrop.remove();
+                }, 200);
+            };
+
+            modal.querySelector('[data-action="cancel"]').addEventListener('click', () => {
+                cleanup();
+                resolve(false);
+            });
+
+            modal.querySelector('[data-action="confirm"]').addEventListener('click', () => {
+                cleanup();
+                resolve(true);
+            });
+
+            backdrop.addEventListener('click', () => {
+                cleanup();
+                resolve(false);
+            });
+        });
+    },
+
+    /**
+     * Initialize modal functionality
+     */
+    initModals() {
+        document.querySelectorAll('[data-modal-toggle]').forEach(trigger => {
+            trigger.addEventListener('click', () => {
+                const modalId = trigger.dataset.modalToggle;
+                const modal = document.getElementById(modalId);
+                const backdrop = document.querySelector('.modal-backdrop') || this.createBackdrop();
+                
+                if (modal) {
+                    modal.classList.toggle('show');
+                    backdrop.classList.toggle('show');
+                }
+            });
+        });
+
+        document.querySelectorAll('.modal-close, [data-modal-close]').forEach(closeBtn => {
+            closeBtn.addEventListener('click', () => {
+                const modal = closeBtn.closest('.modal');
+                const backdrop = document.querySelector('.modal-backdrop');
+                
+                if (modal) modal.classList.remove('show');
+                if (backdrop) backdrop.classList.remove('show');
+            });
+        });
+    },
+
+    /**
+     * Create modal backdrop
+     */
+    createBackdrop() {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop';
+        document.body.appendChild(backdrop);
+        return backdrop;
+    },
+
+    /**
+     * Initialize dropdown menus
+     */
+    initDropdowns() {
+        document.querySelectorAll('.dropdown').forEach(dropdown => {
+            const toggle = dropdown.querySelector('.dropdown-toggle, [data-dropdown-toggle]');
+            const menu = dropdown.querySelector('.dropdown-menu');
+
+            if (toggle && menu) {
+                toggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    // Close other dropdowns
+                    document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+                        if (m !== menu) m.classList.remove('show');
+                    });
+                    menu.classList.toggle('show');
+                });
+            }
+        });
+
+        // Close dropdowns on outside click
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+                menu.classList.remove('show');
+            });
+        });
+    },
+
+    /**
+     * Initialize tabs
+     */
+    initTabs() {
+        document.querySelectorAll('.tabs').forEach(tabContainer => {
+            const tabs = tabContainer.querySelectorAll('.tab');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const targetId = tab.dataset.tab;
+                    
+                    // Update active tab
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    // Update active content
+                    const contentContainer = tabContainer.nextElementSibling;
+                    if (contentContainer) {
+                        contentContainer.querySelectorAll('.tab-content').forEach(content => {
+                            content.classList.toggle('active', content.id === targetId);
+                        });
+                    }
+                });
+            });
+        });
+    },
+
+    /**
+     * Initialize tooltips
+     */
+    initTooltips() {
+        // Tooltips are CSS-only via [data-tooltip] attribute
+    },
+
+    /**
+     * Initialize global keyboard shortcuts
+     */
+    initShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Search shortcut (Ctrl+K or Cmd+K)
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                const searchInput = document.getElementById('globalSearch');
+                if (searchInput) {
+                    searchInput.focus();
+                }
+            }
+        });
+    },
+
+    /**
+     * Set button loading state
+     */
+    setButtonLoading(button, loading) {
+        if (loading) {
+            button.disabled = true;
+            button.dataset.originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+        } else {
+            button.disabled = false;
+            button.innerHTML = button.dataset.originalText || button.innerHTML;
+        }
+    }
+};
+
+// =============================================================================
+// FORM UTILITIES
+// =============================================================================
+
+OpenMonitor.forms = {
+    /**
+     * Serialize form to object
+     */
+    serialize(form) {
+        const formData = new FormData(form);
+        const data = {};
+        
+        for (const [key, value] of formData.entries()) {
+            if (data[key]) {
+                if (!Array.isArray(data[key])) {
+                    data[key] = [data[key]];
+                }
+                data[key].push(value);
+            } else {
+                data[key] = value;
+            }
+        }
+        
+        return data;
+    },
+
+    /**
+     * Validate form
+     */
+    validate(form) {
+        const inputs = form.querySelectorAll('[required]');
+        let isValid = true;
+        
+        inputs.forEach(input => {
+            if (!input.value.trim()) {
+                this.showError(input, 'This field is required');
+                isValid = false;
+            } else {
+                this.clearError(input);
+            }
+        });
+        
+        return isValid;
+    },
+
+    /**
+     * Show field error
+     */
+    showError(input, message) {
+        input.classList.add('error');
+        const group = input.closest('.form-group');
+        if (group) {
+            let errorEl = group.querySelector('.form-error');
+            if (!errorEl) {
+                errorEl = document.createElement('div');
+                errorEl.className = 'form-error';
+                group.appendChild(errorEl);
+            }
+            errorEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+        }
+    },
+
+    /**
+     * Clear field error
+     */
+    clearError(input) {
+        input.classList.remove('error');
+        const group = input.closest('.form-group');
+        if (group) {
+            const errorEl = group.querySelector('.form-error');
+            if (errorEl) errorEl.remove();
+        }
+    },
+
+    /**
+     * Clear all form errors
+     */
+    clearAllErrors(form) {
+        form.querySelectorAll('.error').forEach(el => el.classList.remove('error'));
+        form.querySelectorAll('.form-error').forEach(el => el.remove());
+    }
+};
+
+// =============================================================================
+// THEME MANAGER
+// =============================================================================
+
+OpenMonitor.theme = {
+    /**
+     * Initialize theme from localStorage
+     */
+    init() {
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        this.set(savedTheme);
+        
+        // Listen for toggle button
+        const toggleBtn = document.querySelector('[data-theme-toggle]');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => this.toggle());
+        }
+    },
+
+    /**
+     * Set theme
+     */
+    set(theme) {
+        document.documentElement.dataset.theme = theme;
+        localStorage.setItem('theme', theme);
+        
+        // Update toggle button icon
+        const toggleBtn = document.querySelector('[data-theme-toggle]');
+        if (toggleBtn) {
+            const icon = toggleBtn.querySelector('i');
+            if (icon) {
+                icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            }
+        }
+    },
+
+    /**
+     * Toggle theme
+     */
+    toggle() {
+        const current = document.documentElement.dataset.theme || 'dark';
+        this.set(current === 'dark' ? 'light' : 'dark');
+    },
+
+    /**
+     * Get current theme
+     */
+    get() {
+        return document.documentElement.dataset.theme || 'dark';
+    }
+};
+
+// =============================================================================
+// SIDEBAR MANAGER
+// =============================================================================
+
+OpenMonitor.sidebar = {
+    /**
+     * Initialize sidebar
+     */
+    init() {
+        const menuToggle = document.querySelector('.menu-toggle');
+        const sidebar = document.querySelector('.sidebar');
+        
+        if (menuToggle && sidebar) {
+            menuToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+            });
+            
+            // Close on outside click (mobile)
+            document.addEventListener('click', (e) => {
+                if (window.innerWidth <= 1024 && 
+                    !sidebar.contains(e.target) && 
+                    !menuToggle.contains(e.target)) {
+                    sidebar.classList.remove('open');
+                }
+            });
+        }
+
+        // Set active nav item
+        this.setActiveNav();
+    },
+
+    /**
+     * Set active navigation item based on current URL
+     */
+    setActiveNav() {
+        const currentPath = window.location.pathname;
+        document.querySelectorAll('.nav-item').forEach(item => {
+            const href = item.getAttribute('href');
+            if (href && currentPath.startsWith(href)) {
+                item.classList.add('active');
+            }
+        });
+    }
+};
+
+// =============================================================================
+// GLOBAL SEARCH
+// =============================================================================
+
+OpenMonitor.search = {
+    /**
+     * Initialize global event listeners
+     */
+    initGlobalListeners() {
+        // Go back button
+        document.body.addEventListener('click', (e) => {
+            const btn = e.target.closest('#go-back-btn, .js-go-back');
+            if (btn) {
+                e.preventDefault();
+                window.history.back();
+            }
+        });
+    },
+
+    /**
+     * Initialize global search
+     */
+    init() {
+        this.initGlobalListeners();
+
+        const searchInput = document.querySelector('.search-box input');
+        if (!searchInput) return;
+
+        const debouncedSearch = OpenMonitor.utils.debounce((query) => {
+            if (query.length >= 3) {
+                this.performSearch(query);
+            }
+        }, 300);
+
+        searchInput.addEventListener('input', (e) => {
+            debouncedSearch(e.target.value);
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const query = e.target.value.trim();
+                if (query) {
+                    window.location.href = `/vulnerabilities?search=${encodeURIComponent(query)}`;
+                }
+            }
+        });
+    },
+
+    /**
+     * Perform search (could show dropdown results)
+     */
+    async performSearch(query) {
+        try {
+            const results = await OpenMonitor.api.get('/vulnerabilities/api/search', { q: query, limit: 5 });
+            // Could show dropdown with results here
+            console.log('Search results:', results);
+        } catch (error) {
+            console.error('Search error:', error);
+        }
+    }
+};
+
+// =============================================================================
+// INITIALIZATION
+// =============================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize theme
+    OpenMonitor.theme.init();
+    
+    // Initialize sidebar
+    OpenMonitor.sidebar.init();
+    
+    // Initialize UI components
+    OpenMonitor.ui.initModals();
+    OpenMonitor.ui.initDropdowns();
+    OpenMonitor.ui.initTabs();
+    OpenMonitor.ui.initTooltips();
+    OpenMonitor.ui.initShortcuts();
+    
+    // Global "Go Back" button handler
+    document.addEventListener('click', (e) => {
+        const goBackBtn = e.target.closest('#go-back-btn, .js-go-back');
+        if (goBackBtn) {
+            e.preventDefault();
+            window.history.back();
+        }
+    });
+    
+    // Initialize global search
+    OpenMonitor.search.init();
+    
+    // Handle flash messages auto-dismiss
+    document.querySelectorAll('.flash-message').forEach(flash => {
+        setTimeout(() => {
+            flash.style.opacity = '0';
+            setTimeout(() => flash.remove(), 300);
+        }, 5000);
+    });
+
+    // Handle AJAX form submissions
+    document.querySelectorAll('form[data-ajax]').forEach(form => {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!OpenMonitor.forms.validate(form)) return;
+            
+            const submitBtn = form.querySelector('[type="submit"]');
+            OpenMonitor.ui.setButtonLoading(submitBtn, true);
+            
+            try {
+                const data = OpenMonitor.forms.serialize(form);
+                const method = form.method?.toUpperCase() || 'POST';
+                const action = form.action || window.location.href;
+                
+                const response = await OpenMonitor.api.request(action, {
+                    method,
+                    body: data
+                });
+                
+                if (response.redirect) {
+                    window.location.href = response.redirect;
+                } else {
+                    OpenMonitor.ui.toast(response.message || 'Success!', 'success');
+                    if (form.dataset.reset !== 'false') {
+                        form.reset();
+                    }
+                }
+            } catch (error) {
+                OpenMonitor.ui.toast(error.message || 'An error occurred', 'error');
+            } finally {
+                OpenMonitor.ui.setButtonLoading(submitBtn, false);
+            }
+        });
+    });
+
+    console.log('Open-Monitor v3.0 initialized');
+});
+
+// Export for module usage
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = OpenMonitor;
+}

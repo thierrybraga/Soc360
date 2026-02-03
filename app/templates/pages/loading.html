@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Sincronizando... - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="container h-100">
+    <div class="row h-100 justify-content-center align-items-center">
+        <div class="col-md-6 text-center">
+            <h2 class="mb-4">Inicializando Sistema</h2>
+            <div class="spinner-border text-primary mb-4" role="status" style="width: 3rem; height: 3rem;">
+                <span class="sr-only">Carregando...</span>
+            </div>
+            <p class="lead">Por favor aguarde enquanto sincronizamos a base de dados do NVD.</p>
+            <p class="text-muted">Isso pode levar alguns minutos na primeira execução.</p>
+            
+            <div id="sync-status" class="mt-4">
+                <div class="progress mb-2">
+                    <div id="sync-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                </div>
+                <small id="sync-message" class="text-muted">Iniciando...</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+{{ super() }}
+<script nonce="{{ csp_nonce() }}">
+    // Polling for sync status
+    function checkSyncStatus() {
+        fetch('/vulnerabilities/api/sync/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed' || data.status === 'idle') {
+                    window.location.href = "{{ url_for('core.dashboard') }}";
+                } else {
+                    const current = data.processed_cves || 0;
+                    const total = data.total_cves || 1;
+                    const progress = (current / total) * 100;
+                    
+                    document.getElementById('sync-progress-bar').style.width = progress + '%';
+                    document.getElementById('sync-message').innerText = `Processando: ${current} / ${total}`;
+                    setTimeout(checkSyncStatus, 2000);
+                }
+            })
+            .catch(err => {
+                console.error('Error checking sync status:', err);
+                setTimeout(checkSyncStatus, 5000);
+            });
+    }
+    
+    // Start polling
+    checkSyncStatus();
+</script>
+{% endblock %}
+
+{% endblock %}

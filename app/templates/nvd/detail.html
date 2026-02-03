@@ -1,0 +1,979 @@
+{% extends "base.html" %}
+
+{% block title %}{{ vulnerability.cve_id }} - Vulnerability Report{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-header {
+        border-left: 4px solid var(--severity-color, var(--gray-500));
+        padding-left: 1.5rem;
+    }
+    .severity-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+    .score-ring {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 700;
+        border: 4px solid;
+    }
+    .score-ring.critical { border-color: var(--critical); color: var(--critical); }
+    .score-ring.high { border-color: var(--high); color: var(--high); }
+    .score-ring.medium { border-color: var(--medium); color: var(--medium); }
+    .score-ring.low { border-color: var(--low); color: var(--low); }
+    .score-ring.none { border-color: var(--gray-500); color: var(--gray-500); }
+
+    .metric-cell {
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        background: var(--bg-tertiary);
+        text-align: center;
+    }
+    .metric-cell .label { font-size: 0.7rem; text-transform: uppercase; color: var(--gray-400); letter-spacing: 0.05em; }
+    .metric-cell .value { font-weight: 600; font-size: 0.85rem; }
+
+    .section-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--gray-400);
+        border-bottom: 1px solid var(--gray-700);
+        padding-bottom: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .section-title i { margin-right: 0.5rem; }
+
+    .cwe-card {
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        padding: 1rem;
+        border-left: 3px solid var(--primary-500);
+    }
+
+    .ref-item {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--gray-800);
+    }
+    .ref-item:last-child { border-bottom: none; }
+    .ref-tag { font-size: 0.65rem; padding: 2px 6px; border-radius: 3px; }
+
+    .asset-status-badge {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-left: 2rem;
+        padding-bottom: 1rem;
+    }
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: 7px;
+        top: 6px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--primary-500);
+        border: 2px solid var(--bg-secondary);
+    }
+    .timeline-item::after {
+        content: '';
+        position: absolute;
+        left: 11px;
+        top: 18px;
+        width: 2px;
+        height: calc(100% - 12px);
+        background: var(--gray-700);
+    }
+    .timeline-item:last-child::after { display: none; }
+
+    .kev-alert {
+        background: rgba(239, 68, 68, 0.08);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+    }
+
+    .vector-component {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-family: monospace;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--gray-700);
+    }
+    .vector-component.dangerous { border-color: var(--critical); color: var(--critical); }
+    .vector-component.moderate { border-color: var(--medium); color: var(--medium); }
+    .vector-component.safe { border-color: var(--low); color: var(--low); }
+
+    @media print {
+        .sidebar, .topbar, .no-print { display: none !important; }
+        .main-content { margin: 0 !important; padding: 0 !important; }
+        body { background: white; color: black; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set sev = vulnerability.base_severity or 'NONE' %}
+{% set sev_lower = sev|lower %}
+{% set sev_class = 'danger' if sev == 'CRITICAL' else 'warning' if sev == 'HIGH' else 'info' if sev == 'MEDIUM' else 'success' if sev == 'LOW' else 'secondary' %}
+
+<div class="container-fluid p-4" data-page="nvd-detail">
+
+    <!-- Breadcrumb & Actions -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0 small">
+                <li class="breadcrumb-item"><a href="{{ url_for('nvd.index') }}" class="text-muted text-decoration-none">Vulnerabilities</a></li>
+                <li class="breadcrumb-item active text-white">{{ vulnerability.cve_id }}</li>
+            </ol>
+        </nav>
+        <div class="d-flex gap-2">
+            <a href="https://nvd.nist.gov/vuln/detail/{{ vulnerability.cve_id }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-external-link-alt"></i> NVD
+            </a>
+            <a href="https://www.cve.org/CVERecord?id={{ vulnerability.cve_id }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-external-link-alt"></i> MITRE
+            </a>
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <a href="{{ url_for('nvd.index') }}" class="btn btn-ghost btn-sm text-muted">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION 1: REPORT HEADER -->
+    <!-- ============================================================ -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-start">
+                <!-- Left: CVE Info -->
+                <div class="col-lg-9">
+                    <div class="report-header" style="--severity-color: var(--{{ sev_lower }}, var(--gray-500));">
+                        <div class="d-flex align-items-center gap-3 mb-2">
+                            <h2 class="mb-0 text-white">{{ vulnerability.cve_id }}</h2>
+                            <span class="badge bg-{{ sev_class }} fs-6">{{ sev }}</span>
+                            {% if vulnerability.vuln_status %}
+                            <span class="badge bg-dark border border-secondary">{{ vulnerability.vuln_status }}</span>
+                            {% endif %}
+                            {% if vulnerability.is_in_cisa_kev %}
+                            <span class="badge bg-danger"><i class="fas fa-exclamation-triangle me-1"></i>CISA KEV</span>
+                            {% endif %}
+                            {% if vulnerability.exploit_available %}
+                            <span class="badge bg-warning text-dark"><i class="fas fa-skull-crossbones me-1"></i>Exploit Available</span>
+                            {% endif %}
+                            {% if vulnerability.patch_available %}
+                            <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Patch Available</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-secondary mb-0 mt-3" style="line-height: 1.7;">{{ vulnerability.description or 'No description available.' }}</p>
+                    </div>
+                </div>
+
+                <!-- Right: Score Ring -->
+                <div class="col-lg-3 text-center mt-3 mt-lg-0">
+                    <div class="d-flex flex-column align-items-center">
+                        <div class="score-ring {{ sev_lower }}">
+                            {{ '%.1f'|format(vulnerability.cvss_score) if vulnerability.cvss_score else 'N/A' }}
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-muted small">CVSS {{ vulnerability.cvss_version or '' }}</span>
+                        </div>
+                        {% if vulnerability.cvss_vector_string %}
+                        <code class="text-muted small mt-1 d-block text-break" style="max-width: 220px;">{{ vulnerability.cvss_vector_string }}</code>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- CISA KEV ALERT (if applicable) -->
+    <!-- ============================================================ -->
+    {% if vulnerability.is_in_cisa_kev %}
+    <div class="kev-alert mb-4">
+        <div class="d-flex align-items-start gap-3">
+            <i class="fas fa-shield-virus text-danger fa-2x mt-1"></i>
+            <div class="flex-grow-1">
+                <h6 class="text-danger fw-bold mb-2">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    CISA Known Exploited Vulnerability (KEV)
+                </h6>
+                <div class="row g-3">
+                    {% if vulnerability.cisa_required_action %}
+                    <div class="col-12">
+                        <span class="text-muted small d-block mb-1">Required Action</span>
+                        <span class="text-white">{{ vulnerability.cisa_required_action }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="col-md-4">
+                        <span class="text-muted small d-block mb-1">Date Added to KEV</span>
+                        <span class="text-white">{{ vulnerability.cisa_exploit_add.strftime('%d/%m/%Y') if vulnerability.cisa_exploit_add else 'N/A' }}</span>
+                    </div>
+                    <div class="col-md-4">
+                        <span class="text-muted small d-block mb-1">Action Due Date</span>
+                        <span class="{{ 'text-danger fw-bold' if vulnerability.requires_immediate_action else 'text-white' }}">
+                            {{ vulnerability.cisa_action_due.strftime('%d/%m/%Y') if vulnerability.cisa_action_due else 'N/A' }}
+                            {% if vulnerability.requires_immediate_action %}
+                            <i class="fas fa-clock ms-1"></i> OVERDUE
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% if vulnerability.cisa_notes %}
+                    <div class="col-12">
+                        <span class="text-muted small d-block mb-1">Notes</span>
+                        <span class="text-secondary small">{{ vulnerability.cisa_notes }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ============================================================ -->
+    <!-- SECTION 2: KEY DETAILS GRID -->
+    <!-- ============================================================ -->
+    <div class="row g-4 mb-4">
+        <!-- Timeline Card -->
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="section-title"><i class="fas fa-clock"></i>Timeline</h6>
+                    <div class="timeline-item">
+                        <div class="small text-muted">Published</div>
+                        <div class="fw-medium text-white">{{ vulnerability.published_date.strftime('%d %b %Y, %H:%M UTC') if vulnerability.published_date else 'N/A' }}</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="small text-muted">Last Modified</div>
+                        <div class="fw-medium text-white">{{ vulnerability.last_modified_date.strftime('%d %b %Y, %H:%M UTC') if vulnerability.last_modified_date else 'N/A' }}</div>
+                    </div>
+                    {% if vulnerability.is_in_cisa_kev %}
+                    <div class="timeline-item">
+                        <div class="small text-muted">Added to CISA KEV</div>
+                        <div class="fw-medium text-danger">{{ vulnerability.cisa_exploit_add.strftime('%d %b %Y') if vulnerability.cisa_exploit_add else 'N/A' }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="timeline-item">
+                        <div class="small text-muted">Age</div>
+                        <div class="fw-medium text-white">{{ vulnerability.age_days }} days</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Exploit & Patch Status -->
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="section-title"><i class="fas fa-crosshairs"></i>Threat Intelligence</h6>
+                    <table class="table table-sm table-borderless mb-0">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted" style="width: 50%;">Exploit Available</td>
+                                <td>
+                                    {% if vulnerability.exploit_available %}
+                                    <span class="text-danger fw-bold"><i class="fas fa-check-circle"></i> Yes</span>
+                                    {% else %}
+                                    <span class="text-success"><i class="fas fa-times-circle"></i> No</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% if vulnerability.exploit_maturity %}
+                            <tr>
+                                <td class="text-muted">Exploit Maturity</td>
+                                <td class="text-white">{{ vulnerability.exploit_maturity }}</td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <td class="text-muted">Patch Available</td>
+                                <td>
+                                    {% if vulnerability.patch_available %}
+                                    <span class="text-success fw-bold"><i class="fas fa-check-circle"></i> Yes</span>
+                                    {% else %}
+                                    <span class="text-warning"><i class="fas fa-times-circle"></i> No</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">CISA KEV</td>
+                                <td>
+                                    {% if vulnerability.is_in_cisa_kev %}
+                                    <span class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> Yes</span>
+                                    {% else %}
+                                    <span class="text-muted"><i class="fas fa-minus-circle"></i> No</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">NVD Status</td>
+                                <td class="text-white">{{ vulnerability.vuln_status or 'N/A' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Affected Vendors/Products Summary -->
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="section-title"><i class="fas fa-boxes"></i>Affected Software</h6>
+                    {% if vulnerability.vendors %}
+                    <div class="mb-3">
+                        <span class="text-muted small d-block mb-2">Vendors</span>
+                        <div class="d-flex flex-wrap gap-1">
+                            {% for vendor in vulnerability.vendors %}
+                            <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ vendor }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% if vulnerability.products %}
+                    <div>
+                        <span class="text-muted small d-block mb-2">Products</span>
+                        <div class="d-flex flex-wrap gap-1">
+                            {% for product in vulnerability.products[:10] %}
+                            <span class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25">{{ product }}</span>
+                            {% endfor %}
+                            {% if vulnerability.products|length > 10 %}
+                            <span class="badge bg-dark text-muted border">+{{ vulnerability.products|length - 10 }} more</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted small mb-0">No vendor/product data available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION 3: MITRE ENRICHMENT -->
+    <!-- ============================================================ -->
+    <div class="row g-4 mb-4">
+        <!-- Credits Section (New) -->
+        <div class="col-12">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="section-title mb-0"><i class="fas fa-award"></i>Credits</h6>
+                        <span class="badge bg-dark border border-secondary text-secondary">{{ credits|length }}</span>
+                    </div>
+                    {% if credits %}
+                    <ul class="list-unstyled mb-0">
+                        {% for credit in credits %}
+                        <li class="{% if not loop.last %}mb-3 pb-3 border-bottom border-secondary border-opacity-25{% else %}mb-0{% endif %}">
+                            <div class="fw-medium text-white">{{ credit.value }}</div>
+                            <div class="d-flex gap-2 mt-1 flex-wrap">
+                                {% if credit.type %}
+                                <span class="badge bg-dark border border-secondary text-secondary small">{{ credit.type }}</span>
+                                {% endif %}
+                                {% if credit.user %}
+                                <span class="text-muted small"><i class="fas fa-user me-1"></i>{{ credit.user }}</span>
+                                {% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted small mb-0">No credits recorded.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- ============================================================ -->
+    <!-- SECTION 4: REFERENCES & METRICS -->
+    <!-- ============================================================ -->
+
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h6 class="section-title"><i class="fas fa-chart-bar"></i>CVSS Metrics</h6>
+
+            {% if cvss_metrics %}
+            {% for metric in cvss_metrics %}
+            <div class="{% if not loop.first %}mt-4 pt-4 border-top border-secondary border-opacity-25{% endif %}">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <span class="badge bg-{{ sev_class }} fs-6">{{ metric.base_score }}</span>
+                    <div>
+                        <span class="text-white fw-bold">CVSS v{{ metric.version }}</span>
+                        <span class="text-muted ms-2">{{ metric.base_severity }}</span>
+                    </div>
+                    <span class="text-muted small ms-auto">
+                        <i class="fas fa-building me-1"></i>{{ metric.source or 'N/A' }}
+                        {% if metric.type %}<span class="badge bg-dark border border-secondary ms-2">{{ metric.type }}</span>{% endif %}
+                    </span>
+                </div>
+
+                {% if metric.vector_string %}
+                <div class="mb-3">
+                    <code class="text-muted small bg-dark px-2 py-1 rounded d-inline-block">{{ metric.vector_string }}</code>
+                </div>
+                {% endif %}
+
+                <!-- Scores Row -->
+                <div class="row g-2 mb-3">
+                    <div class="col-auto">
+                        <div class="metric-cell">
+                            <div class="label">Base Score</div>
+                            <div class="value text-white">{{ metric.base_score or 'N/A' }}</div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="metric-cell">
+                            <div class="label">Impact</div>
+                            <div class="value text-white">{{ metric.impact_score or 'N/A' }}</div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="metric-cell">
+                            <div class="label">Exploitability</div>
+                            <div class="value text-white">{{ metric.exploitability_score or 'N/A' }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vector Components (CVSS v3.x) -->
+                {% if metric.attack_vector %}
+                <div class="row g-2">
+                    <div class="col-6 col-md-3">
+                        <div class="metric-cell">
+                            <div class="label">Attack Vector</div>
+                            <div class="value {{ 'text-danger' if metric.attack_vector == 'NETWORK' else 'text-warning' if metric.attack_vector in ['ADJACENT_NETWORK', 'ADJACENT'] else 'text-success' }}">{{ metric.attack_vector }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="metric-cell">
+                            <div class="label">Attack Complexity</div>
+                            <div class="value {{ 'text-danger' if metric.attack_complexity == 'LOW' else 'text-success' }}">{{ metric.attack_complexity }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="metric-cell">
+                            <div class="label">Privileges Required</div>
+                            <div class="value {{ 'text-danger' if metric.privileges_required == 'NONE' else 'text-warning' if metric.privileges_required == 'LOW' else 'text-success' }}">{{ metric.privileges_required }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="metric-cell">
+                            <div class="label">User Interaction</div>
+                            <div class="value {{ 'text-danger' if metric.user_interaction == 'NONE' else 'text-success' }}">{{ metric.user_interaction }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="metric-cell">
+                            <div class="label">Scope</div>
+                            <div class="value {{ 'text-danger' if metric.scope == 'CHANGED' else 'text-white' }}">{{ metric.scope }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="metric-cell">
+                            <div class="label">Confidentiality</div>
+                            <div class="value {{ 'text-danger' if metric.confidentiality_impact == 'HIGH' else 'text-warning' if metric.confidentiality_impact == 'LOW' else 'text-success' }}">{{ metric.confidentiality_impact }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="metric-cell">
+                            <div class="label">Integrity</div>
+                            <div class="value {{ 'text-danger' if metric.integrity_impact == 'HIGH' else 'text-warning' if metric.integrity_impact == 'LOW' else 'text-success' }}">{{ metric.integrity_impact }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="metric-cell">
+                            <div class="label">Availability</div>
+                            <div class="value {{ 'text-danger' if metric.availability_impact == 'HIGH' else 'text-warning' if metric.availability_impact == 'LOW' else 'text-success' }}">{{ metric.availability_impact }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- CVSSv2 legacy fields -->
+                {% if metric.version == '2.0' and metric.access_vector %}
+                <div class="row g-2">
+                    <div class="col-6 col-md-4">
+                        <div class="metric-cell">
+                            <div class="label">Access Vector</div>
+                            <div class="value text-white">{{ metric.access_vector }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="metric-cell">
+                            <div class="label">Access Complexity</div>
+                            <div class="value text-white">{{ metric.access_complexity }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <div class="metric-cell">
+                            <div class="label">Authentication</div>
+                            <div class="value text-white">{{ metric.authentication }}</div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted mb-0">No detailed CVSS metrics available.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION 4: WEAKNESSES (CWE) -->
+    <!-- ============================================================ -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h6 class="section-title"><i class="fas fa-bug"></i>Weaknesses (CWE)</h6>
+
+            {% if weaknesses %}
+            <div class="row g-3">
+                {% for weakness in weaknesses %}
+                <div class="col-md-6">
+                    <div class="cwe-card">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <a href="https://cwe.mitre.org/data/definitions/{{ weakness.cwe_id|replace('CWE-', '') }}.html"
+                               target="_blank" rel="noopener"
+                               class="text-primary fw-bold text-decoration-none">
+                                {{ weakness.cwe_id }}
+                                <i class="fas fa-external-link-alt ms-1" style="font-size: 0.7rem;"></i>
+                            </a>
+                            <div class="d-flex gap-2">
+                                {% if weakness.type %}
+                                <span class="badge bg-dark border border-secondary small">{{ weakness.type }}</span>
+                                {% endif %}
+                                {% if weakness.source %}
+                                <span class="text-muted small">{{ weakness.source }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if weakness.name %}
+                        <div class="text-white fw-medium small mb-1">{{ weakness.name }}</div>
+                        {% endif %}
+                        {% if weakness.description %}
+                        <p class="text-secondary small mb-0">{{ weakness.description }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No CWE weaknesses associated.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION 5: AFFECTED SOFTWARE (CPE Configurations) -->
+    <!-- ============================================================ -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h6 class="section-title"><i class="fas fa-sitemap"></i>Affected Software</h6>
+
+            {% if affected_products %}
+            <!-- MITRE Data -->
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-muted small text-uppercase" style="width: 20%;">Vendor</th>
+                            <th class="text-muted small text-uppercase" style="width: 25%;">Product</th>
+                            <th class="text-muted small text-uppercase">Versions/Platforms</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in affected_products %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ item.vendor }}</span>
+                            </td>
+                            <td class="fw-medium text-white">{{ item.product }}</td>
+                            <td>
+                                {% if item.versions %}
+                                <div class="mb-2">
+                                    <span class="text-muted small d-block">Versions:</span>
+                                    {% for ver in item.versions %}
+                                    <span class="badge bg-dark border border-secondary text-secondary small me-1 mb-1">
+                                        {{ ver.version if ver.version is defined else ver }}
+                                        {% if ver.status is defined and ver.status != 'affected' %}
+                                        <span class="text-muted">({{ ver.status }})</span>
+                                        {% endif %}
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                
+                                {% if item.platforms %}
+                                <div>
+                                    <span class="text-muted small d-block">Platforms:</span>
+                                    {% for plat in item.platforms %}
+                                    <span class="badge bg-secondary bg-opacity-25 text-light small me-1">{{ plat }}</span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% elif vulnerability.affected_software_list %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-muted small text-uppercase" style="width: 20%;">Vendor</th>
+                            <th class="text-muted small text-uppercase" style="width: 25%;">Product</th>
+                            <th class="text-muted small text-uppercase">Affected Versions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in vulnerability.affected_software_list %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ item.vendor }}</span>
+                            </td>
+                            <td class="fw-medium text-white">{{ item.product }}</td>
+                            <td>
+                                {% for ver in item.versions %}
+                                <div class="mb-1">
+                                    <i class="fas fa-exclamation-circle text-danger small me-1"></i>
+                                    <span class="text-secondary small">{{ ver.display }}</span>
+                                </div>
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <!-- Fallback: vendor/product summary -->
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <span class="text-muted small d-block mb-2">Vendors</span>
+                    {% if vulnerability.nvd_vendors_data %}
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for vendor in vulnerability.nvd_vendors_data %}
+                        <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ vendor }}</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <span class="text-muted small">No vendor data available.</span>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <span class="text-muted small d-block mb-2">Products</span>
+                    {% if vulnerability.nvd_products_data %}
+                    <div class="d-flex flex-wrap gap-1">
+                        {% for product in vulnerability.nvd_products_data %}
+                        <span class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25">{{ product }}</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <span class="text-muted small">No product data available.</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION 6: REFERENCES & MITIGATIONS -->
+    <!-- ============================================================ -->
+    <div class="row g-4 mb-4">
+        <!-- References -->
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h6 class="section-title"><i class="fas fa-link"></i>References</h6>
+
+                    {% if references %}
+                    <!-- Patches -->
+                    {% if patch_refs %}
+                    <div class="mb-3">
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 mb-2">
+                            <i class="fas fa-band-aid me-1"></i>Patches ({{ patch_refs|length }})
+                        </span>
+                        {% for ref in patch_refs %}
+                        <div class="ref-item">
+                            <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-primary">
+                                <i class="fas fa-external-link-alt me-1" style="font-size: 0.6rem;"></i>
+                                {{ ref.url|truncate(80) }}
+                            </a>
+                            {% if ref.source %}<span class="text-muted small ms-2">{{ ref.source }}</span>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Exploits -->
+                    {% if exploit_refs %}
+                    <div class="mb-3">
+                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 mb-2">
+                            <i class="fas fa-skull-crossbones me-1"></i>Exploits ({{ exploit_refs|length }})
+                        </span>
+                        {% for ref in exploit_refs %}
+                        <div class="ref-item">
+                            <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-danger">
+                                <i class="fas fa-external-link-alt me-1" style="font-size: 0.6rem;"></i>
+                                {{ ref.url|truncate(80) }}
+                            </a>
+                            {% if ref.source %}<span class="text-muted small ms-2">{{ ref.source }}</span>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Vendor Advisories -->
+                    {% if advisory_refs %}
+                    <div class="mb-3">
+                        <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25 mb-2">
+                            <i class="fas fa-building me-1"></i>Vendor Advisories ({{ advisory_refs|length }})
+                        </span>
+                        {% for ref in advisory_refs %}
+                        <div class="ref-item">
+                            <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-info">
+                                <i class="fas fa-external-link-alt me-1" style="font-size: 0.6rem;"></i>
+                                {{ ref.url|truncate(80) }}
+                            </a>
+                            {% if ref.source %}<span class="text-muted small ms-2">{{ ref.source }}</span>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Other References -->
+                    {% if other_refs %}
+                    <div class="mb-0">
+                        <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 mb-2">
+                            <i class="fas fa-bookmark me-1"></i>Other References ({{ other_refs|length }})
+                        </span>
+                        {% for ref in other_refs %}
+                        <div class="ref-item">
+                            <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-secondary">
+                                <i class="fas fa-external-link-alt me-1" style="font-size: 0.6rem;"></i>
+                                {{ ref.url|truncate(80) }}
+                            </a>
+                            {% if ref.tags %}
+                            <div class="mt-1">
+                                {% for tag in ref.tags %}
+                                <span class="ref-tag bg-dark text-muted border border-secondary">{{ tag }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% else %}
+                    <p class="text-muted mb-0">No references found.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Mitigations & Credits -->
+        <div class="col-lg-4">
+            <!-- Mitigations -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="section-title"><i class="fas fa-shield-alt"></i>Mitigations & Workarounds</h6>
+
+                    {% if mitigations %}
+                    {% for mit in mitigations %}
+                    <div class="{% if not loop.first %}mt-3 pt-3 border-top border-secondary border-opacity-25{% endif %}">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            {% if mit.type %}
+                            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 small">{{ mit.type }}</span>
+                            {% endif %}
+                            {% if mit.effectiveness %}
+                            <span class="badge bg-dark border border-secondary small">{{ mit.effectiveness }}</span>
+                            {% endif %}
+                            {% if mit.source %}
+                            <span class="text-muted small ms-auto">{{ mit.source }}</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-secondary small mb-0">{{ mit.description }}</p>
+                    </div>
+                    {% endfor %}
+                    {% elif vulnerability.patch_available and vulnerability.patch_url %}
+                    <div>
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 small mb-2">Patch</span>
+                        <p class="small mb-1">A patch is available for this vulnerability.</p>
+                        <a href="{{ vulnerability.patch_url }}" target="_blank" rel="noopener" class="small text-primary text-decoration-none">
+                            <i class="fas fa-external-link-alt me-1"></i>View Patch
+                        </a>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No specific mitigations recorded.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Credits -->
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="section-title"><i class="fas fa-award"></i>Credits</h6>
+                    {% if credits %}
+                    <ul class="list-unstyled mb-0">
+                        {% for credit in credits %}
+                        <li class="{% if not loop.last %}mb-3 pb-3 border-bottom border-secondary border-opacity-25{% else %}mb-0{% endif %}">
+                            <div class="fw-medium text-white">{{ credit.value }}</div>
+                            <div class="d-flex gap-2 mt-1 flex-wrap">
+                                {% if credit.type %}
+                                <span class="badge bg-dark border border-secondary text-secondary small">{{ credit.type }}</span>
+                                {% endif %}
+                                {% if credit.user %}
+                                <span class="text-muted small"><i class="fas fa-user me-1"></i>{{ credit.user }}</span>
+                                {% endif %}
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted small mb-0">No credits recorded.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION 7: AFFECTED ASSETS (Organization-Specific) -->
+    <!-- ============================================================ -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="section-title mb-0"><i class="fas fa-server"></i>Affected Assets in Organization</h6>
+                <span class="badge bg-{{ 'danger' if affected_assets|length > 0 else 'secondary' }}">
+                    {{ affected_assets|length }} asset{{ 's' if affected_assets|length != 1 else '' }}
+                </span>
+            </div>
+
+            {% if affected_assets %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th class="text-muted small text-uppercase">Asset</th>
+                            <th class="text-muted small text-uppercase">Status</th>
+                            <th class="text-muted small text-uppercase">Risk Score</th>
+                            <th class="text-muted small text-uppercase">Assignee</th>
+                            <th class="text-muted small text-uppercase">Discovered</th>
+                            <th class="text-muted small text-uppercase">Due Date</th>
+                            <th class="text-muted small text-uppercase">Detection</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for av in affected_assets %}
+                        {% set status_class = 'danger' if av.status == 'OPEN' else 'warning' if av.status == 'IN_PROGRESS' else 'success' if av.status in ['RESOLVED', 'MITIGATED'] else 'info' if av.status == 'ACCEPTED' else 'secondary' %}
+                        <tr>
+                            <td>
+                                {% if av.asset %}
+                                <a href="{{ url_for('inventory.index') }}?asset={{ av.asset_id }}" class="text-decoration-none text-white fw-medium">
+                                    <i class="fas fa-server me-1 text-muted"></i>{{ av.asset.name }}
+                                </a>
+                                {% if av.asset.ip_address %}
+                                <div class="text-muted small">{{ av.asset.ip_address }}</div>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-muted">Asset #{{ av.asset_id }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="asset-status-badge bg-{{ status_class }} bg-opacity-25 text-{{ status_class }}">
+                                    {{ av.status }}
+                                </span>
+                                {% if av.is_overdue %}
+                                <span class="badge bg-danger ms-1 small">OVERDUE</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if av.contextual_risk_score is not none %}
+                                <span class="fw-bold {{ 'text-danger' if av.contextual_risk_score >= 9 else 'text-warning' if av.contextual_risk_score >= 7 else 'text-info' if av.contextual_risk_score >= 4 else 'text-success' }}">
+                                    {{ '%.1f'|format(av.contextual_risk_score) }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if av.assignee %}
+                                <span class="text-white small">{{ av.assignee.username }}</span>
+                                {% else %}
+                                <span class="text-muted small">Unassigned</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">{{ av.discovered_at.strftime('%d/%m/%Y') if av.discovered_at else '-' }}</td>
+                            <td class="small {{ 'text-danger fw-bold' if av.is_overdue else 'text-muted' }}">
+                                {{ av.due_date.strftime('%d/%m/%Y') if av.due_date else '-' }}
+                            </td>
+                            <td class="text-muted small">
+                                {% if av.detected_by %}{{ av.detected_by }}{% endif %}
+                                {% if av.detection_method %} ({{ av.detection_method }}){% endif %}
+                                {% if not av.detected_by and not av.detection_method %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                <p class="text-muted mb-0">No assets in the organization are affected by this vulnerability.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION 8: RAW DATA / DEBUG (Admin Only) -->
+    <!-- ============================================================ -->
+    {% if current_user.is_admin and vulnerability.raw_nvd_data %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h6 class="section-title"><i class="fas fa-code"></i>Raw NVD Data</h6>
+            <details>
+                <summary class="text-muted small mb-2" style="cursor: pointer;">Click to expand raw API response</summary>
+                <pre class="bg-dark text-light p-3 rounded small" style="max-height: 400px; overflow-y: auto;"><code>{{ vulnerability.raw_nvd_data|tojson(indent=2) }}</code></pre>
+            </details>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

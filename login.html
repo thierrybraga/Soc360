@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="IjhiMDBlNmQ2ZTU4ZjdhYmQ4ZWViNGQ2MTkwZTQ1M2ExODgxOGY2MWIi.aYH5Iw.Rpep3ddhY4E19graDuTst0-Ym8Y">
+    <title>Login - Open-Monitor</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="/static/css/variables.css">
+    <link rel="stylesheet" href="/static/css/grid.css">
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+    
+<link rel="stylesheet" href="/static/css/auth.css">
+
+</head>
+<body class="auth-page">
+    
+    
+    <!-- Main Content -->
+    <main class="main-content full-width">
+        
+        
+        <!-- Flash Messages -->
+        
+        
+        
+        
+        <!-- Page Content -->
+        <div class="page-content">
+            
+<div class="auth-container">
+    <div class="auth-card glass-card">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h1>Open-Monitor</h1>
+            <p>Enterprise Vulnerability Management</p>
+        </div>
+        
+        <form method="POST" action="/auth/login" class="auth-form">
+            <input type="hidden" name="csrf_token" value="IjhiMDBlNmQ2ZTU4ZjdhYmQ4ZWViNGQ2MTkwZTQ1M2ExODgxOGY2MWIi.aYH5Iw.Rpep3ddhY4E19graDuTst0-Ym8Y">
+            
+            
+            
+            <div class="form-group">
+                <label for="username" class="form-label">
+                    <i class="fas fa-user"></i>
+                    Usuário
+                </label>
+                <input type="text" id="username" name="username" required autofocus 
+                       class="form-input"
+                       placeholder="Digite seu usuário" value="">
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">
+                    <i class="fas fa-lock"></i>
+                    Senha
+                </label>
+                <div class="password-input">
+                    <input type="password" id="password" name="password" required 
+                           class="form-input"
+                           placeholder="Digite sua senha">
+                    <button type="button" class="toggle-password">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <label class="form-check">
+                    <input type="checkbox" name="remember">
+                    <span class="form-check-label">Lembrar-me</span>
+                </label>
+                <a href="/auth/password-reset-request" class="forgot-link">
+                    Esqueceu a senha?
+                </a>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-block btn-lg">
+                <i class="fas fa-sign-in-alt"></i>
+                Entrar
+            </button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Primeiro acesso? <a href="/auth/init-root">Configurar sistema</a></p>
+        </div>
+    </div>
+    
+    <div class="auth-background">
+        <div class="bg-gradient"></div>
+        <div class="bg-pattern"></div>
+    </div>
+</div>
+
+
+<script src="/static/js/auth.js"></script>
+
+
+        </div>
+    </main>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="spinner"></div>
+        <span>Carregando...</span>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/app.js"></script>
+    
+<script src="/static/js/auth.js"></script>
+
+</body>
+</html>
