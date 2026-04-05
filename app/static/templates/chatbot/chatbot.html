@@ -2,447 +2,113 @@
 
 {% block title %}Chatbot de Segurança - {{ app_name }}{% endblock %}
 {% block og_title %}Chatbot de Segurança - {{ app_name }}{% endblock %}
+
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot.css') }}">
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-  <div class="row mb-4">
-    <div class="col-12">
-      <h1 class="h2 mb-0">Chatbot de Segurança</h1>
-      <p class="text-muted">Tire suas dúvidas sobre CVEs e vulnerabilidades com nosso assistente de IA</p>
-    </div>
-  </div>
-
-  <div class="row">
-    <div class="col-12 col-lg-8 mx-auto">
-      <div class="card border-0 shadow-sm">
-        <div class="card-header bg-transparent border-0 d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0">Conversa com SecuriBot</h5>
-          <button class="btn btn-sm btn-outline-secondary" id="clearChatBtn" type="button" aria-label="Limpar conversa">
-            <i class="fas fa-trash-alt me-1"></i>
-            Limpar conversa
-          </button>
+<div class="chatbot-page page-shell page-shell--wide" data-page="chatbot">
+    <section class="chatbot-hero card">
+        <div class="chatbot-hero__content">
+            <span class="chatbot-hero__eyebrow">Assistente de segurança</span>
+            <h1 class="chatbot-hero__title">Converse com o SecuriBot sem sair do contexto da análise</h1>
+            <p class="chatbot-hero__subtitle">
+                Faça perguntas sobre CVEs, mitigação, priorização de patches e conceitos técnicos com uma interface de chat mais focada e consistente.
+            </p>
+            <div class="chatbot-hero__chips" aria-label="Capacidades do assistente">
+                <span class="chatbot-chip"><i class="fas fa-bug"></i> CVEs e vulnerabilidades</span>
+                <span class="chatbot-chip"><i class="fas fa-shield-alt"></i> Mitigação e resposta</span>
+                <span class="chatbot-chip"><i class="fas fa-list-check"></i> Priorização de correções</span>
+            </div>
         </div>
-        <div class="card-body">
-          <!-- Área de mensagens -->
-          <div class="chat-messages p-3 mb-3" id="chatMessages" role="log" aria-live="polite" aria-label="Histórico de mensagens do chatbot" style="overflow-y: auto;">
-            <!-- Mensagem de boas-vindas do bot -->
-            <div class="chat-message bot-message mb-3">
-              <div class="d-flex">
-                <div class="avatar me-2 flex-shrink-0">
-                  <div class="avatar-icon rounded-circle bg-primary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                    <i class="fas fa-robot text-white"></i>
-                  </div>
-                </div>
-                <div class="message-content">
-                  <div class="message-bubble bg-light p-3 rounded-3">
-                    <p class="mb-0">Olá! Sou o SecuriBot, seu assistente de segurança. Como posso ajudá-lo hoje?</p>
-                    <p class="mb-0 mt-2">Você pode me perguntar sobre:</p>
-                    <ul class="mb-0">
-                      <li>Detalhes sobre CVEs específicas</li>
-                      <li>Recomendações de mitigação</li>
-                      <li>Análise de tendências de vulnerabilidades</li>
-                      <li>Explicações sobre termos técnicos</li>
-                    </ul>
-                  </div>
-                  <div class="message-time small text-muted mt-1">Agora</div>
-                </div>
-              </div>
+        <div class="chatbot-hero__aside">
+            <div class="chatbot-hero__stat">
+                <span class="chatbot-hero__stat-label">Melhor uso</span>
+                <strong>Perguntas objetivas com contexto técnico</strong>
+                <p>O assistente responde melhor quando você informa CVE, produto, impacto ou objetivo da análise.</p>
             </div>
-
-            <!-- Exemplos de sugestões de perguntas rápidas -->
-            <div class="chat-suggestions mb-3" aria-label="Sugestões de perguntas rápidas">
-              <h2 class="visually-hidden">Sugestões rápidas</h2>
-              <div class="d-flex flex-wrap gap-2">
-                <button type="button" class="btn btn-sm btn-outline-primary suggestion-btn">O que é CVE-2023-1234?</button>
-                <button type="button" class="btn btn-sm btn-outline-primary suggestion-btn">Como mitigar Log4Shell?</button>
-                <button type="button" class="btn btn-sm btn-outline-primary suggestion-btn">Vulnerabilidades recentes em WordPress</button>
-                <button type="button" class="btn btn-sm btn-outline-primary suggestion-btn">Definir prioridades de patch</button>
-              </div>
+            <div class="chatbot-hero__stat">
+                <span class="chatbot-hero__stat-label">Atalho</span>
+                <strong>Enter para enviar</strong>
+                <p>Use <code>Shift + Enter</code> para quebrar linha e manter perguntas mais detalhadas legíveis.</p>
             </div>
+        </div>
+    </section>
 
-            <!-- As mensagens da conversa serão inseridas aqui via JavaScript -->
-          </div>
-
-          <!-- Área de input -->
-          <form id="chatForm" class="chat-input-area" aria-labelledby="chatFormLabel">
-            <label id="chatFormLabel" class="visually-hidden" for="chatInput">Mensagem para o SecuriBot</label>
-            <div class="input-group">
-              <input
-                type="text"
-                class="form-control"
-                id="chatInput"
-                placeholder="Digite sua pergunta sobre segurança..."
-                aria-label="Mensagem"
-                aria-describedby="chatHelp"
-                autocomplete="off"
-              >
-              <button class="btn btn-primary" type="submit" id="send-btn">
-                <i class="fas fa-paper-plane"></i>
-                <span class="btn-text d-none d-md-inline ms-1">Enviar</span>
-                <span class="btn-loading d-none" aria-hidden="true">
-                  <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                  <span class="d-none d-md-inline ms-1">Enviando...</span>
+    <section class="chatbot-shell card">
+        <div class="chatbot-shell__header">
+            <div>
+                <h2 class="chatbot-shell__title">Conversa com SecuriBot</h2>
+                <p class="chatbot-shell__subtitle">Histórico local da sessão atual. Limpar remove a conversa exibida e solicita limpeza no backend.</p>
+            </div>
+            <div class="chatbot-shell__actions">
+                <span class="chatbot-status" id="chatStatus">
+                    <i class="fas fa-circle"></i>
+                    Pronto para conversar
                 </span>
-              </button>
+                <button class="btn btn-outline-secondary btn-sm" id="clearChatBtn" type="button" aria-label="Limpar conversa">
+                    <i class="fas fa-trash-alt"></i>
+                    Limpar conversa
+                </button>
             </div>
-            <div class="form-text mt-2" id="chatHelp">
-              <i class="fas fa-info-circle me-1"></i>
-              As respostas são baseadas em nossa base de dados atualizada de CVEs e práticas recomendadas de segurança. Pressione Enter ou use o botão Enviar.
-            </div>
-          </form>
         </div>
-      </div>
 
-      <!-- Card de recursos adicionais -->
-      <div class="card border-0 shadow-sm mt-4 chatbot-action-card">
-        <div class="card-header bg-transparent border-0">
-          <h5 class="card-title mb-0">Recursos Adicionais</h5>
+        <div class="chat-messages" id="chatMessages" role="log" aria-live="polite" aria-label="Histórico de mensagens do chatbot">
+            <article class="chat-message chat-message--bot chat-message--intro" data-static-message="welcome">
+                <div class="chat-avatar" aria-hidden="true">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="chat-bubble">
+                    <div class="chat-bubble__meta">
+                        <strong>SecuriBot</strong>
+                        <span>Agora</span>
+                    </div>
+                    <div class="chat-bubble__text">
+                        Olá! Posso ajudar com CVEs específicas, explicações técnicas, recomendações de mitigação e priorização de patches.
+                    </div>
+                </div>
+            </article>
         </div>
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-12 col-md-6">
-              <div class="d-flex align-items-center">
-                <div class="flex-shrink-0 me-3">
-                  <div class="icon-shape bg-info bg-opacity-10 text-info rounded-3 p-2">
-                    <i class="fas fa-search"></i>
-                  </div>
-                </div>
-                <div>
-                  <h6 class="mb-1">Pesquisa Avançada</h6>
-                  <p class="text-muted small mb-0">Use nossa <a href="{{ url_for('nvd.index') }}">busca avançada</a> para encontrar vulnerabilidades específicas.</p>
-                </div>
-              </div>
-            </div>
 
-            <div class="col-12 col-md-6">
-              <div class="d-flex align-items-center">
-                <div class="flex-shrink-0 me-3">
-                  <div class="icon-shape bg-success bg-opacity-10 text-success rounded-3 p-2">
-                    <i class="fas fa-chart-bar"></i>
-                  </div>
-                </div>
-                <div>
-                  <h6 class="mb-1">Analytics</h6>
-                  <p class="text-muted small mb-0">Explore <a href="{{ url_for('analytics.index') }}">análises detalhadas</a> sobre tendências de vulnerabilidades.</p>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="chat-suggestions" aria-label="Sugestões de perguntas rápidas">
+            <button type="button" class="chat-suggestion-btn" data-suggestion="O que é CVE-2023-1234?">O que é CVE-2023-1234?</button>
+            <button type="button" class="chat-suggestion-btn" data-suggestion="Como mitigar Log4Shell?">Como mitigar Log4Shell?</button>
+            <button type="button" class="chat-suggestion-btn" data-suggestion="Quais critérios usar para definir prioridade de patch?">Como definir prioridade de patch?</button>
+            <button type="button" class="chat-suggestion-btn" data-suggestion="Explique a diferença entre severidade e risco em vulnerabilidades.">Severidade vs. risco</button>
         </div>
-      </div>
-    </div>
-  </div>
+
+        <form id="chatForm" class="chat-input-area" aria-labelledby="chatFormLabel">
+            <label id="chatFormLabel" class="visually-hidden" for="chatInput">Mensagem para o SecuriBot</label>
+            <div class="chat-input-wrap">
+                <textarea
+                    class="form-control chat-input"
+                    id="chatInput"
+                    rows="1"
+                    placeholder="Digite sua pergunta sobre segurança, CVEs, mitigação ou priorização..."
+                    aria-describedby="chatHelp"
+                    autocomplete="off"
+                ></textarea>
+                <button class="btn btn-primary chat-send-btn" type="submit" id="sendBtn">
+                    <span class="chat-send-btn__idle">
+                        <i class="fas fa-paper-plane"></i>
+                        <span>Enviar</span>
+                    </span>
+                    <span class="chat-send-btn__loading d-none" aria-hidden="true">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        <span>Enviando...</span>
+                    </span>
+                </button>
+            </div>
+            <div class="chat-input-help" id="chatHelp">
+                <i class="fas fa-circle-info"></i>
+                Respostas podem variar conforme a configuração do serviço de IA. Para melhores resultados, inclua CVE, produto afetado ou objetivo da análise.
+            </div>
+        </form>
+    </section>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const chatForm = document.getElementById('chatForm');
-    const chatInput = document.getElementById('chatInput');
-    const chatMessages = document.getElementById('chatMessages');
-    const clearChatBtn = document.getElementById('clearChatBtn');
-    const sendButton = document.getElementById('send-btn');
-    const suggestionBtns = document.querySelectorAll('.suggestion-btn');
-
-    function setSendingState(isSending) {
-      chatInput.disabled = isSending;
-      sendButton.disabled = isSending;
-      sendButton.setAttribute('aria-busy', isSending ? 'true' : 'false');
-      const btnText = sendButton.querySelector('.btn-text');
-      const btnLoading = sendButton.querySelector('.btn-loading');
-
-      if (isSending) {
-        btnText.classList.add('d-none');
-        btnLoading.classList.remove('d-none');
-      } else {
-        btnText.classList.remove('d-none');
-        btnLoading.classList.add('d-none');
-      }
-    }
-
-    // Função para adicionar mensagem do usuário
-    function addUserMessage(message) {
-      const messageEl = document.createElement('div');
-      messageEl.className = 'chat-message user-message mb-3';
-      messageEl.innerHTML = `
-        <div class="d-flex justify-content-end">
-          <div class="message-content text-end">
-            <div class="message-bubble bg-primary text-white p-3 rounded-3">
-              <p class="mb-0">${message}</p>
-            </div>
-            <div class="message-time small text-muted mt-1">Agora</div>
-          </div>
-          <div class="avatar ms-2 flex-shrink-0">
-            <div class="avatar-icon rounded-circle bg-light d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-              <i class="fas fa-user"></i>
-            </div>
-          </div>
-        </div>
-      `;
-      chatMessages.appendChild(messageEl);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    // Função para adicionar mensagem do bot (com efeito de "está digitando")
-    function addBotMessage(message) {
-      // Primeiro adiciona um indicador de "digitando"
-      const typingEl = document.createElement('div');
-      typingEl.className = 'chat-message bot-message mb-3';
-      typingEl.id = 'botTyping';
-      typingEl.innerHTML = `
-        <div class="d-flex">
-          <div class="avatar me-2 flex-shrink-0">
-            <div class="avatar-icon rounded-circle bg-primary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-              <i class="fas fa-robot text-white"></i>
-            </div>
-          </div>
-          <div class="message-content">
-            <div class="message-bubble bg-light p-3 rounded-3">
-              <p class="mb-0">
-                <span class="typing-indicator">
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                  <span class="dot"></span>
-                </span>
-              </p>
-            </div>
-          </div>
-        </div>
-      `;
-      chatMessages.appendChild(typingEl);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-
-      // Após um breve atraso, substitui o indicador pela mensagem real
-      setTimeout(() => {
-        const messageEl = document.createElement('div');
-        messageEl.className = 'chat-message bot-message mb-3';
-        messageEl.innerHTML = `
-          <div class="d-flex">
-            <div class="avatar me-2 flex-shrink-0">
-              <div class="avatar-icon rounded-circle bg-primary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                <i class="fas fa-robot text-white"></i>
-              </div>
-            </div>
-            <div class="message-content">
-              <div class="message-bubble bg-light p-3 rounded-3">
-                <p class="mb-0">${message}</p>
-              </div>
-              <div class="message-time small text-muted mt-1">Agora</div>
-            </div>
-          </div>
-        `;
-
-        // Remove o indicador e adiciona a mensagem real
-        document.getElementById('botTyping').remove();
-        chatMessages.appendChild(messageEl);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-      }, 1500); // Simula um tempo de "digitação"
-    }
-
-    // Manipula o envio do formulário
-    chatForm.addEventListener('submit', function(e) {
-      e.preventDefault();
-      const message = chatInput.value.trim();
-      if (message) {
-        // Adiciona a mensagem do usuário à conversa
-        addUserMessage(message);
-
-        // Limpa o campo de entrada
-        chatInput.value = '';
-
-        // Exibe estado de carregamento
-        setSendingState(true);
-
-        // Envia mensagem para a API do chatbot
-        sendMessageToAPI(message);
-      }
-    });
-
-    // Manipula cliques nos botões de sugestão
-    suggestionBtns.forEach(btn => {
-      btn.addEventListener('click', function() {
-        if (sendButton.disabled) {
-          return;
-        }
-
-        const message = this.textContent;
-        chatInput.value = message;
-        chatInput.focus();
-
-        // Dispara o evento submit no formulário
-        const event = new Event('submit', {
-          'bubbles': true,
-          'cancelable': true
-        });
-        chatForm.dispatchEvent(event);
-      });
-    });
-
-    // Limpa a conversa
-    clearChatBtn.addEventListener('click', async function() {
-      if (sessionId) {
-        try {
-          await fetch(`/api/chatbot/session/${sessionId}/clear`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          });
-        } catch (error) {
-          console.error('Erro ao limpar sessão:', error);
-        }
-      }
-      
-      // Limpa a interface
-      while (chatMessages.children.length > 2) {
-        chatMessages.removeChild(chatMessages.lastChild);
-      }
-      
-      // Reset session ID
-      sessionId = null;
-    });
-
-    // Variável para armazenar o ID da sessão
-    let sessionId = null;
-
-    // Função para enviar mensagem para a API do chatbot
-    async function sendMessageToAPI(userMessage) {
-      try {
-        const response = await fetch('/api/chatbot/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            message: userMessage,
-            session_id: sessionId
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        
-        if (data.success) {
-          // Atualiza o ID da sessão
-          sessionId = data.session_id;
-          
-          // Adiciona a resposta do bot
-          addBotMessage(data.response);
-          
-          // Se houver CVEs relevantes, adiciona informações extras
-          if (data.relevant_cves && data.relevant_cves.length > 0) {
-            addCVEReferences(data.relevant_cves);
-          }
-        } else {
-          throw new Error(data.error || 'Erro desconhecido');
-        }
-      } catch (error) {
-        console.error('Erro ao enviar mensagem:', error);
-        addBotMessage('Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente em alguns instantes.');
-      } finally {
-        setSendingState(false);
-      }
-    }
-
-    // Função para adicionar referências de CVE
-    function addCVEReferences(cves) {
-      if (cves.length === 0) return;
-      
-      const referencesEl = document.createElement('div');
-      referencesEl.className = 'chat-message bot-message mb-3';
-      referencesEl.innerHTML = `
-        <div class="d-flex">
-          <div class="avatar me-2 flex-shrink-0">
-            <div class="avatar-icon rounded-circle bg-info d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-              <i class="bi bi-info-circle text-white"></i>
-            </div>
-          </div>
-          <div class="message-content">
-            <div class="message-bubble bg-light border p-3 rounded-3">
-              <h6 class="mb-2"><i class="bi bi-shield-exclamation me-1"></i>CVEs Relacionadas:</h6>
-              <div class="cve-list">
-                ${cves.map(cve => `
-                  <div class="cve-item mb-2 p-2 bg-white rounded border-start border-3 border-warning">
-                    <div class="d-flex justify-content-between align-items-start">
-                      <div>
-                        <strong class="text-primary">${cve.cve_id}</strong>
-                        <span class="badge bg-${getSeverityColor(cve.base_severity)} ms-2">${cve.base_severity}</span>
-                      </div>
-                      <small class="text-muted">CVSS: ${cve.cvss_score || 'N/A'}</small>
-                    </div>
-                    <p class="small text-muted mb-1 mt-1">${cve.description ? cve.description.substring(0, 100) + '...' : 'Sem descrição disponível'}</p>
-                    <a href="/vulnerability/${cve.cve_id}" class="btn btn-sm btn-outline-primary" target="_blank">
-                      <i class="bi bi-eye me-1"></i>Ver Detalhes
-                    </a>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      chatMessages.appendChild(referencesEl);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    // Função para obter cor da severidade
-    function getSeverityColor(severity) {
-      switch(severity?.toUpperCase()) {
-        case 'CRITICAL': return 'danger';
-        case 'HIGH': return 'warning';
-        case 'MEDIUM': return 'info';
-        case 'LOW': return 'secondary';
-        default: return 'secondary';
-      }
-    }
-
-    // Foca no input quando a página carrega
-    chatInput.focus();
-  });
-</script>
-
-<style>
-  /* Estilos para o indicador de digitação */
-  .typing-indicator {
-    display: inline-flex;
-    align-items: center;
-  }
-
-  .typing-indicator .dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: #aaa;
-    margin-right: 4px;
-    animation: typing 1s infinite ease-in-out;
-  }
-
-  .typing-indicator .dot:nth-child(1) {
-    animation-delay: 0s;
-  }
-
-  .typing-indicator .dot:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-
-  .typing-indicator .dot:nth-child(3) {
-    animation-delay: 0.4s;
-    margin-right: 0;
-  }
-
-  @keyframes typing {
-    0% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-    100% { transform: translateY(0); }
-  }
-</style>
+<script src="{{ url_for('static', filename='js/pages/chatbot.js') }}"></script>
 {% endblock %}

@@ -237,9 +237,13 @@ def register_error_handlers(app: Flask) -> None:
     def internal_error(error):
         db.session.rollback()
         import traceback
-        _logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
-        with open(os.path.join(_logs_dir, 'error_debug.txt'), 'w') as f:
-            f.write(str(error) + '\n' + traceback.format_exc())
+        try:
+            _logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+            os.makedirs(_logs_dir, exist_ok=True)
+            with open(os.path.join(_logs_dir, 'error_debug.txt'), 'w') as f:
+                f.write(str(error) + '\n' + traceback.format_exc())
+        except Exception:
+            pass
         app.logger.error(f'Internal Server Error: {error}', exc_info=True)
         if request.path.startswith('/api/'):
             return {'error': 'Internal Server Error', 'message': 'An unexpected error occurred'}, 500

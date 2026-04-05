@@ -8,262 +8,305 @@
 
 {% block content %}
 <div class="page-shell page-shell--wide" data-page="dashboard">
+
+    <!-- ─── Page Header ─────────────────────────────────────────── -->
     <div class="page-header">
         <div class="page-header__content">
             <h1 class="page-header__title">Dashboard</h1>
-            <p class="page-header__subtitle">Unified view of vulnerabilities, risky assets, remediation progress and intelligence trends across the platform.</p>
+            <p class="page-header__subtitle">
+                Unified view of vulnerabilities, risky assets, remediation progress and intelligence trends.
+            </p>
         </div>
         <div class="page-header__actions">
-            <select class="form-select form-select-sm" data-time-range style="width: auto; min-width: 140px;">
+            <select class="form-select form-select-sm dash-time-range" data-time-range style="min-width:140px;">
                 <option value="7">Last 7 days</option>
                 <option value="30" selected>Last 30 days</option>
                 <option value="90">Last 90 days</option>
             </select>
-            <button class="btn btn-outline-secondary btn-sm" id="dashboard-refresh-btn" title="Refresh Data">
+            <button class="btn btn-icon btn-outline-secondary" id="dashboard-refresh-btn" title="Refresh">
                 <i class="fas fa-sync-alt"></i>
             </button>
             <button class="btn btn-primary btn-sm" id="dashboard-export-btn">
-                <i class="fas fa-download"></i> Export
+                <i class="fas fa-download me-1"></i>Export
             </button>
         </div>
     </div>
 
-    <!-- Stats Grid -->
-    <div class="row g-4 mb-4">
+    <!-- ─── KPI Cards ────────────────────────────────────────────── -->
+    <div class="dash-kpi-grid mb-4">
+
         <!-- Total Vulnerabilities -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card h-100" data-stat="total">
-                <div class="stat-icon primary">
+        <div class="card stat-card" data-stat="total">
+            <div class="stat-card-row">
+                <div class="stat-content">
+                    <span class="stat-label">Total Vulnerabilities</span>
+                    <span class="stat-value skeleton-text w-20" id="kpi-total">—</span>
+                    <div class="stat-change" id="kpi-total-change">
+                        <span class="skeleton-text w-32 d-inline-block"></span>
+                    </div>
+                </div>
+                <div class="stat-icon stat-icon--card primary">
                     <i class="fas fa-bug"></i>
                 </div>
-                <div>
-                    <span class="stat-value d-block skeleton-text w-50"></span>
-                    <span class="stat-label">Total Vulnerabilities</span>
-                </div>
-                <div class="stat-change mt-2">
-                    <span class="skeleton-text w-25 d-inline-block"></span>
-                </div>
+            </div>
+            <div class="stat-footer">
+                <span class="stat-footer-item">
+                    <i class="fas fa-clock"></i>
+                    <span id="kpi-total-24h" class="skeleton-text w-8 d-inline-block"></span> last 24 h
+                </span>
+                <span class="stat-footer-item">
+                    <i class="fas fa-calendar-week"></i>
+                    <span id="kpi-total-7d" class="skeleton-text w-8 d-inline-block"></span> last 7 d
+                </span>
             </div>
         </div>
 
-        <!-- Critical -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card h-100" data-stat="critical">
-                <div class="stat-icon danger">
+        <!-- Critical Vulnerabilities -->
+        <div class="card stat-card" data-stat="critical">
+            <div class="stat-card-row">
+                <div class="stat-content">
+                    <span class="stat-label">Critical Vulnerabilities</span>
+                    <span class="stat-value skeleton-text w-20" id="kpi-critical">—</span>
+                    <div class="stat-change" id="kpi-critical-change">
+                        <span class="skeleton-text w-32 d-inline-block"></span>
+                    </div>
+                </div>
+                <div class="stat-icon stat-icon--card danger">
                     <i class="fas fa-radiation"></i>
                 </div>
-                <div>
-                    <span class="stat-value d-block skeleton-text w-50"></span>
-                    <span class="stat-label">Critical Vulnerabilities</span>
-                </div>
-                <div class="stat-change mt-2">
-                    <span class="skeleton-text w-25 d-inline-block"></span>
-                </div>
+            </div>
+            <div class="stat-footer">
+                <span class="stat-footer-item" id="kpi-critical-footer">
+                    <i class="fas fa-shield-alt"></i>vs. previous period
+                </span>
             </div>
         </div>
 
         <!-- CISA KEV -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card h-100" data-stat="cisa-kev">
-                <div class="stat-icon warning">
+        <div class="card stat-card" data-stat="cisa-kev">
+            <div class="stat-card-row">
+                <div class="stat-content">
+                    <span class="stat-label">CISA KEV Exploited</span>
+                    <span class="stat-value skeleton-text w-20" id="kpi-cisa">—</span>
+                    <div class="stat-change" id="kpi-cisa-change">
+                        <span class="skeleton-text w-32 d-inline-block"></span>
+                    </div>
+                </div>
+                <div class="stat-icon stat-icon--card warning">
                     <i class="fas fa-exclamation-triangle"></i>
                 </div>
-                <div>
-                    <span class="stat-value d-block skeleton-text w-50"></span>
-                    <span class="stat-label">CISA KEV Exploited</span>
-                </div>
-                <div class="stat-change mt-2">
-                    <span class="skeleton-text w-25 d-inline-block"></span>
-                </div>
+            </div>
+            <div class="stat-footer">
+                <span class="stat-footer-item">
+                    <i class="fas fa-flag-usa"></i>Known exploited in the wild
+                </span>
             </div>
         </div>
 
-        <!-- Assets -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="card stat-card h-100" data-stat="assets">
-                <div class="stat-icon success">
+        <!-- Monitored Assets -->
+        <div class="card stat-card" data-stat="assets">
+            <div class="stat-card-row">
+                <div class="stat-content">
+                    <span class="stat-label">Monitored Assets</span>
+                    <span class="stat-value skeleton-text w-20" id="kpi-assets">—</span>
+                    <div class="stat-change" id="kpi-assets-change">
+                        <span class="skeleton-text w-32 d-inline-block"></span>
+                    </div>
+                </div>
+                <div class="stat-icon stat-icon--card success">
                     <i class="fas fa-server"></i>
                 </div>
-                <div>
-                    <span class="stat-value d-block skeleton-text w-50"></span>
-                    <span class="stat-label">Monitored Assets</span>
-                </div>
-                <div class="stat-change mt-2">
-                    <span class="skeleton-text w-25 d-inline-block"></span>
-                </div>
+            </div>
+            <div class="stat-footer">
+                <span class="stat-footer-item">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span id="kpi-assets-with-vulns" class="skeleton-text w-8 d-inline-block"></span> with open vulns
+                </span>
             </div>
         </div>
-    </div>
 
-    <!-- Charts Row -->
-    <div class="row g-4 mb-4">
-        <!-- Vulnerability Trends -->
-        <div class="col-12 col-lg-8">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-chart-area"></i> Vulnerability Trends
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="chart-container">
-                        <canvas id="trendsChart"></canvas>
+    </div><!-- /.dash-kpi-grid -->
+
+    <!-- ─── Charts Row ───────────────────────────────────────────── -->
+    <div class="dash-charts-row mb-4">
+
+        <!-- Vulnerability Trends (wide) -->
+        <div class="card dash-chart-card dash-chart-card--wide">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-area me-2"></i>Vulnerability Trends
+                </h5>
+                <span class="dash-chart-period" id="trends-period-label">Last 30 days</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrap">
+                    <canvas id="trendsChart" aria-label="Vulnerability trends line chart"></canvas>
+                    <div class="chart-empty-state d-none" id="trends-empty">
+                        <i class="fas fa-chart-area"></i>
+                        <p>No vulnerability data for selected period</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Severity Distribution -->
-        <div class="col-12 col-lg-4">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-chart-pie"></i> Severity Distribution
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="chart-container" style="height: 200px;">
-                        <canvas id="severityChart"></canvas>
+        <!-- Severity Distribution (narrow) -->
+        <div class="card dash-chart-card dash-chart-card--narrow">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>Severity Distribution
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrap chart-wrap--sm">
+                    <canvas id="severityChart" aria-label="Severity distribution doughnut chart"></canvas>
+                    <div class="chart-empty-state d-none" id="severity-empty">
+                        <i class="fas fa-chart-pie"></i>
+                        <p>No data</p>
                     </div>
-                    <div class="mt-4" id="severityLegend">
-                        <!-- Legend populated by JS -->
+                </div>
+                <div class="dash-legend mt-3" id="severityLegend">
+                    <!-- Populated by JS -->
+                    <div class="dash-legend-skeleton">
+                        <span class="skeleton-text w-full"></span>
+                        <span class="skeleton-text w-full"></span>
+                        <span class="skeleton-text w-full"></span>
+                        <span class="skeleton-text w-full"></span>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Data Tables Row -->
-    <div class="row g-4 mb-4">
+    </div><!-- /.dash-charts-row -->
+
+    <!-- ─── Data Tables Row ──────────────────────────────────────── -->
+    <div class="dash-split-row mb-4">
+
         <!-- Recent Critical Vulnerabilities -->
-        <div class="col-12 col-xl-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-radiation"></i> Recent Critical Vulnerabilities
-                    </h5>
-                    <a href="{{ url_for('nvd.index') }}" class="btn btn-sm btn-outline-secondary">View All</a>
+        <div class="card dash-split-card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-radiation me-2 text-danger"></i>Recent Critical CVEs
+                </h5>
+                <a href="{{ url_for('nvd.index') }}" class="btn btn-sm btn-ghost">
+                    View All <i class="fas fa-arrow-right ms-1"></i>
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table dash-table mb-0" id="critical-vulns-table">
+                        <thead>
+                            <tr>
+                                <th>CVE ID</th>
+                                <th>Published</th>
+                                <th>CVSS</th>
+                                <th class="d-none d-md-table-cell">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="4" class="p-4">
+                                <div class="skeleton-text mb-2"></div>
+                                <div class="skeleton-text mb-2 w-75"></div>
+                                <div class="skeleton-text w-50"></div>
+                            </td></tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0" id="critical-vulns-table">
-                            <thead>
-                                <tr>
-                                    <th>CVE ID</th>
-                                    <th>Published</th>
-                                    <th>CVSS</th>
-                                    <th>Description</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Populated by JS -->
-                                <tr>
-                                    <td colspan="4" class="p-4">
-                                        <div class="skeleton-text mb-2"></div>
-                                        <div class="skeleton-text mb-2"></div>
-                                        <div class="skeleton-text mb-2"></div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+            </div>
+        </div>
+
+        <!-- Top Vendors Chart -->
+        <div class="card dash-split-card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-building me-2"></i>Top Affected Vendors
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrap chart-wrap--vendors">
+                    <canvas id="vendorsChart" aria-label="Top affected vendors horizontal bar chart"></canvas>
+                    <div class="chart-empty-state d-none" id="vendors-empty">
+                        <i class="fas fa-building"></i>
+                        <p>No vendor data available</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Top Vendors -->
-        <div class="col-12 col-xl-6">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-building"></i> Top Affected Vendors
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="chart-container">
-                        <canvas id="vendorsChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    </div><!-- /.dash-split-row -->
 
-    <!-- Risk & Remediation Row -->
-    <div class="row g-4">
-        <!-- Assets at Risk (Risk Matrix) -->
-        <div class="col-12 col-xl-8">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-exclamation-circle"></i> Assets at Risk
-                    </h5>
-                    <a href="{{ url_for('inventory.index') }}" class="btn btn-sm btn-outline-secondary">Manage Assets</a>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0" id="risk-matrix-table">
-                            <thead>
-                                <tr>
-                                    <th>Asset</th>
-                                    <th>Type</th>
-                                    <th>Risk Score</th>
-                                    <th>Vulns (Total)</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colspan="5" class="p-4">
-                                        <div class="skeleton-text mb-2"></div>
-                                        <div class="skeleton-text mb-2"></div>
-                                        <div class="skeleton-text mb-2"></div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+    <!-- ─── Risk & Remediation Row ───────────────────────────────── -->
+    <div class="dash-risk-row">
+
+        <!-- Assets at Risk -->
+        <div class="card dash-risk-card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-exclamation-circle me-2 text-warning"></i>Assets at Risk
+                </h5>
+                <a href="{{ url_for('inventory.index') }}" class="btn btn-sm btn-ghost">
+                    Manage <i class="fas fa-arrow-right ms-1"></i>
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table dash-table mb-0" id="risk-matrix-table">
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th class="d-none d-sm-table-cell">Type</th>
+                                <th>Risk</th>
+                                <th>Critical / High</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="5" class="p-4">
+                                <div class="skeleton-text mb-2"></div>
+                                <div class="skeleton-text mb-2 w-75"></div>
+                                <div class="skeleton-text w-50"></div>
+                            </td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
 
         <!-- Remediation Status -->
-        <div class="col-12 col-xl-4">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">
-                        <i class="fas fa-tasks"></i> Remediation Status
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="chart-container" style="height: 200px;">
-                        <canvas id="remediationChart"></canvas>
+        <div class="card dash-remediation-card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">
+                    <i class="fas fa-tasks me-2"></i>Remediation Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-wrap chart-wrap--sm">
+                    <canvas id="remediationChart" aria-label="Remediation status doughnut chart"></canvas>
+                    <div class="chart-empty-state d-none" id="remediation-empty">
+                        <i class="fas fa-tasks"></i>
+                        <p>No remediation data</p>
                     </div>
-                    <div class="mt-4" id="remediationLegend"></div>
-                    <div class="mt-3">
-                         <div class="row g-2">
-                             <div class="col-6">
-                                 <div class="p-2 border rounded bg-light text-center">
-                                     <small class="d-block text-muted">Overdue</small>
-                                     <span class="fw-bold text-danger" id="remediation-overdue">-</span>
-                                 </div>
-                             </div>
-                             <div class="col-6">
-                                 <div class="p-2 border rounded bg-light text-center">
-                                     <small class="d-block text-muted">SLA Warning</small>
-                                     <span class="fw-bold text-warning" id="remediation-sla">-</span>
-                                 </div>
-                             </div>
-                         </div>
+                </div>
+                <div class="dash-legend mt-3" id="remediationLegend"></div>
+                <div class="dash-sla-grid mt-3">
+                    <div class="dash-sla-box dash-sla-box--danger">
+                        <span class="dash-sla-label">Overdue</span>
+                        <span class="dash-sla-value text-danger" id="remediation-overdue">—</span>
+                    </div>
+                    <div class="dash-sla-box dash-sla-box--warning">
+                        <span class="dash-sla-label">SLA Warning</span>
+                        <span class="dash-sla-value text-warning" id="remediation-sla">—</span>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
+
+    </div><!-- /.dash-risk-row -->
+
+</div><!-- /[data-page="dashboard"] -->
 {% endblock %}
 
 {% block extra_js %}
 {{ super() }}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="{{ url_for('static', filename='js/pages/dashboard.js') }}"></script>
 {% endblock %}

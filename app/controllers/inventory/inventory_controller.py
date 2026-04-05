@@ -575,18 +575,16 @@ def stats():
         query = query.filter(Asset.owner_id == current_user.id)
     
     # Total por tipo
-    type_counts = db.session.query(
-        Asset.asset_type,
-        db.func.count(Asset.id)
-    ).filter(Asset.owner_id == current_user.id if not current_user.is_admin else True)\
-     .group_by(Asset.asset_type).all()
-    
+    type_q = db.session.query(Asset.asset_type, db.func.count(Asset.id))
+    if not current_user.is_admin:
+        type_q = type_q.filter(Asset.owner_id == current_user.id)
+    type_counts = type_q.group_by(Asset.asset_type).all()
+
     # Total por criticidade
-    criticality_counts = db.session.query(
-        Asset.criticality,
-        db.func.count(Asset.id)
-    ).filter(Asset.owner_id == current_user.id if not current_user.is_admin else True)\
-     .group_by(Asset.criticality).all()
+    crit_q = db.session.query(Asset.criticality, db.func.count(Asset.id))
+    if not current_user.is_admin:
+        crit_q = crit_q.filter(Asset.owner_id == current_user.id)
+    criticality_counts = crit_q.group_by(Asset.criticality).all()
     
     # Total com vulnerabilidades
     assets_with_vulns = db.session.query(

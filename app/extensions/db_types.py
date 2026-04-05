@@ -11,7 +11,9 @@ basedir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file
 db_path = os.path.join(basedir, 'instance', 'app.db')
 
 _db_url = os.getenv('DATABASE_URL', '')
-USE_SQLITE = _db_url.startswith('sqlite://') or (not _db_url and os.path.exists(db_path))
+# Use PostgreSQL-specific types only when explicitly connecting to Postgres.
+# Default to SQLite-compatible types for local dev (empty DATABASE_URL).
+USE_SQLITE = not _db_url.startswith(('postgresql', 'postgres'))
 
 # JSON type - use JSONB for PostgreSQL, JSON for SQLite
 JSONB = JSON if USE_SQLITE else PG_JSONB

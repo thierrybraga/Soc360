@@ -1,28 +1,59 @@
 {% extends "base.html" %}
 
-{% block title %}Reports - Open-Monitor{% endblock %}
+{% block title %}Relatórios - Open-Monitor{% endblock %}
 
 {% block extra_css %}
 <link href="{{ url_for('static', filename='css/reports.css') }}" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
-<div class="page-shell page-shell--wide" data-page="reports-index">
-    <div class="page-header">
-        <div class="page-header__content">
-            <h1 class="page-header__title">Reports</h1>
-            <p class="page-header__subtitle">Generate executive and technical reports with a consistent review and export workflow.</p>
-        </div>
-        <div class="page-header__actions">
-        <button class="btn btn-primary btn-sm" id="generate-btn">
-            <i class="fas fa-plus"></i> Generate Report
-        </button>
-        </div>
-    </div>
+<div class="page-shell page-shell--wide reports-page" data-page="reports">
+    <section class="card reports-hero">
+        <div class="reports-hero__content">
+            <span class="reports-eyebrow">Central de relatórios</span>
+            <h1 class="reports-hero__title">Transforme dados de vulnerabilidade em decisões acionáveis</h1>
+            <p class="reports-hero__subtitle">
+                Escolha um modelo, ajuste o período de análise e acompanhe a geração sem perder o contexto do histórico.
+            </p>
 
-    <!-- Stats Grid -->
+            <div class="reports-hero__actions">
+                <button class="btn btn-primary" id="generate-btn" type="button">
+                    <i class="fas fa-plus"></i>
+                    Novo relatório
+                </button>
+                <a class="btn btn-outline-secondary" href="#reports-library">
+                    <i class="fas fa-history"></i>
+                    Ver histórico
+                </a>
+            </div>
+        </div>
+
+        <div class="reports-hero__workflow" aria-label="Fluxo de geração de relatórios">
+            <div class="workflow-step">
+                <span class="workflow-step__number">1</span>
+                <div>
+                    <strong>Escolha o modelo</strong>
+                    <p>Comece com um relatório executivo, técnico, de risco, compliance ou tendência.</p>
+                </div>
+            </div>
+            <div class="workflow-step">
+                <span class="workflow-step__number">2</span>
+                <div>
+                    <strong>Defina o escopo</strong>
+                    <p>Selecione o período, refine o conteúdo e valide o resumo antes de enviar.</p>
+                </div>
+            </div>
+            <div class="workflow-step">
+                <span class="workflow-step__number">3</span>
+                <div>
+                    <strong>Acompanhe a geração</strong>
+                    <p>Receba feedback de progresso, acesse o histórico e baixe o PDF quando disponível.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div class="row g-4 mb-4">
-        <!-- Total Reports -->
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card stat-card h-100">
                 <div class="stat-icon primary">
@@ -30,12 +61,11 @@
                 </div>
                 <div>
                     <span class="stat-value d-block skeleton-text w-50" id="stat-total"></span>
-                    <span class="stat-label">Total Reports</span>
+                    <span class="stat-label">Relatórios criados</span>
                 </div>
             </div>
         </div>
 
-        <!-- Completed -->
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card stat-card h-100">
                 <div class="stat-icon success">
@@ -43,12 +73,11 @@
                 </div>
                 <div>
                     <span class="stat-value d-block skeleton-text w-50" id="stat-completed"></span>
-                    <span class="stat-label">Completed</span>
+                    <span class="stat-label">Concluídos</span>
                 </div>
             </div>
         </div>
 
-        <!-- Executive Summaries -->
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card stat-card h-100">
                 <div class="stat-icon info">
@@ -56,12 +85,11 @@
                 </div>
                 <div>
                     <span class="stat-value d-block skeleton-text w-50" id="stat-executive"></span>
-                    <span class="stat-label">Executive Summaries</span>
+                    <span class="stat-label">Executivos</span>
                 </div>
             </div>
         </div>
 
-        <!-- Technical Reports -->
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="card stat-card h-100">
                 <div class="stat-icon warning">
@@ -69,116 +97,272 @@
                 </div>
                 <div>
                     <span class="stat-value d-block skeleton-text w-50" id="stat-technical"></span>
-                    <span class="stat-label">Technical Reports</span>
+                    <span class="stat-label">Técnicos</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Reports List -->
-    <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title mb-0">
-                <i class="fas fa-history"></i> Relatórios Gerados
-            </h3>
-            <div class="input-group input-group-sm" style="width: 250px;">
-                <span class="input-group-text">
-                    <i class="fas fa-search"></i>
-                </span>
-                <input type="text" id="report-search" class="form-input" placeholder="Buscar relatórios...">
+    <section class="card templates-panel">
+        <div class="section-heading">
+            <div>
+                <h2 class="section-heading__title">Comece com um modelo</h2>
+                <p class="section-heading__subtitle">Atalhos pensados para reduzir indecisão e acelerar a criação do relatório certo.</p>
+            </div>
+            <button class="btn btn-outline-secondary btn-sm" id="manual-generate-btn" type="button">
+                <i class="fas fa-sliders"></i>
+                Configuração manual
+            </button>
+        </div>
+
+        <div class="template-grid" id="template-grid" aria-live="polite">
+            <div class="template-grid__placeholder">
+                <div class="spinner"></div>
+                <span>Carregando modelos...</span>
             </div>
         </div>
+    </section>
+
+    <section class="generation-banner" id="generation-banner" style="display: none;" aria-live="polite">
+        <div class="generation-banner__icon">
+            <i class="fas fa-sync-alt"></i>
+        </div>
+        <div class="generation-banner__content">
+            <strong id="generation-banner-title">Acompanhando gerações em andamento</strong>
+            <p id="generation-banner-text">A página será atualizada automaticamente enquanto houver relatórios em processamento.</p>
+        </div>
+        <div class="generation-banner__actions">
+            <span class="generation-banner__meta" id="last-refresh-label">Atualizado agora</span>
+            <button class="btn btn-outline-secondary btn-sm" id="refresh-reports-btn" type="button">
+                <i class="fas fa-sync-alt"></i>
+                Atualizar
+            </button>
+        </div>
+    </section>
+
+    <section class="card reports-library" id="reports-library">
+        <div class="card-header reports-library__header">
+            <div>
+                <h2 class="card-title mb-1">
+                    <i class="fas fa-folder-open"></i>
+                    Histórico de relatórios
+                </h2>
+                <p class="reports-library__summary" id="results-summary">Carregando histórico...</p>
+            </div>
+
+            <div class="reports-toolbar">
+                <div class="search-field">
+                    <span class="search-field__icon">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" id="report-search" class="form-input" placeholder="Buscar por título ou descrição">
+                    <button class="search-field__clear" id="clear-search-btn" type="button" aria-label="Limpar busca" style="display: none;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <select id="filter-type" class="form-select" aria-label="Filtrar por tipo">
+                    <option value="">Todos os tipos</option>
+                    <option value="EXECUTIVE">Executivo</option>
+                    <option value="TECHNICAL">Técnico</option>
+                    <option value="RISK_ASSESSMENT">Risco</option>
+                    <option value="COMPLIANCE">Compliance</option>
+                    <option value="TREND">Tendência</option>
+                    <option value="INCIDENT">Incidente</option>
+                </select>
+
+                <select id="filter-status" class="form-select" aria-label="Filtrar por status">
+                    <option value="">Todos os status</option>
+                    <option value="COMPLETED">Concluído</option>
+                    <option value="GENERATING">Gerando</option>
+                    <option value="PENDING">Pendente</option>
+                    <option value="FAILED">Falhou</option>
+                </select>
+
+                <button class="btn btn-outline-secondary btn-sm" id="clear-filters-btn" type="button">
+                    <i class="fas fa-filter"></i>
+                    Limpar filtros
+                </button>
+            </div>
+        </div>
+
         <div class="table-container">
             <div id="table-loading" class="table-loading" style="display: none;">
                 <div class="spinner"></div>
                 <span>Carregando relatórios...</span>
             </div>
-            
-            <div id="reports-list">
-                <!-- Dynamic content -->
-            </div>
-            
-            <div id="empty-state" class="empty-state" style="display: none;">
-                <div class="empty-state-icon">
-                    <i class="fas fa-file-excel"></i>
-                </div>
-                <h5 class="empty-state-title">Nenhum Relatório Encontrado</h5>
-                <p class="empty-state-text">Gere seu primeiro relatório para visualizá-lo aqui.</p>
-                <button class="btn btn-primary btn-sm" id="empty-state-generate-btn">
-                    <i class="fas fa-plus"></i> Gerar Relatório
-                </button>
-            </div>
+
+            <div id="reports-list" aria-live="polite"></div>
+
+            <div id="empty-state" class="empty-state" style="display: none;"></div>
         </div>
-        <!-- Pagination -->
+
         <div class="card-footer py-2" id="pagination-container" style="display: none;">
-            <nav aria-label="Reports navigation">
+            <nav aria-label="Navegação dos relatórios">
                 <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
             </nav>
         </div>
-    </div>
+    </section>
 </div>
 
-<!-- Generate Report Modal -->
-<div class="modal fade" id="generate-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+<div class="modal fade" id="generate-modal" tabindex="-1" aria-hidden="true" aria-labelledby="generate-modal-title">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Generate Report</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div>
+                    <span class="modal-kicker">Fluxo guiado</span>
+                    <h2 class="modal-title" id="generate-modal-title">Novo relatório</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
             </div>
+
             <div class="modal-body">
                 <form id="generate-form">
-                    <div class="mb-3">
-                        <label class="form-label required">Report Title</label>
-                        <input type="text" id="report-title" name="title" class="form-input" required
-                               placeholder="e.g., Monthly Security Assessment">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea id="report-description" name="description" class="form-textarea" rows="2"
-                                  placeholder="Optional description..."></textarea>
-                    </div>
-                    
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label required">Report Type</label>
-                            <select id="report-type" name="type" class="form-select" required>
-                                <option value="">Select Type</option>
-                                <option value="EXECUTIVE">Executive Summary</option>
-                                <option value="TECHNICAL">Technical Report</option>
-                                <option value="RISK_ASSESSMENT">Risk Assessment</option>
-                                <option value="COMPLIANCE">Compliance Report</option>
-                                <option value="TREND">Trend Analysis</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Time Range (Days)</label>
-                            <input type="number" id="report-days" name="days" class="form-input" 
-                                   value="30" min="1" max="365">
-                        </div>
-                    </div>
+                    <div class="report-builder">
+                        <div class="report-builder__main">
+                            <section class="builder-section">
+                                <div class="builder-section__header">
+                                    <h3>1. Objetivo do relatório</h3>
+                                    <p>Dê um nome claro para facilitar comparação e busca no histórico.</p>
+                                </div>
 
-                    <!-- Type Specific Options (Simplified) -->
-                    <div id="type-options" class="card bg-light border-0 mb-3" style="display: none;">
-                        <div class="card-body">
-                            <h6 class="card-title">Report Options</h6>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="opt-charts" checked>
-                                <label class="form-check-label" for="opt-charts">Include Charts & Graphs</label>
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="opt-details" checked>
-                                <label class="form-check-label" for="opt-details">Include Detailed Vulnerability List</label>
-                            </div>
+                                <div class="mb-3">
+                                    <label class="form-label required" for="report-title">Título</label>
+                                    <input type="text" id="report-title" name="title" class="form-input" required
+                                           placeholder="Ex.: Resumo executivo mensal de vulnerabilidades">
+                                </div>
+
+                                <div>
+                                    <label class="form-label" for="report-description">Contexto adicional</label>
+                                    <textarea id="report-description" name="description" class="form-textarea" rows="3"
+                                              placeholder="Descreva rapidamente o objetivo, a audiência ou a finalidade do relatório."></textarea>
+                                </div>
+                            </section>
+
+                            <section class="builder-section">
+                                <div class="builder-section__header">
+                                    <h3>2. Modelo e profundidade</h3>
+                                    <p>Escolha o formato mais adequado para quem vai consumir o relatório.</p>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-lg-7">
+                                        <label class="form-label required" for="report-type">Tipo de relatório</label>
+                                        <select id="report-type" name="type" class="form-select" required>
+                                            <option value="">Selecione um tipo</option>
+                                            <option value="EXECUTIVE">Executivo</option>
+                                            <option value="TECHNICAL">Técnico</option>
+                                            <option value="RISK_ASSESSMENT">Avaliação de risco</option>
+                                            <option value="COMPLIANCE">Compliance</option>
+                                            <option value="TREND">Tendência</option>
+                                            <option value="INCIDENT">Incidente</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-lg-5">
+                                        <div class="type-helper" id="type-helper" aria-live="polite">
+                                            <span class="type-helper__badge" id="template-badge">Selecione um modelo</span>
+                                            <h4 class="type-helper__title" id="type-helper-title">Ainda sem modelo definido</h4>
+                                            <p class="type-helper__text" id="type-helper-text">Ao selecionar um tipo, mostramos o foco, a audiência e o resultado esperado.</p>
+                                            <ul class="type-helper__list" id="type-helper-list"></ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="builder-section">
+                                <div class="builder-section__header">
+                                    <h3>3. Escopo e conteúdo</h3>
+                                    <p>Defina o período e escolha o nível de detalhe ideal para a análise.</p>
+                                </div>
+
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-lg-5">
+                                        <label class="form-label" for="report-days">Período analisado</label>
+                                        <div class="input-group">
+                                            <input type="number" id="report-days" name="days" class="form-input"
+                                                   value="30" min="1" max="365" inputmode="numeric">
+                                            <span class="input-group-text">dias</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-lg-7">
+                                        <div class="days-presets" id="days-presets" aria-label="Sugestões de período">
+                                            <button class="days-preset" data-days="7" type="button">7 dias</button>
+                                            <button class="days-preset is-active" data-days="30" type="button">30 dias</button>
+                                            <button class="days-preset" data-days="90" type="button">90 dias</button>
+                                            <button class="days-preset" data-days="180" type="button">180 dias</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="builder-options" id="type-options">
+                                    <label class="builder-option" for="opt-charts">
+                                        <input class="form-check-input" type="checkbox" id="opt-charts" checked>
+                                        <span>
+                                            <strong>Incluir gráficos e indicadores</strong>
+                                            <small>Bom para apresentações, comitês e leitura rápida.</small>
+                                        </span>
+                                    </label>
+
+                                    <label class="builder-option" for="opt-details">
+                                        <input class="form-check-input" type="checkbox" id="opt-details" checked>
+                                        <span>
+                                            <strong>Incluir detalhamento técnico</strong>
+                                            <small>Adiciona listagens e mais contexto para times operacionais.</small>
+                                        </span>
+                                    </label>
+                                </div>
+                            </section>
                         </div>
+
+                        <aside class="report-builder__sidebar">
+                            <div class="builder-preview" aria-live="polite">
+                                <div class="builder-preview__header">
+                                    <span class="builder-preview__kicker">Resumo antes de gerar</span>
+                                    <h3>O que será entregue</h3>
+                                </div>
+
+                                <div class="builder-preview__card">
+                                    <span class="preview-pill" id="preview-type-pill">Tipo não definido</span>
+                                    <h4 id="preview-title">Defina um título para visualizar o resumo</h4>
+                                    <p id="preview-description">O relatório aparecerá aqui com um resumo do escopo e das opções selecionadas.</p>
+                                </div>
+
+                                <dl class="preview-list">
+                                    <div>
+                                        <dt>Audiência</dt>
+                                        <dd id="preview-audience">Selecione um tipo</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Período</dt>
+                                        <dd id="preview-days">30 dias</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Conteúdo</dt>
+                                        <dd id="preview-includes">Gráficos e detalhamento técnico</dd>
+                                    </div>
+                                    <div>
+                                        <dt>Saída esperada</dt>
+                                        <dd id="preview-outcome">Histórico atualizado e relatório pronto para revisão.</dd>
+                                    </div>
+                                </dl>
+
+                                <div class="builder-preview__note">
+                                    <i class="fas fa-circle-info"></i>
+                                    <span id="preview-note">Use um título objetivo para identificar rapidamente a finalidade do relatório no histórico.</span>
+                                </div>
+                            </div>
+                        </aside>
                     </div>
                 </form>
             </div>
+
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="modal-generate">
-                    <i class="fas fa-magic"></i> Generate
+                    <i class="fas fa-file-alt"></i>
+                    Gerar relatório
                 </button>
             </div>
         </div>

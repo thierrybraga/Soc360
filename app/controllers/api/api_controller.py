@@ -57,12 +57,11 @@ def list_cves():
         except KeyError:
             pass
     
-    # Filtro por vendor (JSON)
+    # Filtro por vendor (JSON array de strings)
     vendor = request.args.get('vendor')
     if vendor:
-        # Busca em JSONB usando contains
         query = query.filter(
-            Vulnerability.nvd_vendors_data.contains([{'vendor_name': vendor.lower()}])
+            db.cast(Vulnerability.nvd_vendors_data, db.Text).ilike(f'%{vendor}%')
         )
     
     # Filtro por data
@@ -157,7 +156,7 @@ def get_cve(cve_id):
         {
             'asset_id': av.asset_id,
             'asset_name': av.asset.name,
-            'status': av.status.value,
+            'status': av.status,
             'discovered_at': av.discovered_at.isoformat() if av.discovered_at else None
         }
         for av in affected_assets
@@ -331,9 +330,9 @@ def get_asset(asset_id):
     result['vulnerabilities'] = [
         {
             'cve_id': av.cve_id,
-            'status': av.status.value,
+            'status': av.status,
             'cvss_score': av.vulnerability.cvss_score if av.vulnerability else None,
-            'severity': av.vulnerability.base_severity.value if av.vulnerability else None
+            'severity': av.vulnerability.base_severity if av.vulnerability else None
         }
         for av in vulns
     ]
@@ -590,15 +589,18 @@ def create_monitoring_rule():
     if not data or 'name' not in data:
         return jsonify({'error': 'Bad Request', 'message': 'name is required'}), 400
     
+    channels = []
+    for ch in data.get('notification_channels', ['EMAIL']):
+        channels.append({'type': ch, 'config': {}})
+
     rule = MonitoringRule(
         user_id=current_user.id,
         name=data['name'],
         description=data.get('description'),
         rule_type=data.get('rule_type', 'NEW_CVE'),
         parameters=data.get('parameters', {}),
-        severity_threshold=data.get('severity_threshold'),
-        notification_channels=data.get('notification_channels', ['EMAIL']),
-        is_enabled=data.get('is_enabled', True)
+        alert_channels=channels,
+        enabled=data.get('is_enabled', data.get('enabled', True))
     )
     
     db.session.add(rule)

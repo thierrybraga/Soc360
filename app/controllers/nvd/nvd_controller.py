@@ -33,6 +33,11 @@ def _parse_iso_datetime(value):
         return None
 
 
+def _serialize_dt(dt):
+    """Convert datetime to ISO string, return None if None."""
+    return dt.isoformat() if dt else None
+
+
 def _build_mitigation_history(cve_id: str, limit: int = 100):
     from app.models.inventory import Asset, AssetVulnerability
 
@@ -40,7 +45,7 @@ def _build_mitigation_history(cve_id: str, limit: int = 100):
     mitigations = Mitigation.query.filter_by(cve_id=cve_id).order_by(Mitigation.created_at.desc()).limit(limit).all()
     for m in mitigations:
         mitigation_entries.append({
-            'timestamp': m.created_at,
+            'timestamp': _serialize_dt(m.created_at),
             'kind': 'mitigation_record',
             'title': m.type or 'Mitigation',
             'description': m.description,
@@ -62,8 +67,9 @@ def _build_mitigation_history(cve_id: str, limit: int = 100):
 
     for av in associations:
         asset_label = av.asset.name if av.asset else f'Asset #{av.asset_id}'
+        ts = av.updated_at or av.created_at
         workflow_entries.append({
-            'timestamp': av.updated_at or av.created_at,
+            'timestamp': _serialize_dt(ts),
             'kind': 'workflow_event',
             'title': f'Status {av.status} for {asset_label}',
             'description': av.remediation_notes or av.notes or '',
@@ -77,7 +83,7 @@ def _build_mitigation_history(cve_id: str, limit: int = 100):
         })
         if av.acknowledged_at:
             workflow_entries.append({
-                'timestamp': av.acknowledged_at,
+                'timestamp': _serialize_dt(av.acknowledged_at),
                 'kind': 'workflow_event',
                 'title': f'Acknowledged for {asset_label}',
                 'description': '',
@@ -91,7 +97,7 @@ def _build_mitigation_history(cve_id: str, limit: int = 100):
             })
         if av.resolved_at:
             workflow_entries.append({
-                'timestamp': av.resolved_at,
+                'timestamp': _serialize_dt(av.resolved_at),
                 'kind': 'workflow_event',
                 'title': f'Resolved for {asset_label}',
                 'description': '',
@@ -105,7 +111,7 @@ def _build_mitigation_history(cve_id: str, limit: int = 100):
             })
 
     combined = mitigation_entries + workflow_entries
-    combined.sort(key=lambda x: x['timestamp'] or datetime.min, reverse=True)
+    combined.sort(key=lambda x: x['timestamp'] or '', reverse=True)
     return combined[:limit]
 
 
@@ -644,14 +650,16 @@ def list_products():
 def sync_page():
     """Página de gerenciamento de sincronização."""
     from app.models.system import SyncMetadata
+    from datetime import datetime, timezone
     import os
-    
+
     api_key = SyncMetadata.get_value('nvd_api_key') or os.environ.get('NVD_API_KEY')
     api_key_configured = bool(api_key)
-    
+
     return render_template(
         'nvd/sync.html',
-        api_key_configured=api_key_configured
+        api_key_configured=api_key_configured,
+        now_utc=datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')
     )
 
 

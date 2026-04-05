@@ -255,9 +255,9 @@ OpenMonitor.dashboard = {
     async loadTrendsData() {
         try {
             const timeRange = this.getTimeRange();
-            const data = await OpenMonitor.api.get('/analytics/api/trends', { 
+            const data = await OpenMonitor.api.get('/analytics/api/trends', {
                 days: timeRange,
-                group_by: timeRange > 30 ? 'week' : 'day'
+                group_by: parseInt(timeRange) > 30 ? 'week' : 'day'
             });
 
             if (this.charts.trends && data.timeline) {
@@ -575,7 +575,7 @@ OpenMonitor.dashboard = {
                         <span class="badge badge-high" title="High">${asset.vulnerabilities?.HIGH || 0}</span>
                     </td>
                     <td>
-                        <a href="/inventory/${asset.asset_id}" class="btn btn-sm btn-light">
+                        <a href="/assets/${asset.asset_id}" class="btn btn-sm btn-light">
                             <i class="fas fa-arrow-right"></i>
                         </a>
                     </td>

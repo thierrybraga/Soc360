@@ -571,29 +571,34 @@ class NVDModule {
     
     async showDetail(cveId) {
         if (!this.modalContent) return;
-        
+
         if (this.detailModalInstance) {
             this.detailModalInstance.show();
         } else {
-            // Fallback for non-bootstrap instance (though init creates it)
             const modal = document.getElementById('nvd-detail-modal');
             if (modal) new bootstrap.Modal(modal).show();
         }
-        
+
         this.modalContent.innerHTML = `
             <div class="text-center py-5">
                 <div class="spinner-border text-primary" role="status"></div>
                 <p class="mt-2 text-muted">Loading vulnerability details...</p>
             </div>
         `;
-        
+
         try {
             const response = await fetch(`/vulnerabilities/api/${cveId}`);
             if (!response.ok) throw new Error('Failed to load CVE details');
-            
+
+            // API returns { vulnerability, cvss_metrics, weaknesses, references }
             const data = await response.json();
-            this.renderDetailModal(data);
-            
+            const vuln = data.vulnerability || data;
+            // Attach related data so renderDetailModal has everything
+            vuln._cvss_metrics = data.cvss_metrics || [];
+            vuln._weaknesses = data.weaknesses || [];
+            vuln._references = data.references || [];
+            this.renderDetailModal(vuln);
+
         } catch (error) {
             console.error('Failed to load CVE details:', error);
             this.modalContent.innerHTML = `
@@ -605,29 +610,49 @@ class NVDModule {
             `;
         }
     }
-    
+
     renderDetailModal(vuln) {
-        const severityClass = this.getSeverityClass(vuln.severity);
-        
+        const severityClass = this.getSeverityClass(vuln.base_severity || vuln.severity);
+        // Normalise field names — backend uses snake_case from to_dict()
+        const severity = vuln.base_severity || vuln.severity || 'NONE';
+        const cvssScore = vuln.cvss_score;
+        const cvssVersion = vuln.cvss_version || '';
+        const publishedDate = vuln.published_date || vuln.published;
+        const lastModifiedDate = vuln.last_modified_date || vuln.last_modified;
+        const isKev = vuln.is_in_cisa_kev || vuln.cisa_kev || false;
+        const vendors = vuln.vendors || vuln.nvd_vendors_data || [];
+        // Weaknesses come from _weaknesses (dicts with cwe_id) or flat array
+        const weaknesses = (vuln._weaknesses && vuln._weaknesses.length)
+            ? vuln._weaknesses.map(w => w.cwe_id || w)
+            : (vuln.weaknesses || []);
+        const references = (vuln._references && vuln._references.length)
+            ? vuln._references
+            : (vuln.references || []);
+        // Build CVSS object from first metric if available
+        let cvssObj = vuln.cvss || null;
+        if (!cvssObj && vuln._cvss_metrics && vuln._cvss_metrics.length) {
+            cvssObj = vuln._cvss_metrics[0];
+        }
+
         this.modalContent.innerHTML = `
             <div class="d-flex justify-content-between align-items-start mb-4">
                 <div>
                     <h4 class="mb-1 d-flex align-items-center gap-2">
-                        ${vuln.cve_id}
-                        ${vuln.cisa_kev ? '<span class="badge bg-danger">CISA KEV</span>' : ''}
+                        ${this.escapeHtml(vuln.cve_id)}
+                        ${isKev ? '<span class="badge bg-danger">CISA KEV</span>' : ''}
                     </h4>
                     <div class="d-flex align-items-center gap-2 mt-2">
                         <span class="badge ${this.getBadgeClass(severityClass)} fs-6">
-                            ${vuln.severity || 'NONE'}
+                            ${severity}
                         </span>
                         <span class="text-muted">|</span>
-                        <div class="fw-bold ${this.getTextColorClass(severityClass)}">CVSS: ${vuln.cvss_score ? vuln.cvss_score.toFixed(1) : 'N/A'}</div>
-                        <span class="text-muted small">(${vuln.cvss_version || ''})</span>
+                        <div class="fw-bold ${this.getTextColorClass(severityClass)}">CVSS: ${cvssScore ? cvssScore.toFixed(1) : 'N/A'}</div>
+                        <span class="text-muted small">(${cvssVersion})</span>
                     </div>
                 </div>
                 <div class="d-flex gap-2">
-                     <a href="https://nvd.nist.gov/vuln/detail/${vuln.cve_id}" 
-                       target="_blank" 
+                    <a href="https://nvd.nist.gov/vuln/detail/${vuln.cve_id}"
+                       target="_blank"
                        class="btn btn-outline-secondary btn-sm">
                         <i class="fas fa-external-link-alt"></i> NVD
                     </a>
@@ -636,29 +661,29 @@ class NVDModule {
                     </button>
                 </div>
             </div>
-            
+
             <div class="mb-4">
                 <h6 class="fw-bold border-bottom pb-2">Description</h6>
-                <p class="text-secondary">${this.escapeHtml(vuln.description)}</p>
+                <p class="text-secondary">${this.escapeHtml(vuln.description || '')}</p>
             </div>
-            
-            ${this.renderCVSSSection(vuln.cvss)}
-            
+
+            ${this.renderCVSSSection(cvssObj)}
+
             <div class="row g-4 mb-4">
                 <div class="col-md-6">
                     <h6 class="fw-bold border-bottom pb-2">Timeline</h6>
                     <ul class="list-unstyled">
-                        <li class="mb-2"><i class="fas fa-calendar-plus text-muted me-2"></i> Published: ${this.formatDate(vuln.published)}</li>
-                        <li><i class="fas fa-calendar-check text-muted me-2"></i> Last Modified: ${this.formatDate(vuln.last_modified)}</li>
+                        <li class="mb-2"><i class="fas fa-calendar-plus text-muted me-2"></i> Published: ${this.formatDate(publishedDate)}</li>
+                        <li><i class="fas fa-calendar-check text-muted me-2"></i> Last Modified: ${this.formatDate(lastModifiedDate)}</li>
                     </ul>
                 </div>
                 <div class="col-md-6">
-                     ${this.renderWeaknessesSection(vuln.weaknesses)}
+                    ${this.renderWeaknessesSection(weaknesses)}
                 </div>
             </div>
-            
-            ${this.renderVendorsSection(vuln.vendors)}
-            ${this.renderReferencesSection(vuln.references)}
+
+            ${this.renderVendorsSection(vendors)}
+            ${this.renderReferencesSection(references)}
         `;
     }
     
@@ -780,7 +805,7 @@ class NVDModule {
     
     async addToAsset(cveId) {
         // Redirect to asset selection page
-        window.location.href = `/inventory?add_cve=${cveId}`;
+        window.location.href = `/assets?add_cve=${cveId}`;
     }
     
     // Sync Management
