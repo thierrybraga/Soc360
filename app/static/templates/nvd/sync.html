@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+
+{% block title %}Sincronização de Dados - {{ super() }}{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sync.css') }}">
+
+<main class="page-shell page-shell--wide" data-page="sync" role="main">
+    <!-- Page Header with Title and Current Time -->
+    <header class="page-header" role="banner">
+        <div class="page-header__content">
+            <h1 class="page-header__title">
+                <i class="fas fa-sync-alt me-2" aria-hidden="true"></i>
+                Sincronização de Dados
+            </h1>
+            <p class="page-header__subtitle">
+                Gerenciamento centralizado das fontes NVD, EUVD e MITRE com feedback operacional e status consolidado.
+            </p>
+        </div>
+        <div class="page-header__actions">
+            <span class="badge bg-light text-dark border" title="Hora atual do servidor em UTC">
+                <i class="fas fa-clock me-1" aria-hidden="true"></i>
+                <span aria-label="Hora atual: ">{{ now_utc|default('N/A') }}</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <div class="row g-4" role="region" aria-label="Cards de sincronização de dados">
+        <!-- NVD Card (Primary) -->
+        <article class="col-lg-4 col-md-6">
+            <section class="card h-100 shadow-sm border-0 border-top border-4 border-primary" role="region" aria-label="Sincronização NVD">
+                <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h2 class="m-0 font-weight-bold text-primary">
+                        <i class="fas fa-shield-alt me-2" aria-hidden="true"></i>
+                        <span>NVD</span>
+                        <span class="sr-only">National Vulnerability Database</span>
+                    </h2>
+                    <div class="d-flex gap-2 align-items-center">
+                        {% if api_key_configured %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle" 
+                                  title="API Key está configurada e pronta para uso"
+                                  aria-label="API Key configurada">
+                                <i class="fas fa-check me-1" aria-hidden="true"></i>
+                                <span>API Key</span>
+                            </span>
+                        {% else %}
+                            <span class="badge bg-warning-subtle text-warning border border-warning-subtle"
+                                  title="API Key não configurada. Configure nas configurações do sistema."
+                                  aria-label="Aviso: API Key não configurada">
+                                <i class="fas fa-exclamation me-1" aria-hidden="true"></i>
+                                <span>No API Key</span>
+                            </span>
+                        {% endif %}
+                    </div>
+                </header>
+                <div class="card-body text-center d-flex flex-column">
+                    <!-- Status Indicator -->
+                    <div class="sync-status-container" id="sync-status-container" role="status" aria-live="polite" aria-busy="true">
+                        <div id="status-icon" class="transition-icon" aria-hidden="true">
+                            <i class="fas fa-circle-notch fa-3x text-muted"></i>
+                        </div>
+                        <h3 id="status-text" class="fw-bold text-dark">Verificando...</h3>
+                        <p id="status-details" class="text-muted small mb-0">-</p>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="progress mb-4 d-none" id="progress-container" role="progressbar" 
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso da sincronização"
+                         style="height: 20px;">
+                        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="presentation" style="width: 0%">0%</div>
+                    </div>
+
+                    <!-- Statistics Grid -->
+                    <div class="row text-center mb-4 g-2" role="group" aria-label="Estatísticas de sincronização">
+                        <div class="col-6">
+                            <div class="p-2 border rounded bg-light h-100">
+                                <small class="d-block text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Processados</small>
+                                <span id="total-processed" class="fw-bold text-dark" aria-label="Total de CVEs processados">-</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-2 border rounded bg-light h-100">
+                                <small class="d-block text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Último Sync</small>
+                                <span id="last-sync" class="fw-bold text-dark" style="font-size: 0.75rem;" 
+                                      aria-label="Data e hora da última sincronização">-</span>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-1" title="Registros inseridos">
+                                <small class="d-block text-success stat-icon-success" aria-hidden="true"><i class="fas fa-plus"></i></small>
+                                <span id="nvd-inserted" class="small fw-bold" aria-label="Total de registros inseridos">0</span>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-1" title="Registros atualizados">
+                                <small class="d-block text-warning stat-icon-warning" aria-hidden="true"><i class="fas fa-pen"></i></small>
+                                <span id="nvd-updated" class="small fw-bold" aria-label="Total de registros atualizados">0</span>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-1" title="Registros ignorados">
+                                <small class="d-block text-secondary stat-icon-secondary" aria-hidden="true"><i class="fas fa-minus-circle"></i></small>
+                                <span id="nvd-skipped" class="small fw-bold" aria-label="Total de registros ignorados">0</span>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="p-1" title="Erros encontrados">
+                                <small class="d-block text-danger stat-icon-danger" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></small>
+                                <span id="nvd-errors" class="small fw-bold" aria-label="Total de erros">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <nav class="d-grid gap-2 mt-auto" role="toolbar" aria-label="Controles de sincronização NVD">
+                        <button id="btn-incremental" class="btn btn-primary" type="button" 
+                                aria-label="Iniciar sincronização incremental (apenas novos/modificados)"
+                                title="Sincroniza apenas dados novos ou modificados">
+                            <i class="fas fa-sync me-2" aria-hidden="true"></i>
+                            <span>Sync Incremental</span>
+                        </button>
+                        <button id="btn-full" class="btn btn-outline-secondary btn-sm" type="button"
+                                aria-label="Iniciar sincronização completa (todos os dados)"
+                                title="Sincroniza todos os dados do zero">
+                            <i class="fas fa-sync-alt me-2" aria-hidden="true"></i>
+                            <span>Sync Completo</span>
+                        </button>
+                        <button id="btn-cancel" class="btn btn-danger d-none" type="button"
+                                aria-label="Cancelar sincronização em andamento"
+                                title="Interrompe a operação atual">
+                            <i class="fas fa-stop me-2" aria-hidden="true"></i>
+                            <span>Cancelar</span>
+                        </button>
+                        <div class="mt-2 text-center">
+                            <small class="text-muted" style="font-size: 0.7rem;">
+                                <span>Primeiro Sync: </span>
+                                <span id="first-sync-status" aria-label="Status da primeira sincronização">-</span>
+                            </small>
+                        </div>
+                    </nav>
+                </div>
+            </section>
+        </article>
+
+        <!-- EUVD Card -->
+        <article class="col-lg-4 col-md-6">
+            <section class="card h-100 shadow-sm border-0 border-top border-4 border-info" role="region" aria-label="Sincronização EUVD">
+                <header class="card-header bg-white py-3">
+                    <h2 class="m-0 font-weight-bold text-info">
+                        <i class="fas fa-globe-europe me-2" aria-hidden="true"></i>
+                        <span>EUVD</span>
+                        <span class="sr-only">European Union Vulnerability Database</span>
+                    </h2>
+                </header>
+                <div class="card-body text-center d-flex flex-column">
+                    <!-- Status Indicator -->
+                    <div id="euvd-status-container" class="sync-status-container" role="status" aria-live="polite" aria-busy="true">
+                        <div id="euvd-status-icon" class="transition-icon" aria-hidden="true">
+                            <i class="fas fa-circle-notch fa-3x text-muted"></i>
+                        </div>
+                        <h3 id="euvd-status-text" class="fw-bold text-dark">Verificando...</h3>
+                        <p id="euvd-status-details" class="text-muted small mb-0">-</p>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="progress mb-4 d-none" id="euvd-progress-container" role="progressbar" 
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso da sincronização EUVD"
+                         style="height: 20px;">
+                        <div id="euvd-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                             role="presentation" style="width: 100%"></div>
+                    </div>
+
+                    <!-- Statistics Grid -->
+                    <div class="row text-center mb-4 g-2" role="group" aria-label="Estatísticas EUVD">
+                        <div class="col-6">
+                            <div class="p-2 border rounded bg-light h-100">
+                                <small class="d-block text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Processados</small>
+                                <span id="euvd-processed" class="fw-bold text-dark" aria-label="Total de registros processados">-</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-2 border rounded bg-light h-100">
+                                <small class="d-block text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Último Sync</small>
+                                <span id="euvd-last-sync" class="fw-bold text-dark" style="font-size: 0.75rem;" 
+                                      aria-label="Data e hora da última sincronização">-</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1" title="Registros inseridos">
+                                <small class="d-block text-success stat-icon-success" aria-hidden="true"><i class="fas fa-plus"></i></small>
+                                <span id="euvd-inserted" class="small fw-bold" aria-label="Total de registros inseridos">0</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1" title="Registros atualizados">
+                                <small class="d-block text-warning stat-icon-warning" aria-hidden="true"><i class="fas fa-pen"></i></small>
+                                <span id="euvd-updated" class="small fw-bold" aria-label="Total de registros atualizados">0</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1" title="Erros encontrados">
+                                <small class="d-block text-danger stat-icon-danger" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></small>
+                                <span id="euvd-errors" class="small fw-bold" aria-label="Total de erros">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <nav class="d-grid mt-auto" role="toolbar" aria-label="Controles de sincronização EUVD">
+                        <button id="btn-euvd-sync" class="btn btn-info text-white" type="button"
+                                aria-label="Iniciar sincronização EUVD"
+                                title="Sincroniza dados da European Union Vulnerability Database">
+                            <i class="fas fa-sync me-2" aria-hidden="true"></i>
+                            <span>Sincronizar</span>
+                        </button>
+                    </nav>
+                </div>
+            </section>
+        </article>
+
+        <!-- MITRE Card -->
+        <article class="col-lg-4 col-md-6">
+            <section class="card h-100 shadow-sm border-0 border-top border-4 border-warning" role="region" aria-label="Enriquecimento MITRE">
+                <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h2 class="m-0 font-weight-bold text-warning">
+                        <i class="fas fa-project-diagram me-2" aria-hidden="true"></i>
+                        <span>MITRE</span>
+                        <span class="sr-only">MITRE CVE Enrichment</span>
+                    </h2>
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"
+                          aria-label="Tipo de operação: Enriquecimento de dados">Enrichment</span>
+                </header>
+                <div class="card-body text-center d-flex flex-column">
+                    <!-- Status Indicator -->
+                    <div id="mitre-status-container" class="sync-status-container" role="status" aria-live="polite" aria-busy="true">
+                        <div id="mitre-status-icon" class="transition-icon" aria-hidden="true">
+                            <i class="fas fa-circle-notch fa-3x text-muted"></i>
+                        </div>
+                        <h3 id="mitre-status-text" class="fw-bold text-dark">Verificando...</h3>
+                        <p id="mitre-status-details" class="text-muted small mb-0">-</p>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="progress mb-4 d-none" id="mitre-progress-container" role="progressbar" 
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso do enriquecimento MITRE"
+                         style="height: 20px;">
+                        <div id="mitre-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning" 
+                             role="presentation" style="width: 100%"></div>
+                    </div>
+
+                    <!-- Statistics Grid -->
+                    <div class="row text-center mb-4 g-2" role="group" aria-label="Estatísticas MITRE">
+                        <div class="col-6">
+                            <div class="p-2 border rounded bg-light h-100">
+                                <small class="d-block text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Processados</small>
+                                <span id="mitre-processed" class="fw-bold text-dark" aria-label="Total de registros processados">-</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-2 border rounded bg-light h-100">
+                                <small class="d-block text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Último Sync</small>
+                                <span id="mitre-last-sync" class="fw-bold text-dark" style="font-size: 0.75rem;" 
+                                      aria-label="Data e hora do último enriquecimento">-</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1" title="Registros atualizados">
+                                <small class="d-block text-warning stat-icon-warning" aria-hidden="true"><i class="fas fa-pen"></i></small>
+                                <span id="mitre-updated" class="small fw-bold" aria-label="Total de registros atualizados">0</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1" title="Registros ignorados">
+                                <small class="d-block text-secondary stat-icon-secondary" aria-hidden="true"><i class="fas fa-minus-circle"></i></small>
+                                <span id="mitre-skipped" class="small fw-bold" aria-label="Total de registros ignorados">0</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1" title="Erros encontrados">
+                                <small class="d-block text-danger stat-icon-danger" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></small>
+                                <span id="mitre-errors" class="small fw-bold" aria-label="Total de erros">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <nav class="d-grid mt-auto" role="toolbar" aria-label="Controles de enriquecimento MITRE">
+                        <button id="btn-mitre-enrich" class="btn btn-warning text-dark" type="button"
+                                aria-label="Iniciar enriquecimento de dados com MITRE"
+                                title="Enriquece os dados de CVE com informações MITRE">
+                            <i class="fas fa-magic me-2" aria-hidden="true"></i>
+                            <span>Enriquecer Dados</span>
+                        </button>
+                    </nav>
+                </div>
+            </section>
+        </article>
+        <!-- MITRE ATT&CK Card -->
+        <article class="col-lg-4 col-md-6">
+            <section class="card h-100 shadow-sm border-0 border-top border-4 border-dark" role="region" aria-label="Sincronização MITRE ATT&CK Framework">
+                <header class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h2 class="m-0 font-weight-bold text-dark">
+                        <i class="fas fa-shield-virus me-2" aria-hidden="true"></i>
+                        <span>MITRE ATT&CK</span>
+                        <span class="sr-only">MITRE Adversarial Tactics, Techniques and Common Knowledge</span>
+                    </h2>
+                    <span class="badge bg-dark-subtle text-dark border border-dark-subtle"
+                          aria-label="Tipo de operação: Framework de técnicas adversárias">Framework</span>
+                </header>
+                <div class="card-body text-center d-flex flex-column">
+                    <!-- Status Indicator -->
+                    <div id="mitre-attack-status-container" class="sync-status-container" role="status" aria-live="polite" aria-busy="true">
+                        <div id="mitre-attack-status-icon" class="transition-icon" aria-hidden="true">
+                            <i class="fas fa-circle-notch fa-3x text-muted"></i>
+                        </div>
+                        <h3 id="mitre-attack-status-text" class="fw-bold text-dark">Verificando...</h3>
+                        <p id="mitre-attack-status-details" class="text-muted small mb-0">-</p>
+                    </div>
+
+                    <!-- Progress Bar -->
+                    <div class="progress mb-4 d-none" id="mitre-attack-progress-container" role="progressbar" 
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Progresso da sincronização MITRE ATT&CK"
+                         style="height: 20px;">
+                        <div id="mitre-attack-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-dark" 
+                             role="presentation" style="width: 100%"></div>
+                    </div>
+
+                    <!-- Statistics Grid -->
+                    <div class="row text-center mb-4 g-2" role="group" aria-label="Estatísticas MITRE ATT&CK">
+                        <div class="col-6">
+                            <div class="p-2 border rounded bg-light h-100">
+                                <small class="d-block text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Objetos</small>
+                                <span id="mitre-attack-processed" class="fw-bold text-dark" aria-label="Total de objetos do framework">-</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="p-2 border rounded bg-light h-100">
+                                <small class="d-block text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Último Sync</small>
+                                <span id="mitre-attack-last-sync" class="fw-bold text-dark" style="font-size: 0.75rem;" 
+                                      aria-label="Data e hora da última sincronização">-</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1" title="Objetos inseridos">
+                                <small class="d-block text-success stat-icon-success" aria-hidden="true"><i class="fas fa-plus"></i></small>
+                                <span id="mitre-attack-inserted" class="small fw-bold" aria-label="Total de objetos inseridos">0</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1" title="Objetos atualizados">
+                                <small class="d-block text-warning stat-icon-warning" aria-hidden="true"><i class="fas fa-pen"></i></small>
+                                <span id="mitre-attack-updated" class="small fw-bold" aria-label="Total de objetos atualizados">0</span>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-1" title="Erros encontrados">
+                                <small class="d-block text-danger stat-icon-danger" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></small>
+                                <span id="mitre-attack-errors" class="small fw-bold" aria-label="Total de erros">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <nav class="d-grid gap-2 mt-auto" role="toolbar" aria-label="Controles de sincronização MITRE ATT&CK">
+                        <button id="btn-mitre-attack-sync" class="btn btn-dark" type="button"
+                                aria-label="Iniciar sincronização do framework MITRE ATT&CK"
+                                title="Sincroniza as técnicas e táticas adversárias MITRE ATT&CK">
+                            <i class="fas fa-sync me-2" aria-hidden="true"></i>
+                            <span>Sincronizar Framework</span>
+                        </button>
+                        <button id="btn-mitre-attack-map" class="btn btn-outline-dark btn-sm" type="button"
+                                aria-label="Mapear CVEs para técnicas MITRE ATT&CK"
+                                title="Vincula CVEs às técnicas adversárias do framework">
+                            <i class="fas fa-link me-2" aria-hidden="true"></i>
+                            <span>Mapear CVEs</span>
+                        </button>
+                    </nav>
+                </div>
+            </section>
+        </article>
+    </div>
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pages/nvd/sync.js') }}"></script>
+{% endblock %}

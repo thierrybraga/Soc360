@@ -18,7 +18,7 @@ class Alert(CoreModel):
 
     # Identificação
     title = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
+    description = Column(Text(), nullable=True)
     
     # Relacionamentos
     rule_id = Column(Integer, ForeignKey('monitoring_rules.id'), nullable=True)

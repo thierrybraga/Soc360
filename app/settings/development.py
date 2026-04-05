@@ -1,13 +1,13 @@
 """
 Open-Monitor Development Settings
-Configurações otimizadas para desenvolvimento local.
+Configurations optimized for local development.
 """
 import os
 from app.settings.base import BaseConfig
 
 
 class DevelopmentConfig(BaseConfig):
-    """Configurações de desenvolvimento."""
+    """Development configurations."""
     
     DEBUG = True
     TESTING = False
@@ -15,12 +15,13 @@ class DevelopmentConfig(BaseConfig):
     # Security - Relaxed for development
     SESSION_COOKIE_SECURE = False
     WTF_CSRF_ENABLED = True
+    CSP_ENABLED = False  # Disable CSP in dev to avoid rendering issues
     
-    # Development database - pode usar SQLite para testes rápidos
+    # Development database - can use SQLite for quick tests
     DB_CORE_HOST = os.environ.get('DB_CORE_HOST', 'localhost')
     DB_PUBLIC_HOST = os.environ.get('DB_PUBLIC_HOST', 'localhost')
     
-    # Re-definir URIs para usar os hosts locais (sobrescrevendo BaseConfig)
+    # Re-define URIs to use local hosts (overriding BaseConfig)
     SQLALCHEMY_DATABASE_URI = f"postgresql://{BaseConfig.DB_CORE_USER}:{BaseConfig.DB_CORE_PASSWORD}@{DB_CORE_HOST}:{BaseConfig.DB_CORE_PORT}/{BaseConfig.DB_CORE_NAME}"
     
     SQLALCHEMY_BINDS = {
@@ -46,29 +47,51 @@ class DevelopmentConfig(BaseConfig):
         'echo': False,  # Set True to see SQL queries
     }
     
-    # SQLite fallback support
-    if os.environ.get('USE_SQLITE'):
-        print("DEBUG: Enabling SQLite Mode in DevelopmentConfig")
-        basedir = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        db_path = os.path.join(basedir, 'app.db')
+    # SQLite fallback support - Enabled by default if file exists or USE_SQLITE is set
+    basedir = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    db_path = os.path.join(basedir, 'instance', 'app.db')
+
+    if os.environ.get('USE_SQLITE') or not os.environ.get('DB_CORE_HOST') or not os.path.exists(db_path):
+        # If no DB host configured or explicitly requested, use SQLite
+        # However, maintain compatibility: if app.db doesn't exist, force SQLite
+        # for automatic initialization.
+        print(f"DEBUG: Enabling SQLite Mode (DB Path: {db_path})")
         SQLALCHEMY_DATABASE_URI = 'sqlite:///' + db_path
         SQLALCHEMY_BINDS = {
             'core': 'sqlite:///' + db_path,
             'public': 'sqlite:///' + db_path
         }
+        # SQLite doesn't support pool_size/pool_recycle
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            'connect_args': {'check_same_thread': False},
+        }
         # Disable Redis if using SQLite mode
-        REDIS_URL = None
-        CELERY_BROKER_URL = 'memory://'
-        CELERY_RESULT_BACKEND = 'db+sqlite:///' + os.path.join(basedir, 'celery.db')
+        # REDIS_URL = None # Keep Redis if available, but Celery can use DB
+        if os.environ.get('USE_SQLITE'):
+            CELERY_BROKER_URL = 'memory://'
+            CELERY_RESULT_BACKEND = 'db+sqlite:///' + os.path.join(basedir, 'instance', 'celery.db')
+
+    @staticmethod
+    def _is_postgres_available(uri, timeout=3):
+        try:
+            from sqlalchemy import create_engine, text
+            engine = create_engine(uri, pool_pre_ping=True, connect_args={'connect_timeout': timeout})
+            with engine.connect() as conn:
+                conn.execute(text('SELECT 1'))
+            return True
+        except Exception:
+            return False
 
     @classmethod
     def init_app(cls, app):
-        """Inicialização específica de desenvolvimento."""
-        pass
+        """Development-specific initialization."""
+        # Check if configured PostgreSQL is accessible; if not, use SQLite fallback.
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI')
+        cls.fallback_to_sqlite(app, db_uri)
 
 
 class TestingConfig(BaseConfig):
-    """Configurações para testes automatizados."""
+    """Configurations for automated tests."""
     
     DEBUG = True
     TESTING = True
@@ -77,7 +100,7 @@ class TestingConfig(BaseConfig):
     DB_CORE_HOST = os.environ.get('DB_CORE_HOST', 'localhost')
     DB_PUBLIC_HOST = os.environ.get('DB_PUBLIC_HOST', 'localhost')
     
-    # Re-definir URIs para usar os hosts locais
+    # Re-define URIs to use local hosts
     SQLALCHEMY_DATABASE_URI = f"postgresql://{BaseConfig.DB_CORE_USER}:{BaseConfig.DB_CORE_PASSWORD}@{DB_CORE_HOST}:{BaseConfig.DB_CORE_PORT}/{BaseConfig.DB_CORE_NAME}"
     
     SQLALCHEMY_BINDS = {

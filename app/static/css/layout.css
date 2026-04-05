@@ -1,0 +1,115 @@
+/* layout.css - Estrutura de layout e animações de entrada
+ * Keyframes globais e preferências de acessibilidade.
+ * Versão 3.0 - Simplificado. Sidebar/main-content posicionados em base.css e sidebar.css.
+ */
+
+/* ==========================================================================
+   Animações de Entrada
+   ========================================================================== */
+
+@keyframes content-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.page-content {
+    animation: content-fade-in 0.4s ease forwards;
+}
+
+/* ==========================================================================
+   Flash Messages / Alerts
+   ========================================================================== */
+
+.flash-messages {
+    padding: 0 var(--spacing-xl);
+}
+
+.alert {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-radius: var(--border-radius);
+    margin-bottom: var(--spacing-md);
+    font-size: var(--font-sm);
+    border: 1px solid transparent;
+    animation: fadeIn 0.3s ease forwards;
+}
+
+.alert i {
+    flex-shrink: 0;
+}
+
+.alert-close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: inherit;
+    opacity: 0.7;
+    cursor: pointer;
+    font-size: var(--font-lg);
+    padding: 0 4px;
+    transition: opacity 0.2s ease;
+}
+
+.alert-close:hover {
+    opacity: 1;
+}
+
+.alert-success {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+    border-color: rgba(16, 185, 129, 0.2);
+}
+
+.alert-error, .alert-danger {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+    border-color: rgba(239, 68, 68, 0.2);
+}
+
+.alert-warning {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--warning);
+    border-color: rgba(245, 158, 11, 0.2);
+}
+
+.alert-info {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--info);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+/* ==========================================================================
+   Acessibilidade - Reduced Motion
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    .page-content,
+    .alert {
+        animation: none !important;
+    }
+}
+
+/* ==========================================================================
+   Print
+   ========================================================================== */
+
+@media print {
+    .top-bar,
+    .flash-messages,
+    .menu-toggle {
+        display: none !important;
+    }
+
+    .main-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+}

@@ -1,6 +1,6 @@
 """
 Open-Monitor Settings Module
-Exporta configurações baseadas no ambiente.
+Export configurations based on environment.
 """
 import os
 from app.settings.base import BaseConfig
@@ -17,7 +17,7 @@ config = {
 
 
 def get_config(env_name=None):
-    """Retorna a configuração baseada no nome do ambiente ou FLASK_ENV."""
+    """Return configuration based on environment name or FLASK_ENV."""
     if env_name is None:
         env_name = os.environ.get('FLASK_ENV', 'development')
     return config.get(env_name, config['default'])

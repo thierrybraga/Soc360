@@ -4,68 +4,40 @@ from typing import Dict, List, Optional
 from sqlalchemy.dialects.postgresql import insert
 from app.extensions import db
 from app.models.nvd import Vulnerability, CvssMetric
-from app.jobs.euvd_fetcher import EUVDFetcher
+from app.jobs.fetchers import EUVDFetcher
 from app.models.system import SyncMetadata
 from app.services.monitoring.alert_service import AlertService
 
 logger = logging.getLogger(__name__)
 
-class EUVDService:
+from app.services.core.base_sync_service import BaseSyncService, SyncStatus
+
+class EUVDService(BaseSyncService):
     """
     Serviço para sincronização e consolidação de dados da EUVD.
     """
     
     def __init__(self):
+        super().__init__(prefix='euvd')
         self.fetcher = EUVDFetcher()
-        self.stats = {
-            'processed': 0,
-            'inserted': 0,
-            'updated': 0,
-            'errors': 0,
-            'total': 0
-        }
 
     def get_status(self) -> Dict:
         """Obter status atual da sincronização."""
-        return {
-            'status': SyncMetadata.get('euvd_sync_status') or 'idle',
-            'last_sync': SyncMetadata.get('euvd_last_sync_date'),
-            'message': SyncMetadata.get('euvd_sync_message'),
-            'stats': {
-                'processed': int(SyncMetadata.get('euvd_sync_stats_processed') or 0),
-                'inserted': int(SyncMetadata.get('euvd_sync_stats_inserted') or 0),
-                'updated': int(SyncMetadata.get('euvd_sync_stats_updated') or 0),
-                'errors': int(SyncMetadata.get('euvd_sync_stats_errors') or 0),
-                'total': int(SyncMetadata.get('euvd_sync_stats_total') or 0)
-            }
-        }
-
-    def _update_status(self, status: str, message: str = None, stats: Dict = None):
-        """Atualizar metadados de status."""
-        SyncMetadata.set('euvd_sync_status', status)
-        if message:
-            SyncMetadata.set('euvd_sync_message', message)
-        
-        if stats:
-            for key, value in stats.items():
-                SyncMetadata.set(f'euvd_sync_stats_{key}', value)
+        return self.get_progress()
 
     def sync_latest(self):
         """Sincronizar últimas vulnerabilidades."""
         try:
-            self._update_status('running', 'Fetching latest vulnerabilities...')
+            self.start_sync('Fetching latest vulnerabilities...')
             items = self.fetcher.fetch_latest()
             
-            self._update_status('running', f'Processing {len(items)} items...')
+            self._update_progress(message=f'Processing {len(items)} items...', total=len(items))
             self._process_items(items)
             
-            SyncMetadata.set('euvd_last_sync_date', datetime.utcnow().isoformat())
-            self._update_status('completed', 'Sync completed successfully', self.stats)
-            
+            self.complete_sync()
             return self.stats
         except Exception as e:
-            logger.error(f"Error syncing latest EUVD: {e}")
-            self._update_status('failed', str(e))
+            self.fail_sync(str(e))
             raise
 
     def sync_by_date(self, from_date: str, to_date: str):
@@ -105,10 +77,9 @@ class EUVDService:
             
             # Update status every 10 items
             if (i + 1) % 10 == 0:
-                self._update_status(
-                    'running', 
-                    f'Processing item {i+1}/{total}...', 
-                    self.stats
+                self._update_progress(
+                    message=f'Processing item {i+1}/{total}...',
+                    **self.stats
                 )
         
         # Commit after batch
@@ -138,11 +109,9 @@ class EUVDService:
         
         if existing:
             # Update logic (Consolidação)
-            # Apenas atualizamos se o campo estiver vazio ou se quisermos forçar
-            # Por segurança, vamos atualizar apenas campos complementares ou se a fonte for "mais rica"
-            # Aqui faremos um update simples dos campos principais se eles vierem da EUVD
             updated = False
             
+            # Atualizar campos básicos se vazios
             if not existing.description and data['description']:
                 existing.description = data['description']
                 updated = True
@@ -150,11 +119,34 @@ class EUVDService:
             if not existing.cvss_score and data['cvss_score']:
                 existing.cvss_score = data['cvss_score']
                 updated = True
+
+            # Campos específicos EUVD (complementares à NIST)
+            if data.get('euvd_id'):
+                existing.euvd_id = data['euvd_id']
+                updated = True
+            
+            if data.get('enisa_alternative_id'):
+                existing.enisa_alternative_id = data['enisa_alternative_id']
+                updated = True
+
+            if data.get('enisa_exploitation_status'):
+                existing.enisa_exploitation_status = data['enisa_exploitation_status']
+                updated = True
+
+            if data.get('enisa_source'):
+                existing.enisa_source = data['enisa_source']
+                updated = True
+
+            if data.get('enisa_last_changed'):
+                existing.enisa_last_changed = data['enisa_last_changed']
+                updated = True
+
+            if data.get('is_eu_csirt_coordinated'):
+                existing.is_eu_csirt_coordinated = data['is_eu_csirt_coordinated']
+                updated = True
             
             # Save EUVD specific CVSS Metric
             self._save_cvss_metric(primary_id, data)
-            
-            # TODO: Adicionar lógica mais complexa de merge de vendors/products
             
             if updated:
                 self.stats['updated'] += 1
@@ -242,6 +234,12 @@ class EUVDService:
 
         return {
             'cve_id': primary_id,
+            'euvd_id': item.get('id'),
+            'enisa_alternative_id': item.get('alternativeId'),
+            'enisa_exploitation_status': item.get('exploitation'),
+            'enisa_source': item.get('source'),
+            'enisa_last_changed': updated,
+            'is_eu_csirt_coordinated': 'EU CSIRT' in (item.get('source') or ''),
             'description': item.get('description'),
             'published_date': published,
             'last_modified_date': updated,

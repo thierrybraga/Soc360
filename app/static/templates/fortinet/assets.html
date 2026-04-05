@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Fortinet Assets - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-server"></i> Fortinet Assets</h1>
+    <div class="page-actions">
+        <button class="btn btn-primary" id="btn-scan" onclick="scanAssets()">
+            <i class="fas fa-search"></i> Scan Assets
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table" id="assets-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Product</th>
+                        <th>Version</th>
+                        <th>IP Address</th>
+                        <th>Vulnerabilities</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="assets-tbody">
+                    <tr><td colspan="6" class="text-center text-muted">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function loadAssets() {
+    fetch('/fortinet/api/assets')
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('assets-tbody');
+            if (!data.assets || data.assets.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No Fortinet assets found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.assets.map(a => `
+                <tr>
+                    <td><a href="/assets/${a.id}">${a.name}</a></td>
+                    <td>${a.product_name || '-'}</td>
+                    <td>${a.version || '-'}</td>
+                    <td>${a.ip_address || '-'}</td>
+                    <td><span class="badge ${a.vulnerability_count > 0 ? 'badge-warning' : ''}">${a.vulnerability_count || 0}</span></td>
+                    <td><span class="badge badge-${a.is_active ? 'success' : 'secondary'}">${a.is_active ? 'Active' : 'Inactive'}</span></td>
+                </tr>
+            `).join('');
+        })
+        .catch(() => {
+            document.getElementById('assets-tbody').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading assets.</td></tr>';
+        });
+}
+
+function scanAssets() {
+    const btn = document.getElementById('btn-scan');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Scanning...';
+
+    fetch('/fortinet/api/scan', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-search"></i> Scan Assets';
+        loadAssets();
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-search"></i> Scan Assets';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', loadAssets);
+</script>
+{% endblock %}

@@ -1,13 +1,13 @@
 """
 Open-Monitor Production Settings
-Configurações otimizadas para ambiente de produção.
+Configurations optimized for production environment.
 """
 import os
 from app.settings.base import BaseConfig
 
 
 class ProductionConfig(BaseConfig):
-    """Configurações de produção."""
+    """Production configurations."""
     
     DEBUG = False
     TESTING = False
@@ -35,16 +35,16 @@ class ProductionConfig(BaseConfig):
     
     @classmethod
     def init_app(cls, app):
-        """Inicialização específica de produção."""
-        # Configurar logging para produção
+        """Production-specific initialization."""
+        # Configure logging for production
         import logging
         from logging.handlers import RotatingFileHandler
-        
+
         if not app.debug:
             # Ensure log directory exists or use a path that is guaranteed to exist
             log_file = os.environ.get('LOG_FILE', '/app/logs/app.log')
             log_dir = os.path.dirname(log_file)
-            
+
             if os.path.exists(log_dir):
                 handler = RotatingFileHandler(
                     log_file,
@@ -58,7 +58,12 @@ class ProductionConfig(BaseConfig):
                 ))
                 app.logger.addHandler(handler)
             else:
-                # Fallback to stream handler if log directory doesn't exist
                 stream_handler = logging.StreamHandler()
                 stream_handler.setLevel(logging.WARNING)
                 app.logger.addHandler(stream_handler)
+
+        # Strategy to fallback to SQLite if Postgres is unreachable
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI')
+        cls.fallback_to_sqlite(app, db_uri)
+
+

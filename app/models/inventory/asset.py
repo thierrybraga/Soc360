@@ -32,6 +32,31 @@ class Asset(CoreModel):
     status = Column(String(50), default=AssetStatus.ACTIVE.value, nullable=False)
     criticality = Column(String(20), default='MEDIUM')  # LOW, MEDIUM, HIGH, CRITICAL
     
+    # Categorização e Hierarquia
+    category_id = Column(
+        Integer,
+        ForeignKey('asset_categories.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True
+    )
+    parent_id = Column(
+        Integer,
+        ForeignKey('assets.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True
+    )
+    
+    # Organização/Cliente (para SOC)
+    client_id = Column(String(100), nullable=True, index=True)  # ID do cliente ou Adon
+    organization_id = Column(
+        Integer,
+        ForeignKey('asset_categories.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True
+    )
+    environment = Column(String(50), default='PRODUCTION')  # PRODUCTION, STAGING, DEV, DMZ
+    exposure = Column(String(20), default='INTERNAL')  # INTERNAL, EXTERNAL, CLOUD
+    
     # Localização
     location = Column(String(255), nullable=True)
     data_center = Column(String(100), nullable=True)
@@ -70,8 +95,8 @@ class Asset(CoreModel):
     operational_cost_per_hour = Column(Float, nullable=True)  # Custo de downtime
     
     # Descrição
-    description = Column(Text, nullable=True)
-    notes = Column(Text, nullable=True)
+    description = Column(Text(), nullable=True)
+    notes = Column(Text(), nullable=True)
     
     # Tags e metadados customizados
     tags = Column(JSONB, nullable=True)
@@ -87,6 +112,9 @@ class Asset(CoreModel):
     owner = relationship('User', back_populates='assets')
     vendor = relationship('Vendor', back_populates='assets')
     product = relationship('Product', back_populates='assets')
+    category = relationship('AssetCategory', foreign_keys=[category_id], back_populates='category_assets')
+    organization = relationship('AssetCategory', foreign_keys=[organization_id], back_populates='org_assets')
+    parent = relationship('Asset', remote_side='Asset.id', backref='children')
     vulnerabilities = relationship('AssetVulnerability', back_populates='asset', cascade='all, delete-orphan')
     
     # Unique constraint: IP único por owner
@@ -139,17 +167,31 @@ class Asset(CoreModel):
         """
         Calcula score de risco contextualizado.
         
-        Risk Score = CVSS × BIA_multiplier
-        BIA multiplier varia de 1.0 a 2.0 baseado no BIA score.
+        Risk Score = CVSS × BIA_multiplier × Context_multiplier
         """
         if not cvss_score:
             return 0
         
         bia = self.bia_score
-        # Multiplier: 1.0 (BIA=0) até 2.0 (BIA=100)
-        bia_multiplier = 1.0 + (bia / 100)
+        # Multiplier: 1.0 (BIA=0) até 1.5 (BIA=100)
+        bia_multiplier = 1.0 + (bia / 200)
         
-        risk_score = cvss_score * bia_multiplier
+        # Context multiplier (baseado em criticidade, ambiente e exposição)
+        context_multiplier = 1.0
+        
+        # Criticidade (0.8 a 1.2)
+        criticality_map = {'LOW': 0.8, 'MEDIUM': 1.0, 'HIGH': 1.1, 'CRITICAL': 1.2}
+        context_multiplier *= criticality_map.get(self.criticality.upper(), 1.0)
+        
+        # Ambiente (0.9 a 1.1)
+        env_map = {'PRODUCTION': 1.1, 'STAGING': 1.0, 'DEV': 0.9, 'DMZ': 1.1}
+        context_multiplier *= env_map.get(self.environment.upper(), 1.0)
+        
+        # Exposição (1.0 a 1.2)
+        exp_map = {'INTERNAL': 1.0, 'CLOUD': 1.1, 'EXTERNAL': 1.2}
+        context_multiplier *= exp_map.get(self.exposure.upper(), 1.0)
+        
+        risk_score = cvss_score * bia_multiplier * context_multiplier
         # Cap at 10.0
         return min(round(risk_score, 1), 10.0)
     
@@ -183,6 +225,15 @@ class Asset(CoreModel):
             'asset_type': self.asset_type,
             'status': self.status,
             'criticality': self.criticality,
+            'category_id': self.category_id,
+            'organization_id': self.organization_id,
+            'organization_name': self.organization.name if self.organization else None,
+            'category_name': self.category.name if self.category else None,
+            'parent_id': self.parent_id,
+            'parent_name': self.parent.name if self.parent else None,
+            'client_id': self.client_id,
+            'environment': self.environment,
+            'exposure': self.exposure,
             'location': self.location,
             'owner_id': self.owner_id,
             'owner_name': self.owner.full_name if self.owner else None,

@@ -20,6 +20,9 @@ from app.models.system.enums import (
 )
 from app.models.system.sync_metadata import SyncMetadata
 from app.models.system.audit_log import AuditLog
+from app.models.system.chat import ChatSession, ChatMessage
+from app.models.system.chat_log import ChatLog
+from app.models.system.newsletter_subscriber import NewsletterSubscription, NewsletterSubscriber
 
 
 __all__ = [
@@ -41,4 +44,9 @@ __all__ = [
     'ReferenceType',
     'SyncMetadata',
     'AuditLog',
+    'ChatSession',
+    'ChatMessage',
+    'ChatLog',
+    'NewsletterSubscription',
+    'NewsletterSubscriber',
 ]

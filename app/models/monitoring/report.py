@@ -26,7 +26,7 @@ class Report(CoreModel):
     
     # Identificação
     title = Column(String(500), nullable=False)
-    description = Column(Text, nullable=True)
+    description = Column(Text(), nullable=True)
     
     # Owner
     user_id = Column(
@@ -72,7 +72,7 @@ class Report(CoreModel):
     """
     
     # AI-Generated Content
-    ai_summary = Column(Text, nullable=True)
+    ai_summary = Column(Text(), nullable=True)
     ai_recommendations = Column(JSONB, nullable=True)
     """
     Estrutura:
@@ -86,7 +86,7 @@ class Report(CoreModel):
         ...
     ]
     """
-    ai_risk_analysis = Column(Text, nullable=True)
+    ai_risk_analysis = Column(Text(), nullable=True)
     ai_generated_at = Column(DateTime, nullable=True)
     ai_model_used = Column(String(100), nullable=True)
     

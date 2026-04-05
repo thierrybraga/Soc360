@@ -33,7 +33,7 @@ class ApiCallLog(CoreModel):
     response_time_ms = Column(Float, nullable=True)
     
     # Error info
-    error_message = Column(Text, nullable=True)
+    error_message = Column(Text(), nullable=True)
     error_type = Column(String(100), nullable=True)
     
     # Request body (opcional, pode conter dados sensíveis)

@@ -35,8 +35,9 @@ def init_db(app):
             User, Role, UserRole,
             Vulnerability, CvssMetric, Weakness, Reference, Mitigation,
             Asset, AssetVulnerability, Vendor, Product,
-            MonitoringRule, Report, RiskAssessment,
-            SyncMetadata, ApiCallLog
+            MonitoringRule, Alert, Report, RiskAssessment,
+            SyncMetadata, ApiCallLog,
+            Tactic, Technique, AttackMitigation
         )
     
     return db

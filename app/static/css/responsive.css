@@ -1,0 +1,141 @@
+/* responsive.css - Ajustes responsivos complementares
+ * Versão: 2.0 - Simplificado. Sidebar responsiva está em sidebar.css.
+ * Foco: Dashboard, tabelas, formulários, cards, tipografia.
+ */
+
+/* ==========================================================================
+   Dashboard Responsivo
+   ========================================================================== */
+
+@media (max-width: 575.98px) {
+    .metric-cards {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+
+    .metric-card {
+        padding: var(--spacing-md);
+    }
+
+    .metric-card-value {
+        font-size: var(--font-2xl);
+    }
+
+    .dashboard-container {
+        padding: var(--spacing-md) var(--spacing-sm);
+    }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .metric-cards {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-md);
+    }
+}
+
+/* ==========================================================================
+   Tabelas Responsivas
+   ========================================================================== */
+
+@media (max-width: 767.98px) {
+    .table-responsive table {
+        font-size: var(--font-sm);
+    }
+
+    .table th,
+    .table td {
+        padding: var(--spacing-xs) var(--spacing-sm);
+        white-space: nowrap;
+    }
+
+    .table .d-none-mobile {
+        display: none !important;
+    }
+}
+
+/* ==========================================================================
+   Formulários Responsivos
+   ========================================================================== */
+
+@media (max-width: 575.98px) {
+    .form-group {
+        margin-bottom: var(--spacing-md);
+    }
+
+    .form-control {
+        font-size: 16px; /* Previne zoom no iOS */
+    }
+}
+
+/* ==========================================================================
+   Modais Responsivos
+   ========================================================================== */
+
+@media (max-width: 575.98px) {
+    .modal-dialog {
+        margin: var(--spacing-sm);
+        max-width: calc(100% - var(--spacing-lg));
+    }
+
+    .modal-content {
+        border-radius: var(--border-radius-lg);
+    }
+
+    .modal-header,
+    .modal-body,
+    .modal-footer {
+        padding: var(--spacing-md);
+    }
+}
+
+/* ==========================================================================
+   Cards Responsivos
+   ========================================================================== */
+
+@media (max-width: 575.98px) {
+    .card {
+        margin-bottom: var(--spacing-md);
+    }
+
+    .card-header,
+    .card-body,
+    .card-footer {
+        padding: var(--spacing-md);
+    }
+
+    .card-title {
+        font-size: var(--font-lg);
+    }
+}
+
+/* ==========================================================================
+   Orientação Landscape (Mobile)
+   ========================================================================== */
+
+@media (max-width: 767.98px) and (orientation: landscape) {
+    .metric-cards {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* ==========================================================================
+   Print
+   ========================================================================== */
+
+@media print {
+    .main-content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+    }
+
+    .metric-cards {
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--spacing-md);
+    }
+
+    .metric-card {
+        border: 1px solid #000;
+        box-shadow: none;
+        break-inside: avoid;
+    }
+}

@@ -112,9 +112,9 @@ def dashboard_data():
     # === Monitoramento ===
     rule_query = MonitoringRule.query
     if not current_user.is_admin:
-        rule_query = rule_query.filter(MonitoringRule.owner_id == current_user.id)
-    
-    active_rules = rule_query.filter(MonitoringRule.is_active == True).count()
+        rule_query = rule_query.filter(MonitoringRule.user_id == current_user.id)
+
+    active_rules = rule_query.filter(MonitoringRule.enabled == True).count()
     
     return jsonify({
         'vulnerabilities': {

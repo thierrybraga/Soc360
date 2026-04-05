@@ -154,7 +154,7 @@ class Product(CoreModel):
     end_of_life = Column(db.Date, nullable=True)
     
     # Descrição
-    description = Column(Text, nullable=True)
+    description = Column(Text(), nullable=True)
     
     # Relationships
     vendor = relationship('Vendor', back_populates='products')

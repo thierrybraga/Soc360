@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Fortinet Dashboard - {{ app_name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-shield-virus"></i> Fortinet Security Dashboard</h1>
+    <p class="text-muted">Monitor Fortinet devices and vulnerabilities</p>
+</div>
+
+<div class="stats-grid" id="stats-container">
+    <div class="stat-card">
+        <div class="stat-icon"><i class="fas fa-server"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="total-assets">-</span>
+            <span class="stat-label">Fortinet Assets</span>
+        </div>
+    </div>
+    <div class="stat-card stat-danger">
+        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="critical-cves">-</span>
+            <span class="stat-label">Critical CVEs</span>
+        </div>
+    </div>
+    <div class="stat-card stat-warning">
+        <div class="stat-icon"><i class="fas fa-bug"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="total-cves">-</span>
+            <span class="stat-label">Total CVEs</span>
+        </div>
+    </div>
+    <div class="stat-card stat-info">
+        <div class="stat-icon"><i class="fas fa-box"></i></div>
+        <div class="stat-info">
+            <span class="stat-value" id="total-products">-</span>
+            <span class="stat-label">Products Tracked</span>
+        </div>
+    </div>
+</div>
+
+<div class="content-grid">
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="fas fa-fire"></i> Critical CVEs</h3>
+            <a href="{{ url_for('fortinet.cves_list') }}" class="btn btn-sm btn-outline">View All</a>
+        </div>
+        <div class="card-body">
+            <div id="critical-cves-list" class="table-responsive">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="fas fa-server"></i> Fortinet Assets</h3>
+            <a href="{{ url_for('fortinet.assets_list') }}" class="btn btn-sm btn-outline">View All</a>
+        </div>
+        <div class="card-body">
+            <div id="assets-list" class="table-responsive">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/fortinet/api/dashboard/stats')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('total-assets').textContent = data.total_assets || 0;
+            document.getElementById('critical-cves').textContent = data.critical_cves || 0;
+            document.getElementById('total-cves').textContent = data.total_cves || 0;
+            document.getElementById('total-products').textContent = data.total_products || 0;
+        })
+        .catch(() => {});
+
+    fetch('/fortinet/api/cves/critical')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('critical-cves-list');
+            if (!data.cves || data.cves.length === 0) {
+                container.innerHTML = '<p class="text-muted">No critical CVEs found.</p>';
+                return;
+            }
+            let html = '<table class="table"><thead><tr><th>CVE ID</th><th>Score</th><th>Product</th></tr></thead><tbody>';
+            data.cves.slice(0, 10).forEach(cve => {
+                html += `<tr><td><a href="/vulnerabilities/${cve.cve_id}">${cve.cve_id}</a></td><td><span class="badge badge-danger">${cve.cvss_score || '-'}</span></td><td>${cve.product || '-'}</td></tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        })
+        .catch(() => {});
+
+    fetch('/fortinet/api/assets?limit=10')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('assets-list');
+            if (!data.assets || data.assets.length === 0) {
+                container.innerHTML = '<p class="text-muted">No Fortinet assets found.</p>';
+                return;
+            }
+            let html = '<table class="table"><thead><tr><th>Name</th><th>Product</th><th>Vulns</th></tr></thead><tbody>';
+            data.assets.slice(0, 10).forEach(a => {
+                html += `<tr><td>${a.name}</td><td>${a.product_name || '-'}</td><td><span class="badge">${a.vulnerability_count || 0}</span></td></tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        })
+        .catch(() => {});
+});
+</script>
+{% endblock %}

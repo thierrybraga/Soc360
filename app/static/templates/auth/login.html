@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Login - {{ app_name }}{% endblock %}
+
+{% block body_class %}auth-page{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card glass-card">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <h1>Open-Monitor</h1>
+            <p>Enterprise Vulnerability Management</p>
+        </div>
+        
+        <form method="POST" action="{{ url_for('auth.login') }}" class="auth-form" id="loginForm">
+            {{ form.csrf_token }}
+            
+            {% if error %}
+            <div class="alert alert-danger mb-4">
+                <i class="fas fa-exclamation-circle"></i>
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            {% if form.errors %}
+            <div class="alert alert-danger mb-4">
+                <i class="fas fa-exclamation-circle"></i>
+                <ul class="mb-0 pl-3">
+                {% for field, errors in form.errors.items() %}
+                    {% for error in errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            <div class="form-group">
+                <label for="username" class="form-label">
+                    <i class="fas fa-user"></i>
+                    {{ form.username.label }}
+                </label>
+                {{ form.username(class="form-input", autofocus=True) }}
+            </div>
+            
+            <div class="form-group">
+                <label for="password" class="form-label">
+                    <i class="fas fa-lock"></i>
+                    {{ form.password.label }}
+                </label>
+                <div class="password-input">
+                    {{ form.password(class="form-input") }}
+                    <button type="button" class="toggle-password">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <label class="form-check">
+                    {{ form.remember_me() }}
+                    <span class="form-check-label">{{ form.remember_me.label }}</span>
+                </label>
+                <a href="{{ url_for('auth.password_reset_request') }}" class="forgot-link">
+                    Esqueceu a senha?
+                </a>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-block btn-lg">
+                <i class="fas fa-sign-in-alt"></i>
+                {{ form.submit.label.text }}
+            </button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Primeiro acesso? <a href="{{ url_for('auth.init_root') }}">Configurar sistema</a></p>
+        </div>
+    </div>
+    
+    <div class="auth-background">
+        <div class="bg-gradient"></div>
+        <div class="bg-pattern"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pages/auth.js') }}"></script>
+{% endblock %}

@@ -34,7 +34,7 @@ class Reference(PublicModel):
     source = Column(String(255), nullable=True)
     
     # Tags (Patch, Vendor Advisory, Third Party Advisory, etc)
-    tags = Column(ARRAY(String), nullable=True)
+    tags = Column(ARRAY(String(255)), nullable=True)
     
     # Computed fields
     is_patch = Column(Boolean, default=False)

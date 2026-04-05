@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+
+{% block title %}Configurações - Open-Monitor{% endblock %}
+
+{% block extra_css %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script src="{{ url_for('static', filename='js/pages/settings.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<div class="page-shell" data-page="settings">
+    <!-- HEADER -->
+    <div class="page-header">
+        <div class="page-header__content">
+            <h1 class="page-header__title">
+                <i class="fas fa-cog"></i>Configurações
+            </h1>
+            <p class="page-header__subtitle">
+                Gerencie informações de perfil, credenciais de segurança e acesso à API em um único lugar centralizado.
+            </p>
+        </div>
+    </div>
+
+    <!-- AVISO de Segurança (se aplicável) -->
+    {% if current_user.is_admin and (current_user.force_password_reset or current_user.username|lower == 'admin') %}
+        <div class="container-lg">
+            <div class="alert alert-warning" role="alert">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                    <strong>Atenção Importante de Segurança:</strong>
+                    <p style="margin: 0.5rem 0 0 0;">Sua conta de administrador está usando credenciais padrão ou precisa de redefinição de senha. 
+                    <strong>Altere a senha imediatamente</strong> na seção "Segurança" abaixo para manter sua conta protegida.</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="container-lg">
+        <!-- SEÇÃO 1 & 2: PERFIL e SEGURANÇA lado a lado -->
+        <div class="row g-4 mb-5">
+            <!-- CARD 1: Profile Information -->
+            <div class="col-12 col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header border-bottom">
+                        <h2 class="card-title">
+                            <i class="fas fa-user-circle"></i>Informações do Perfil
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="" class="settings-form" id="profileForm">
+                            {{ profile_form.hidden_tag() }}
+                            
+                            <div class="form-group">
+                                <label for="{{ profile_form.username.id }}" class="form-label required">
+                                    Nome de Usuário
+                                </label>
+                                {{ profile_form.username(
+                                    class="form-input" + (" is-invalid" if profile_form.username.errors else ""),
+                                    placeholder="Digite seu nome de usuário público",
+                                    required="required"
+                                ) }}
+                                {% if profile_form.username.errors %}
+                                    <div class="invalid-feedback">
+                                        <i class="fas fa-info-circle"></i>
+                                        {{ profile_form.username.errors[0] }}
+                                    </div>
+                                {% else %}
+                                    <div class="form-text">Seu nome de usuário público visível na plataforma</div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="{{ profile_form.email.id }}" class="form-label required">
+                                    E-mail
+                                </label>
+                                {{ profile_form.email(
+                                    class="form-input" + (" is-invalid" if profile_form.email.errors else ""),
+                                    placeholder="seu.email@exemplo.com",
+                                    required="required",
+                                    type="email"
+                                ) }}
+                                {% if profile_form.email.errors %}
+                                    <div class="invalid-feedback">
+                                        <i class="fas fa-info-circle"></i>
+                                        {{ profile_form.email.errors[0] }}
+                                    </div>
+                                {% else %}
+                                    <div class="form-text">Usado para notificações e recuperação de conta</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="d-grid pt-3" style="margin-top: 1.5rem;">
+                                <button 
+                                    type="submit" 
+                                    name="profile_submit" 
+                                    class="btn btn-primary"
+                                    data-action="profile-save"
+                                >
+                                    <i class="fas fa-save"></i>Salvar Alterações
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CARD 2: Security / Password -->
+            <div class="col-12 col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header border-bottom">
+                        <h2 class="card-title">
+                            <i class="fas fa-lock"></i>Segurança
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST" action="" class="settings-form" id="passwordForm">
+                            {{ password_form.hidden_tag() }}
+                            
+                            <div class="form-group">
+                                <label for="{{ password_form.current_password.id }}" class="form-label required">
+                                    Senha Atual
+                                </label>
+                                <div class="input-group">
+                                    {{ password_form.current_password(
+                                        class="form-input" + (" is-invalid" if password_form.current_password.errors else ""),
+                                        placeholder="Digite sua senha atual",
+                                        required="required"
+                                    ) }}
+                                    <button 
+                                        class="btn toggle-password-btn" 
+                                        type="button" 
+                                        data-target="{{ password_form.current_password.id }}"
+                                        aria-label="Mostrar/Ocultar Senha"
+                                        tabindex="0"
+                                    >
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                {% if password_form.current_password.errors %}
+                                    <div class="invalid-feedback">
+                                        <i class="fas fa-info-circle"></i>
+                                        {{ password_form.current_password.errors[0] }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="{{ password_form.new_password.id }}" class="form-label required">
+                                    Nova Senha
+                                </label>
+                                <div class="input-group">
+                                    {{ password_form.new_password(
+                                        class="form-input" + (" is-invalid" if password_form.new_password.errors else ""),
+                                        placeholder="Mínimo 12 caracteres",
+                                        required="required"
+                                    ) }}
+                                    <button 
+                                        class="btn toggle-password-btn" 
+                                        type="button" 
+                                        data-target="{{ password_form.new_password.id }}"
+                                        aria-label="Mostrar/Ocultar Senha"
+                                        tabindex="0"
+                                    >
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                {% if password_form.new_password.errors %}
+                                    <div class="invalid-feedback">
+                                        <i class="fas fa-info-circle"></i>
+                                        {{ password_form.new_password.errors[0] }}
+                                    </div>
+                                {% else %}
+                                    <div class="form-text">
+                                        <i class="fas fa-shield-alt"></i>
+                                        Mínimo 12 caracteres com letras, números e símbolos
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="{{ password_form.confirm_new_password.id }}" class="form-label required">
+                                    Confirmar Nova Senha
+                                </label>
+                                <div class="input-group">
+                                    {{ password_form.confirm_new_password(
+                                        class="form-input" + (" is-invalid" if password_form.confirm_new_password.errors else ""),
+                                        placeholder="Repita sua nova senha",
+                                        required="required"
+                                    ) }}
+                                    <button 
+                                        class="btn toggle-password-btn" 
+                                        type="button" 
+                                        data-target="{{ password_form.confirm_new_password.id }}"
+                                        aria-label="Mostrar/Ocultar Senha"
+                                        tabindex="0"
+                                    >
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </div>
+                                {% if password_form.confirm_new_password.errors %}
+                                    <div class="invalid-feedback">
+                                        <i class="fas fa-info-circle"></i>
+                                        {{ password_form.confirm_new_password.errors[0] }}
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="d-grid pt-3" style="margin-top: 1.5rem;">
+                                <button 
+                                    type="submit" 
+                                    name="password_submit" 
+                                    class="btn btn-warning"
+                                    data-action="password-save"
+                                >
+                                    <i class="fas fa-key"></i>Atualizar Senha
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SEÇÃO 3: API ACCESS -->
+        <div class="card mb-5">
+            <div class="card-header border-bottom">
+                <h2 class="card-title">
+                    <i class="fas fa-code"></i>Acesso à API
+                </h2>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Use sua chave de API para autenticar requisições com a API Open-Monitor. 
+                    <strong>Mantenha sua chave segura</strong> e nunca a compartilhe publicamente.
+                </p>
+                
+                {% if user.api_key %}
+                    <!-- API KEY EXISTENTE -->
+                    <div class="form-group mb-4">
+                        <label for="apiKeyInput" class="form-label">
+                            <i class="fas fa-key me-2"></i>Sua Chave de API
+                        </label>
+                        <div class="input-group">
+                            <input 
+                                type="text" 
+                                class="form-input font-monospace" 
+                                value="{{ user.api_key }}" 
+                                readonly 
+                                id="apiKeyInput"
+                                aria-label="Chave de API"
+                            >
+                            <button 
+                                class="btn copy-btn" 
+                                type="button" 
+                                data-target="apiKeyInput"
+                                title="Copiar para área de transferência"
+                            >
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            <i class="fas fa-clock me-1"></i>
+                            Criada em: <strong>{{ user.api_key_created_at.strftime('%d/%m/%Y às %H:%M') if user.api_key_created_at else 'Data desconhecida' }}</strong>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-book"></i>
+                        <div>
+                            <strong>Como usar:</strong>
+                            <pre style="background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 6px; margin: 0.5rem 0; overflow-x: auto;">curl -H "Authorization: Bearer YOUR_API_KEY" https://api.openmonitor.local/v1/vulnerabilities</pre>
+                        </div>
+                    </div>
+
+                    <!-- BOTÕES DE AÇÃO -->
+                    <form method="POST" class="d-flex gap-2 flex-wrap">
+                        {{ api_key_form.hidden_tag() }}
+                        <button 
+                            type="submit" 
+                            name="api_key_regenerate" 
+                            class="btn btn-outline-primary"
+                            data-action="api-regenerate"
+                        >
+                            <i class="fas fa-sync"></i>Regenerar Chave
+                        </button>
+                        <button 
+                            type="submit" 
+                            name="api_key_revoke" 
+                            class="btn btn-danger"
+                            data-action="api-revoke"
+                            onclick="return confirm('Tem certeza? Todas as aplicações usando essa chave deixarão de funcionar.');"
+                        >
+                            <i class="fas fa-trash"></i>Revogar Chave
+                        </button>
+                    </form>
+                {% else %}
+                    <!-- NENHUMA API KEY -->
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <div>
+                            <strong>Você não possui uma chave de API ativa.</strong>
+                            <p style="margin: 0.5rem 0 0 0;">Clique no botão abaixo para gerar uma nova chave de API.</p>
+                        </div>
+                    </div>
+                    <form method="POST" class="mt-4">
+                        {{ api_key_form.hidden_tag() }}
+                        <button 
+                            type="submit" 
+                            name="api_key_generate" 
+                            class="btn btn-primary"
+                            data-action="api-generate"
+                        >
+                            <i class="fas fa-plus"></i>Gerar Chave de API
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- DICAS E BOAS PRÁTICAS -->
+        <div class="card">
+            <div class="card-header border-bottom">
+                <h2 class="card-title">
+                    <i class="fas fa-lightbulb"></i>Dicas de Segurança
+                </h2>
+            </div>
+            <div class="card-body">
+                <div class="row g-4">
+                    <div class="col-12 col-md-6">
+                        <div style="padding: 1rem; background: rgba(59, 130, 246, 0.05); border-radius: 8px; border-left: 3px solid var(--primary-500);">
+                            <strong style="color: var(--primary-400);">
+                                <i class="fas fa-check-circle me-2"></i>Use uma Senha Forte
+                            </strong>
+                            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
+                                Combine letras maiúsculas, minúsculas, números e símbolos especiais.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div style="padding: 1rem; background: rgba(59, 130, 246, 0.05); border-radius: 8px; border-left: 3px solid var(--primary-500);">
+                            <strong style="color: var(--primary-400);">
+                                <i class="fas fa-lock-alt me-2"></i>Proteja Sua Chave API
+                            </strong>
+                            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
+                                Nunca compartilhe sua chave de API. Regenere-a regularmente.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div style="padding: 1rem; background: rgba(59, 130, 246, 0.05); border-radius: 8px; border-left: 3px solid var(--primary-500);">
+                            <strong style="color: var(--primary-400);">
+                                <i class="fas fa-bell me-2"></i>Monitore Sua Conta
+                            </strong>
+                            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
+                                Verifique regularmente as atividades suspeitas na sua conta.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div style="padding: 1rem; background: rgba(59, 130, 246, 0.05); border-radius: 8px; border-left: 3px solid var(--primary-500);">
+                            <strong style="color: var(--primary-400);">
+                                <i class="fas fa-refresh me-2"></i>Atualize Regularmente
+                            </strong>
+                            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
+                                Mantenha sua senha atualizada e regenere chaves de API periodicamente.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

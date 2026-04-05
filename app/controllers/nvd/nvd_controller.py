@@ -4,13 +4,17 @@ Rotas para visualização e gerenciamento de vulnerabilidades.
 """
 import logging
 from datetime import datetime, timedelta
+from statistics import mean
 
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
+from sqlalchemy import func
+from sqlalchemy.orm import joinedload
 
 from app.extensions import db
 from app.models.nvd import Vulnerability, CvssMetric, Weakness, Reference, Mitigation, Credit, AffectedProduct
 from app.services.nvd import NVDSyncService
+from app.models.inventory.category import AssetCategory
 from app.utils.security import role_required
 
 
@@ -18,6 +22,91 @@ logger = logging.getLogger(__name__)
 
 
 nvd_bp = Blueprint('nvd', __name__)
+
+
+def _parse_iso_datetime(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace('Z', '+00:00')).replace(tzinfo=None)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_mitigation_history(cve_id: str, limit: int = 100):
+    from app.models.inventory import Asset, AssetVulnerability
+
+    mitigation_entries = []
+    mitigations = Mitigation.query.filter_by(cve_id=cve_id).order_by(Mitigation.created_at.desc()).limit(limit).all()
+    for m in mitigations:
+        mitigation_entries.append({
+            'timestamp': m.created_at,
+            'kind': 'mitigation_record',
+            'title': m.type or 'Mitigation',
+            'description': m.description,
+            'source': m.source,
+            'effectiveness': m.effectiveness,
+            'user_id': None,
+            'asset_vulnerability_id': None
+        })
+
+    workflow_entries = []
+    associations = AssetVulnerability.query.options(
+        joinedload(AssetVulnerability.asset),
+        joinedload(AssetVulnerability.assignee)
+    ).outerjoin(
+        Asset, Asset.id == AssetVulnerability.asset_id
+    ).filter(
+        func.upper(AssetVulnerability.cve_id) == cve_id
+    ).order_by(AssetVulnerability.updated_at.desc()).limit(limit).all()
+
+    for av in associations:
+        asset_label = av.asset.name if av.asset else f'Asset #{av.asset_id}'
+        workflow_entries.append({
+            'timestamp': av.updated_at or av.created_at,
+            'kind': 'workflow_event',
+            'title': f'Status {av.status} for {asset_label}',
+            'description': av.remediation_notes or av.notes or '',
+            'source': 'asset_workflow',
+            'effectiveness': None,
+            'user_id': av.assignee_id,
+            'username': av.assignee.username if av.assignee else None,
+            'status': av.status,
+            'asset_vulnerability_id': av.id,
+            'due_date': av.due_date.isoformat() if av.due_date else None
+        })
+        if av.acknowledged_at:
+            workflow_entries.append({
+                'timestamp': av.acknowledged_at,
+                'kind': 'workflow_event',
+                'title': f'Acknowledged for {asset_label}',
+                'description': '',
+                'source': 'asset_workflow',
+                'effectiveness': None,
+                'user_id': av.assignee_id,
+                'username': av.assignee.username if av.assignee else None,
+                'status': 'IN_PROGRESS',
+                'asset_vulnerability_id': av.id,
+                'due_date': None
+            })
+        if av.resolved_at:
+            workflow_entries.append({
+                'timestamp': av.resolved_at,
+                'kind': 'workflow_event',
+                'title': f'Resolved for {asset_label}',
+                'description': '',
+                'source': 'asset_workflow',
+                'effectiveness': None,
+                'user_id': av.assignee_id,
+                'username': av.assignee.username if av.assignee else None,
+                'status': av.status,
+                'asset_vulnerability_id': av.id,
+                'due_date': None
+            })
+
+    combined = mitigation_entries + workflow_entries
+    combined.sort(key=lambda x: x['timestamp'] or datetime.min, reverse=True)
+    return combined[:limit]
 
 
 @nvd_bp.route('/')
@@ -171,10 +260,89 @@ def detail(cve_id):
     affected_products = AffectedProduct.query.filter_by(cve_id=vuln.cve_id).all()
 
     # Importar models de inventory (cross-db)
-    from app.models.inventory.asset_vulnerability import AssetVulnerability
-    affected_assets = AssetVulnerability.query.filter_by(
-        cve_id=vuln.cve_id
+    from app.models.inventory import Asset, AssetVulnerability
+    affected_assets_query = AssetVulnerability.query.options(
+        joinedload(AssetVulnerability.asset),
+        joinedload(AssetVulnerability.assignee)
+    ).outerjoin(
+        Asset, Asset.id == AssetVulnerability.asset_id
+    ).filter(
+        func.upper(AssetVulnerability.cve_id) == vuln.cve_id
+    )
+
+    affected_assets = affected_assets_query.order_by(
+        Asset.name.asc().nullslast(),
+        AssetVulnerability.discovered_at.desc()
     ).all()
+
+    open_statuses = {'OPEN', 'IN_PROGRESS'}
+    resolved_statuses = {'RESOLVED', 'MITIGATED'}
+    open_assets_count = sum(1 for av in affected_assets if av.status in open_statuses)
+    resolved_assets_count = sum(1 for av in affected_assets if av.status in resolved_statuses)
+    overdue_assets_count = sum(1 for av in affected_assets if av.is_overdue)
+    unassigned_assets_count = sum(1 for av in affected_assets if av.assignee_id is None)
+    contextual_scores = [av.contextual_risk_score for av in affected_assets if av.contextual_risk_score is not None]
+    avg_contextual_risk = round(mean(contextual_scores), 2) if contextual_scores else None
+    max_contextual_risk = round(max(contextual_scores), 2) if contextual_scores else None
+
+    asset_type_counts = {}
+    asset_criticality_counts = {}
+    for av in affected_assets:
+        if av.asset and av.asset.asset_type:
+            key = av.asset.asset_type.upper()
+            asset_type_counts[key] = asset_type_counts.get(key, 0) + 1
+        if av.asset and av.asset.criticality:
+            key = av.asset.criticality.upper()
+            asset_criticality_counts[key] = asset_criticality_counts.get(key, 0) + 1
+
+    top_asset_types = sorted(
+        asset_type_counts.items(),
+        key=lambda item: item[1],
+        reverse=True
+    )[:3]
+
+    primary_metric = cvss_metrics[0] if cvss_metrics else None
+    threat_intel_score = 0
+    if vuln.exploit_available:
+        threat_intel_score += 4
+    if vuln.is_in_cisa_kev:
+        threat_intel_score += 4
+    if not vuln.patch_available:
+        threat_intel_score += 2
+    threat_intel_score = min(threat_intel_score, 10)
+    exposure_score = min(len(affected_assets) * 2, 10)
+    open_risk_score = None
+    if avg_contextual_risk is not None:
+        open_scores = [av.contextual_risk_score for av in affected_assets if av.status in open_statuses and av.contextual_risk_score is not None]
+        open_risk_score = round(mean(open_scores), 2) if open_scores else avg_contextual_risk
+
+    radar_chart = None
+    if (
+        vuln.cvss_score is not None
+        and primary_metric
+        and primary_metric.exploitability_score is not None
+        and primary_metric.impact_score is not None
+        and open_risk_score is not None
+        and len(affected_assets) > 0
+    ):
+        radar_chart = {
+            'labels': [
+                'CVSS Base',
+                'Exploitability',
+                'Impact',
+                'Asset Exposure',
+                'Open Risk',
+                'Threat Intel'
+            ],
+            'values': [
+                round(vuln.cvss_score, 2),
+                round(primary_metric.exploitability_score, 2),
+                round(primary_metric.impact_score, 2),
+                round(exposure_score, 2),
+                round(open_risk_score, 2),
+                round(float(threat_intel_score), 2),
+            ]
+        }
 
     # Separar referências por tipo
     patch_refs = [r for r in references if r.is_patch]
@@ -196,7 +364,118 @@ def detail(cve_id):
         credits=credits,
         affected_products=affected_products,
         affected_assets=affected_assets,
+        open_assets_count=open_assets_count,
+        resolved_assets_count=resolved_assets_count,
+        overdue_assets_count=overdue_assets_count,
+        unassigned_assets_count=unassigned_assets_count,
+        avg_contextual_risk=avg_contextual_risk,
+        max_contextual_risk=max_contextual_risk,
+        top_asset_types=top_asset_types,
+        asset_criticality_counts=asset_criticality_counts,
+        radar_chart=radar_chart,
+        mitigation_history=_build_mitigation_history(vuln.cve_id),
     )
+
+
+@nvd_bp.route('/api/<cve_id>/mitigations/workflow', methods=['POST'])
+@login_required
+def mitigation_workflow(cve_id):
+    cve_id_upper = cve_id.upper()
+    payload = request.get_json(silent=True) or {}
+    action = (payload.get('action') or '').strip().lower()
+    if action not in {'start', 'update', 'resolve', 'mitigate', 'accept_risk', 'reopen', 'add_note'}:
+        return jsonify({'error': 'Invalid action'}), 400
+
+    from app.models.inventory import Asset, AssetVulnerability
+
+    asset_vuln = None
+    asset_vuln_id = payload.get('asset_vulnerability_id')
+    if asset_vuln_id:
+        asset_vuln = AssetVulnerability.query.options(
+            joinedload(AssetVulnerability.asset),
+            joinedload(AssetVulnerability.assignee)
+        ).filter(
+            AssetVulnerability.id == asset_vuln_id,
+            func.upper(AssetVulnerability.cve_id) == cve_id_upper
+        ).first()
+        if not asset_vuln:
+            return jsonify({'error': 'Asset vulnerability association not found'}), 404
+        if not current_user.is_admin and (not asset_vuln.asset or asset_vuln.asset.owner_id != current_user.id):
+            return jsonify({'error': 'Forbidden'}), 403
+    elif not current_user.is_admin:
+        return jsonify({'error': 'asset_vulnerability_id is required for non-admin users'}), 400
+
+    notes = (payload.get('notes') or '').strip()
+    effectiveness = (payload.get('effectiveness') or '').strip() or None
+    source = (payload.get('source') or '').strip() or 'organization'
+    mitigation_type = (payload.get('type') or '').strip() or 'Workaround'
+    mitigation_description = (payload.get('mitigation_description') or '').strip()
+    due_date = _parse_iso_datetime(payload.get('due_date'))
+    assignee_id = payload.get('assignee_id')
+
+    status_map = {
+        'start': 'IN_PROGRESS',
+        'update': None,
+        'resolve': 'RESOLVED',
+        'mitigate': 'MITIGATED',
+        'accept_risk': 'ACCEPTED',
+        'reopen': 'OPEN',
+        'add_note': None
+    }
+
+    now = datetime.utcnow()
+    changed_status = None
+    try:
+        if asset_vuln:
+            next_status = status_map[action]
+            if next_status:
+                asset_vuln.status = next_status
+                changed_status = next_status
+            if action == 'start' and not asset_vuln.acknowledged_at:
+                asset_vuln.acknowledged_at = now
+            if action in {'resolve', 'mitigate'}:
+                asset_vuln.resolved_at = now
+            if action == 'reopen':
+                asset_vuln.resolved_at = None
+            if due_date:
+                asset_vuln.due_date = due_date
+            if assignee_id is not None and current_user.is_admin:
+                asset_vuln.assignee_id = assignee_id
+            if notes:
+                previous = (asset_vuln.remediation_notes or '').strip()
+                prefix = f"[{now.strftime('%Y-%m-%d %H:%M:%S')}][{action.upper()}]"
+                asset_vuln.remediation_notes = f"{previous}\n{prefix} {notes}".strip() if previous else f"{prefix} {notes}"
+            if mitigation_description:
+                extra = f" mitigation={mitigation_type} source={source}"
+                if effectiveness:
+                    extra = f"{extra} effectiveness={effectiveness}"
+                description_line = f"[{now.strftime('%Y-%m-%d %H:%M:%S')}][MITIGATION]{extra}: {mitigation_description}"
+                asset_vuln.remediation_notes = f"{asset_vuln.remediation_notes}\n{description_line}".strip() if asset_vuln.remediation_notes else description_line
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'cve_id': cve_id_upper,
+            'action': action,
+            'asset_vulnerability': asset_vuln.to_dict() if asset_vuln else None,
+            'created_mitigation': None,
+            'history': _build_mitigation_history(cve_id_upper, limit=40)
+        })
+    except Exception as exc:
+        db.session.rollback()
+        logger.error(f'Error on mitigation workflow for {cve_id_upper}: {exc}')
+        return jsonify({'error': 'Failed to update mitigation workflow'}), 500
+
+
+@nvd_bp.route('/api/<cve_id>/mitigations/history')
+@login_required
+def mitigation_history(cve_id):
+    vuln = Vulnerability.query.filter_by(cve_id=cve_id.upper()).first_or_404()
+    return jsonify({
+        'cve_id': vuln.cve_id,
+        'items': _build_mitigation_history(vuln.cve_id, limit=200)
+    })
 
 
 @nvd_bp.route('/api/<cve_id>')
@@ -376,12 +655,86 @@ def sync_page():
     )
 
 
+@nvd_bp.route('/api/vulnerabilities/<cve_id>/organizations', methods=['POST'])
+@login_required
+@role_required('ADMIN', 'ANALYST')
+def associate_organizations(cve_id):
+    """API: Associar organizações a uma CVE."""
+    vuln = Vulnerability.query.filter_by(cve_id=cve_id).first_or_404()
+    data = request.get_json()
+    
+    if not data or 'organization_ids' not in data:
+        return jsonify({'error': 'Missing organization_ids'}), 400
+        
+    org_ids = data['organization_ids']
+    orgs = AssetCategory.query.filter(
+        AssetCategory.id.in_(org_ids),
+        AssetCategory.is_organization == True
+    ).all()
+    
+    vuln.organizations = orgs
+    db.session.commit()
+    
+    return jsonify({
+        'status': 'success',
+        'organizations': [o.to_dict() for o in vuln.organizations]
+    })
+
+
 @nvd_bp.route('/api/sync/status')
 @login_required
 def sync_status():
     """API: Status da sincronização."""
     service = NVDSyncService()
     return jsonify(service.get_progress())
+
+
+from app.services.mitre.mitre_attack_service import MitreAttackService
+
+@nvd_bp.route('/api/mitre-attack/status')
+@login_required
+def mitre_attack_status():
+    """API: Status da sincronização do MITRE ATT&CK."""
+    service = MitreAttackService()
+    return jsonify(service.get_progress())
+
+@nvd_bp.route('/api/mitre-attack/sync', methods=['POST'])
+@login_required
+@role_required('ADMIN')
+def mitre_attack_sync():
+    """API: Iniciar sincronização do MITRE ATT&CK."""
+    from flask import current_app
+    app = current_app._get_current_object()
+    
+    def run_sync(app_instance):
+        with app_instance.app_context():
+            service = MitreAttackService()
+            service.sync_all_domains()
+            
+    import threading
+    thread = threading.Thread(target=run_sync, args=(app,))
+    thread.start()
+    
+    return jsonify({'message': 'Sincronização iniciada em segundo plano.'})
+
+@nvd_bp.route('/api/mitre-attack/map', methods=['POST'])
+@login_required
+@role_required('ADMIN')
+def mitre_attack_map():
+    """API: Mapear CVEs para técnicas do ATT&CK."""
+    from flask import current_app
+    app = current_app._get_current_object()
+    
+    def run_map(app_instance):
+        with app_instance.app_context():
+            service = MitreAttackService()
+            service.map_cves_to_techniques()
+            
+    import threading
+    thread = threading.Thread(target=run_map, args=(app,))
+    thread.start()
+    
+    return jsonify({'message': 'Mapeamento iniciado em segundo plano.'})
 
 
 @nvd_bp.route('/api/sync/start', methods=['POST'])

@@ -32,30 +32,30 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
         Tuple (is_valid, message)
     """
     if len(password) < 12:
-        return False, 'Senha deve ter no mínimo 12 caracteres.'
+        return False, 'Password must be at least 12 characters long.'
     
     if not re.search(r'[A-Z]', password):
-        return False, 'Senha deve conter pelo menos uma letra maiúscula.'
+        return False, 'Password must contain at least one uppercase letter.'
     
     if not re.search(r'[a-z]', password):
-        return False, 'Senha deve conter pelo menos uma letra minúscula.'
+        return False, 'Password must contain at least one lowercase letter.'
     
     if not re.search(r'\d', password):
-        return False, 'Senha deve conter pelo menos um dígito.'
+        return False, 'Password must contain at least one digit.'
     
     if not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;\'`~]', password):
-        return False, 'Senha deve conter pelo menos um caractere especial.'
+        return False, 'Password must contain at least one special character.'
     
-    # Verificar senhas comuns
+    # Check for common passwords
     common_passwords = [
         'password123', 'qwerty123456', '123456789012',
         'admin123456', 'welcome12345'
     ]
     
     if password.lower() in common_passwords:
-        return False, 'Esta senha é muito comum. Escolha outra.'
+        return False, 'This password is too common. Please choose another one.'
     
-    return True, 'Senha válida.'
+    return True, 'Password is valid.'
 
 
 # =============================================================================
@@ -192,6 +192,41 @@ def role_required(*required_roles):
                     return jsonify({
                         'error': 'Forbidden',
                         'message': f'Required roles: {", ".join(required_roles)}'
+                    }), 403
+                abort(403)
+            
+            return f(*args, **kwargs)
+        
+        return wrapped
+    return decorator
+
+
+def owner_required(get_owner_id: Callable):
+    """
+    Decorator que requer ser owner do recurso (sem permitir admin).
+    
+    Args:
+        get_owner_id: Função que extrai owner_id dos kwargs
+    """
+    def decorator(f: Callable) -> Callable:
+        @functools.wraps(f)
+        def wrapped(*args, **kwargs):
+            if not current_user.is_authenticated:
+                if request.path.startswith('/api/'):
+                    return jsonify({'error': 'Unauthorized'}), 401
+                abort(401)
+            
+            # Verificar ownership
+            owner_id = get_owner_id(kwargs)
+            
+            if owner_id != current_user.id:
+                current_app.logger.warning(
+                    f'Owner access denied for user {current_user.username}'
+                )
+                if request.path.startswith('/api/'):
+                    return jsonify({
+                        'error': 'Forbidden',
+                        'message': 'You do not have access to this resource'
                     }), 403
                 abort(403)
             

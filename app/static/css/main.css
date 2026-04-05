@@ -1,0 +1,90 @@
+/* main.css - Sistema de design Open Monitor
+ * Arquivo principal de estilo com arquitetura CSS escalável.
+ * Gerencia a importação de todos os arquivos CSS base e globais.
+ * Versão: 3.0 - Arquitetura consolidada, duplicações removidas
+ * Última atualização: Abril 2026
+ *
+ * ARQUITETURA:
+ *   main.css carrega estilos GLOBAIS (presentes em todas as páginas).
+ *   Estilos de página específica são carregados via {% block extra_css %} em cada template:
+ *     - dashboard.css  → core/dashboard.html, core/index.html
+ *     - vulnerabilities.css → nvd/*, vulnerabilities/*
+ *     - auth.css       → auth/*
+ *     - assets.css     → inventory/*, assets/*
+ *     - reports.css    → reports/*
+ */
+
+/* ==========================================================================
+   1. Importações Externas - Fontes e Ícones
+   ========================================================================== */
+
+/* Inter Font Family - Peso: 400, 500, 600, 700 */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap&font-display=swap');
+
+/* Bootstrap Icons - Carregado via CDN; bootstrap-icons.css local removido (redundante) */
+@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css');
+
+
+/* ==========================================================================
+   2. Cascata base – Reset → Variáveis → Tipografia → Utilitários
+   ========================================================================== */
+
+/* a. Reset – Neutraliza estilos padrão do browser */
+@import 'reset.css';
+
+/* b. Base – Estilos fundamentais de body, links, seleção (usa variáveis de variables.css) */
+@import 'base.css';
+
+/* c. Variáveis – Custom properties: cores, espaçamentos, fontes */
+@import 'variables.css';
+
+/* d. Tipografia – Headings, parágrafos, classes tipográficas */
+@import 'typography.css';
+
+/* e. Utilitários – Classes atômicas (display, flex, spacing) */
+@import 'utilities.css';
+
+
+/* ==========================================================================
+   3. Layout e Estrutura
+   ========================================================================== */
+
+/* f. Layout – Estrutura principal: sidebar, navbar, main-content */
+@import 'layout.css';
+
+/* g. Responsividade – Media queries e ajustes para mobile/tablet */
+@import 'responsive.css';
+
+
+/* ==========================================================================
+   4. Componentes Globais (presentes em todas as páginas)
+   ========================================================================== */
+
+/* h. Componentes – Botões, cards, modais, tooltips, popovers */
+@import 'components.css';
+
+/* i. Formulários – Inputs, selects, checkboxes, validação */
+@import 'forms.css';
+
+/* j. Navbar – Estilos visuais e interativos da barra de navegação */
+@import 'navbar.css';
+
+/* k. Sidebar – Estilos visuais e interativos da barra lateral */
+@import 'sidebar.css';
+
+/* l. Footer – Estilos do rodapé */
+@import 'footer.css';
+
+/* m. Gráficos – Chart.js containers e wrappers (usado em dashboard, analytics, reports) */
+@import 'charts.css';
+
+/* n. Estados de loading de botões e formulários */
+@import 'loading-states.css';
+
+
+/* ==========================================================================
+   5. Acessibilidade
+   ========================================================================== */
+
+/* o. Acessibilidade – Focus states, screen readers, reduced motion */
+@import 'accessibility.css';

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - Open-Monitor{% endblock %}
+
+{% block extra_css %}
+<link href="{{ url_for('static', filename='css/reports.css') }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="page-shell page-shell--wide" data-page="reports-index">
+    <div class="page-header">
+        <div class="page-header__content">
+            <h1 class="page-header__title">Reports</h1>
+            <p class="page-header__subtitle">Generate executive and technical reports with a consistent review and export workflow.</p>
+        </div>
+        <div class="page-header__actions">
+        <button class="btn btn-primary btn-sm" id="generate-btn">
+            <i class="fas fa-plus"></i> Generate Report
+        </button>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="row g-4 mb-4">
+        <!-- Total Reports -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon primary">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-total"></span>
+                    <span class="stat-label">Total Reports</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Completed -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-completed"></span>
+                    <span class="stat-label">Completed</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Executive Summaries -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon info">
+                    <i class="fas fa-chart-pie"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-executive"></span>
+                    <span class="stat-label">Executive Summaries</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Reports -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon warning">
+                    <i class="fas fa-code"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-technical"></span>
+                    <span class="stat-label">Technical Reports</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports List -->
+    <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="card-title mb-0">
+                <i class="fas fa-history"></i> Relatórios Gerados
+            </h3>
+            <div class="input-group input-group-sm" style="width: 250px;">
+                <span class="input-group-text">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" id="report-search" class="form-input" placeholder="Buscar relatórios...">
+            </div>
+        </div>
+        <div class="table-container">
+            <div id="table-loading" class="table-loading" style="display: none;">
+                <div class="spinner"></div>
+                <span>Carregando relatórios...</span>
+            </div>
+            
+            <div id="reports-list">
+                <!-- Dynamic content -->
+            </div>
+            
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <div class="empty-state-icon">
+                    <i class="fas fa-file-excel"></i>
+                </div>
+                <h5 class="empty-state-title">Nenhum Relatório Encontrado</h5>
+                <p class="empty-state-text">Gere seu primeiro relatório para visualizá-lo aqui.</p>
+                <button class="btn btn-primary btn-sm" id="empty-state-generate-btn">
+                    <i class="fas fa-plus"></i> Gerar Relatório
+                </button>
+            </div>
+        </div>
+        <!-- Pagination -->
+        <div class="card-footer py-2" id="pagination-container" style="display: none;">
+            <nav aria-label="Reports navigation">
+                <ul class="pagination justify-content-end mb-0" id="pagination"></ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Report Modal -->
+<div class="modal fade" id="generate-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Generate Report</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="generate-form">
+                    <div class="mb-3">
+                        <label class="form-label required">Report Title</label>
+                        <input type="text" id="report-title" name="title" class="form-input" required
+                               placeholder="e.g., Monthly Security Assessment">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea id="report-description" name="description" class="form-textarea" rows="2"
+                                  placeholder="Optional description..."></textarea>
+                    </div>
+                    
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label required">Report Type</label>
+                            <select id="report-type" name="type" class="form-select" required>
+                                <option value="">Select Type</option>
+                                <option value="EXECUTIVE">Executive Summary</option>
+                                <option value="TECHNICAL">Technical Report</option>
+                                <option value="RISK_ASSESSMENT">Risk Assessment</option>
+                                <option value="COMPLIANCE">Compliance Report</option>
+                                <option value="TREND">Trend Analysis</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Time Range (Days)</label>
+                            <input type="number" id="report-days" name="days" class="form-input" 
+                                   value="30" min="1" max="365">
+                        </div>
+                    </div>
+
+                    <!-- Type Specific Options (Simplified) -->
+                    <div id="type-options" class="card bg-light border-0 mb-3" style="display: none;">
+                        <div class="card-body">
+                            <h6 class="card-title">Report Options</h6>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="opt-charts" checked>
+                                <label class="form-check-label" for="opt-charts">Include Charts & Graphs</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="opt-details" checked>
+                                <label class="form-check-label" for="opt-details">Include Detailed Vulnerability List</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="modal-generate">
+                    <i class="fas fa-magic"></i> Generate
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pages/reports/index.js') }}"></script>
+{% endblock %}

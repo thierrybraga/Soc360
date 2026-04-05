@@ -8,6 +8,7 @@ from app.utils.security.security import (
     rate_limit,
     admin_required,
     role_required,
+    owner_required,
     owner_or_admin_required,
     api_key_required,
     sanitize_input,
@@ -49,6 +50,7 @@ __all__ = [
     # Authorization decorators
     'admin_required',
     'role_required',
+    'owner_required',
     'owner_or_admin_required',
     'api_key_required',
     

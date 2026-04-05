@@ -13,12 +13,12 @@ from wtforms.validators import (
 class LoginForm(FlaskForm):
     """Formulário de login."""
     username = StringField(
-        'Usuário',
+        'Usuário ou e-mail',
         validators=[
-            DataRequired(message='Usuário é obrigatório'),
-            Length(min=3, max=64, message='Usuário deve ter entre 3 e 64 caracteres')
+            DataRequired(message='Usuário ou e-mail é obrigatório'),
+            Length(min=3, max=255, message='Usuário ou e-mail deve ter entre 3 e 255 caracteres')
         ],
-        render_kw={'placeholder': 'Digite seu usuário', 'autocomplete': 'username'}
+        render_kw={'placeholder': 'Digite seu usuário ou e-mail', 'autocomplete': 'username'}
     )
     
     password = PasswordField(

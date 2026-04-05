@@ -6,51 +6,26 @@ from flask import current_app
 from app.extensions import db
 from app.models.nvd import Vulnerability, CvssMetric, Weakness, Reference, Mitigation, Credit, AffectedProduct
 from app.models.system import SyncMetadata
-from app.jobs.mitre_fetcher import MitreFetcher
-from datetime import datetime
+from app.jobs.fetchers import MitreFetcher
+from datetime import datetime, timezone
 from app.services.monitoring.alert_service import AlertService
 
 logger = logging.getLogger(__name__)
 
-class MitreService:
+from app.services.core.base_sync_service import BaseSyncService, SyncStatus
+
+class MitreService(BaseSyncService):
     """
     Serviço para sincronização e consolidação de dados da MITRE (CVE Services).
     """
     
     def __init__(self):
+        super().__init__(prefix='mitre')
         self.fetcher = MitreFetcher()
-        self.stats = {
-            'processed': 0,
-            'updated': 0,
-            'errors': 0,
-            'skipped': 0,
-            'total': 0
-        }
 
     def get_status(self) -> Dict:
         """Obter status atual da sincronização."""
-        return {
-            'status': SyncMetadata.get('mitre_sync_status') or 'idle',
-            'last_sync': SyncMetadata.get('mitre_last_sync_date'),
-            'message': SyncMetadata.get('mitre_sync_message'),
-            'stats': {
-                'processed': int(SyncMetadata.get('mitre_sync_stats_processed') or 0),
-                'updated': int(SyncMetadata.get('mitre_sync_stats_updated') or 0),
-                'errors': int(SyncMetadata.get('mitre_sync_stats_errors') or 0),
-                'skipped': int(SyncMetadata.get('mitre_sync_stats_skipped') or 0),
-                'total': int(SyncMetadata.get('mitre_sync_stats_total') or 0)
-            }
-        }
-
-    def _update_status(self, status: str, message: str = None, stats: Dict = None):
-        """Atualizar metadados de status."""
-        SyncMetadata.set('mitre_sync_status', status)
-        if message:
-            SyncMetadata.set('mitre_sync_message', message)
-        
-        if stats:
-            for key, value in stats.items():
-                SyncMetadata.set(f'mitre_sync_stats_{key}', value)
+        return self.get_progress()
 
     def sync_cve(self, cve_id: str, force: bool = False) -> Dict:
         """Sincronizar um único CVE da MITRE."""
@@ -60,12 +35,15 @@ class MitreService:
                 self._process_mitre_data(data, force)
                 db.session.commit()
                 self.stats['processed'] += 1
+                self.stats['updated'] += 1
             else:
                 self.stats['skipped'] += 1
+            
+            self._update_progress(**self.stats)
             return self.stats
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error syncing MITRE CVE {cve_id}: {e}")
+            self.fail_sync(str(e))
             raise
 
     def start_enrichment_task(self, limit: int = 0, force: bool = False) -> bool:
@@ -97,6 +75,19 @@ class MitreService:
             except Exception as e:
                 logger.error(f"Thread error: {e}")
                 # Status update is handled inside enrich_existing_vulnerabilities
+
+    def _update_status(self, status: str, message: str, stats: Optional[Dict] = None):
+        """Helper to update status and message in sync metadata."""
+        data = {
+            f'{self.prefix}_sync_status': status,
+            f'{self.prefix}_sync_message': message,
+            f'{self.prefix}_sync_last_updated': datetime.now(timezone.utc).isoformat()
+        }
+        if stats:
+            # Map stats keys to prefixed metadata keys
+            for k, v in stats.items():
+                data[f'{self.prefix}_sync_progress_{k}'] = v
+        SyncMetadata.set_multi(data)
 
     def enrich_existing_vulnerabilities(self, limit: int = 0, force: bool = False):
         """
@@ -164,7 +155,7 @@ class MitreService:
                 # Nota: sync_cve já faz commit individualmente, mas aqui garantimos limpar a sessão se necessário
                 # db.session.commit() 
             
-            SyncMetadata.set('mitre_last_sync_date', datetime.utcnow().isoformat())
+            SyncMetadata.set('mitre_last_sync_date', datetime.now(timezone.utc).isoformat())
             self._update_status('completed', 'Enrichment completed', self.stats)
             return self.stats
             

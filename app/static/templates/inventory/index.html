@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Asset Inventory - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="page-shell page-shell--wide" data-page="inventory">
+    <div class="page-header">
+        <div class="page-header__content">
+            <h1 class="page-header__title">Inventário de Ativos</h1>
+            <p class="page-header__subtitle">Gerencie seus ativos, correlacione exposições e monitore riscos de forma clara e rápida.</p>
+            <p class="text-secondary mb-0">Clique em um ativo para detalhes ou use as ações para iniciar correlação de CVEs.</p>
+        </div>
+        <div class="page-header__actions">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="manage-categories-btn" data-bs-toggle="modal" data-bs-target="#categories-modal">
+                <i class="fas fa-tags"></i> Categorias
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="scan-all-btn">
+                <i class="fas fa-search"></i> Correlacionar Todos
+            </button>
+            <a href="{{ url_for('inventory.create') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> Adicionar Ativo
+            </a>
+        </div>
+    </div>
+
+    <!-- Cards de resumo -->
+    <div class="row g-4 mb-4">
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon primary">
+                    <i class="fas fa-server"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-total-assets"></span>
+                    <span class="stat-label">Ativos Totais</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-critical-vulns"></span>
+                    <span class="stat-label">Vulnerabilidades Críticas</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon warning">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-pending"></span>
+                    <span class="stat-label">Em Revisão</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100">
+                <div class="stat-icon success">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div>
+                    <span class="stat-value d-block skeleton-text w-50" id="stat-mitigated"></span>
+                    <span class="stat-label">Mitigados</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4" aria-labelledby="inventory-filters-heading">
+        <div class="card-body">
+            <div class="mb-3">
+                <h2 class="h6 mb-2" id="inventory-filters-heading">Filtros rápidos</h2>
+                <p class="text-secondary mb-0">Use a busca e filtros abaixo para localizar ativos por tipo, criticidade ou estado.</p>
+            </div>
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-4 col-lg-3">
+                    <label class="form-label" for="asset-search">Buscar</label>
+                    <div class="input-group">
+                        <span class="input-group-text" id="asset-search-icon">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" id="asset-search" class="form-control" placeholder="Buscar ativos..." aria-describedby="asset-search-icon" aria-label="Buscar ativos">
+                    </div>
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label class="form-label" for="asset-type">Tipo</label>
+                    <select id="asset-type" class="form-select" aria-label="Filtrar por tipo">
+                        <option value="">Todos os tipos</option>
+                        <option value="SERVER">Servidor</option>
+                        <option value="WORKSTATION">Estação de Trabalho</option>
+                        <option value="NETWORK_DEVICE">Dispositivo de Rede</option>
+                        <option value="APPLICATION">Aplicação</option>
+                        <option value="DATABASE">Banco de Dados</option>
+                        <option value="CLOUD_SERVICE">Recurso em Nuvem</option>
+                        <option value="CONTAINER">Container</option>
+                        <option value="IOT_DEVICE">IoT</option>
+                        <option value="MOBILE_DEVICE">Dispositivo Móvel</option>
+                        <option value="OTHER">Outro</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label class="form-label" for="asset-criticality">Criticidade</label>
+                    <select id="asset-criticality" class="form-select" aria-label="Filtrar por criticidade">
+                        <option value="">Todas</option>
+                        <option value="CRITICAL">Crítico</option>
+                        <option value="HIGH">Alta</option>
+                        <option value="MEDIUM">Média</option>
+                        <option value="LOW">Baixa</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4 col-lg-2">
+                    <label class="form-label" for="asset-status">Status</label>
+                    <select id="asset-status" class="form-select" aria-label="Filtrar por status">
+                        <option value="">Todos</option>
+                        <option value="ACTIVE">Ativo</option>
+                        <option value="INACTIVE">Inativo</option>
+                        <option value="MAINTENANCE">Manutenção</option>
+                        <option value="DECOMMISSIONED">Descomissionado</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto ms-auto">
+                    <button type="button" class="btn btn-ghost w-100" id="clear-filters-btn">
+                        <i class="fas fa-times"></i> Limpar
+                    </button>
+                </div>
+            </div>
+            <div id="active-filters" class="text-muted small mt-3" aria-live="polite">Nenhum filtro aplicado</div>
+        </div>
+    </div>
+
+    <!-- Assets Table -->
+    <div class="card">
+        <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+            <h3 class="card-title mb-0"><i class="fas fa-list"></i> Lista de Ativos</h3>
+            <div class="d-flex align-items-center gap-2">
+                <label class="text-muted text-sm mb-0" for="per-page-select">Por página:</label>
+                <select id="per-page-select" class="form-select form-select-sm" style="width: auto;" aria-label="Selecionar quantidade de itens por página">
+                    <option value="25">25</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-container position-relative">
+            <div class="table-loading" id="table-loading" style="display: none;" role="status" aria-live="polite">
+                <div class="spinner"></div>
+                <span>Carregando ativos...</span>
+            </div>
+            
+            <table class="table table-hover" id="assets-table" aria-describedby="pagination-info">
+                <thead>
+                    <tr>
+                        <th scope="col" class="sortable" data-sort="name">
+                            Nome <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th scope="col" class="sortable" data-sort="type">
+                            Tipo <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th scope="col" class="sortable" data-sort="criticality">
+                            Criticidade <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th scope="col" class="sortable" data-sort="vuln_count">
+                            Vulnerabilidades <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th scope="col" class="sortable" data-sort="risk_score">
+                            Pontuação <i class="fas fa-sort sort-icon"></i>
+                        </th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Último Scan</th>
+                        <th scope="col" class="text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="assets-table-body">
+                    <!-- Conteúdo dinâmico -->
+                </tbody>
+            </table>
+            
+            <div class="empty-state" id="empty-state" style="display: none;" role="status" aria-live="polite">
+                <div class="empty-state-icon">
+                    <i class="fas fa-server"></i>
+                </div>
+                <h5 class="empty-state-title">Nenhum ativo encontrado</h5>
+                <p class="empty-state-text">Cadastre seu primeiro ativo para começar a monitorar vulnerabilidades e riscos.</p>
+                <a href="{{ url_for('inventory.create') }}" class="btn btn-primary btn-sm">
+                    <i class="fas fa-plus"></i> Adicionar Ativo
+                </a>
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <div class="pagination-info" id="pagination-info"></div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Asset Detail Modal -->
+<div class="modal fade" id="asset-detail-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detail-modal-title">Detalhes do Ativo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body p-0" id="detail-modal-body">
+                <!-- Content loaded via AJAX -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Categories Modal -->
+<div class="modal fade" id="categories-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-md modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Gerenciar Categorias de Ativos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <form id="create-category-form" class="mb-4">
+                    <div class="input-group">
+                        <input type="text" id="new-category-name" class="form-control" placeholder="Nome da nova categoria" required aria-label="Nome da nova categoria">
+                        <button class="btn btn-primary" type="submit">Adicionar</button>
+                    </div>
+                </form>
+                <div id="categories-list" class="list-group">
+                    <!-- Categorias serão carregadas aqui -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pages/inventory/index.js') }}"></script>
+{% endblock %}

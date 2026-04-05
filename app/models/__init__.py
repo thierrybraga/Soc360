@@ -20,11 +20,23 @@ from app.models.system import (
     RoleType,
     CvssVersion,
     ReferenceType,
-    SyncMetadata
+    SyncMetadata,
+    ChatSession,
+    ChatMessage,
+    ChatLog,
+    NewsletterSubscription,
+    NewsletterSubscriber,
 )
 
 # Auth Models
 from app.models.auth import User, Role, UserRole
+
+# MITRE ATT&CK Models
+from app.models.mitre import (
+    Tactic,
+    Technique,
+    AttackMitigation
+)
 
 # NVD Models
 from app.models.nvd import (
@@ -32,7 +44,11 @@ from app.models.nvd import (
     CvssMetric,
     Weakness,
     Reference,
-    Mitigation
+    Mitigation,
+    CVEProduct,
+    CVEVendor,
+    ReferenceTypeModel,
+    VersionReference,
 )
 
 # Inventory Models
@@ -40,7 +56,8 @@ from app.models.inventory import (
     Asset,
     AssetVulnerability,
     Vendor,
-    Product
+    Product,
+    AssetCategory
 )
 
 # Monitoring Models
@@ -72,7 +89,12 @@ __all__ = [
     'CvssVersion',
     'ReferenceType',
     'SyncMetadata',
-    
+    'ChatSession',
+    'ChatMessage',
+    'ChatLog',
+    'NewsletterSubscription',
+    'NewsletterSubscriber',
+
     # Auth
     'User',
     'Role',
@@ -84,12 +106,21 @@ __all__ = [
     'Weakness',
     'Reference',
     'Mitigation',
-    
+    'CVEProduct',
+    'CVEVendor',
+    'ReferenceTypeModel',
+    'VersionReference',
+
     # Inventory
     'Asset',
     'AssetVulnerability',
     'Vendor',
     'Product',
+    
+    # MITRE
+    'Tactic',
+    'Technique',
+    'AttackMitigation',
     
     # Monitoring
     'MonitoringRule',

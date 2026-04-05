@@ -91,7 +91,7 @@ WORKDIR ${APP_HOME}
 COPY --chown=${APP_USER}:${APP_USER} . .
 
 # Copy entrypoint script
-COPY --chown=${APP_USER}:${APP_USER} docker/entrypoint.sh /entrypoint.sh
+COPY --chown=${APP_USER}:${APP_USER} infra/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Create healthcheck script

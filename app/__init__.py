@@ -7,11 +7,12 @@ import logging
 from flask import Flask, render_template, redirect, url_for, request
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from app.extensions import db, migrate, login_manager, csrf, init_csrf, init_middleware
+from app.extensions import db, migrate, login_manager, csrf, init_csrf
+from app.extensions.middleware import init_middleware
 from app.settings import get_config
 
 
-def create_app(config_name: str = None) -> Flask:
+def create_app(config_name: str | dict | None = None) -> Flask:
     """
     Application Factory Pattern.
     
@@ -27,13 +28,21 @@ def create_app(config_name: str = None) -> Flask:
     # Criar aplicação
     app = Flask(
         __name__,
-        template_folder='templates',
+        template_folder='static/templates',
         static_folder='static'
     )
     
     # Carregar configuração
-    config = get_config(config_name)
-    app.config.from_object(config)
+    if isinstance(config_name, dict):
+        config = None
+        app.config.update(config_name)
+    else:
+        config = get_config(config_name)
+        app.config.from_object(config)
+
+        # Executar init_app da configuração (fallbacks locais, etc.)
+        if hasattr(config, 'init_app') and callable(getattr(config, 'init_app')):
+            config.init_app(app)
     
     # Configurar logging
     configure_logging(app)
@@ -49,6 +58,11 @@ def create_app(config_name: str = None) -> Flask:
     
     # Inicializar extensões
     init_extensions(app)
+    
+    # Inicializar banco de dados se necessário (SQLite auto-init)
+    with app.app_context():
+        from app.utils.db import check_and_init_db
+        check_and_init_db(app)
     
     # Registrar blueprints
     register_blueprints(app)
@@ -68,7 +82,10 @@ def create_app(config_name: str = None) -> Flask:
     # Importar tarefas Celery para registro
     from app import tasks
     
-    app.logger.info(f"Open-Monitor initialized in {config_name} mode")
+    if isinstance(config_name, dict):
+        app.logger.info("Open-Monitor initialized with explicit config override")
+    else:
+        app.logger.info(f"Open-Monitor initialized in {config_name} mode")
     
     return app
 
@@ -115,6 +132,10 @@ def init_extensions(app: Flask) -> None:
     # Middleware customizado
     init_middleware(app)
     
+    # Security Headers
+    from app.utils.security import security_headers
+    security_headers.init_app(app)
+    
     # Configurar user_loader
     from app.models.auth import User
     
@@ -132,7 +153,7 @@ def register_blueprints(app: Flask) -> None:
     
     # Auth routes
     from app.controllers.auth import auth_bp
-    app.register_blueprint(auth_bp, url_prefix='/auth')
+    app.register_blueprint(auth_bp)
     
     # API routes
     from app.controllers.api import api_bp
@@ -169,6 +190,14 @@ def register_blueprints(app: Flask) -> None:
     # Fortinet routes
     from app.controllers.fortinet import fortinet_bp
     app.register_blueprint(fortinet_bp)
+
+    # Account routes
+    from app.controllers.account import account_bp
+    app.register_blueprint(account_bp)
+
+    # Chatbot routes
+    from app.controllers.chatbot import chatbot_bp
+    app.register_blueprint(chatbot_bp)
 
 
 def register_error_handlers(app: Flask) -> None:
@@ -207,7 +236,11 @@ def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(500)
     def internal_error(error):
         db.session.rollback()
-        app.logger.error(f'Internal Server Error: {error}')
+        import traceback
+        _logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')
+        with open(os.path.join(_logs_dir, 'error_debug.txt'), 'w') as f:
+            f.write(str(error) + '\n' + traceback.format_exc())
+        app.logger.error(f'Internal Server Error: {error}', exc_info=True)
         if request.path.startswith('/api/'):
             return {'error': 'Internal Server Error', 'message': 'An unexpected error occurred'}, 500
         return render_template('errors/error.html', error_code=500, error_title='Internal Server Error', error_message='An unexpected error occurred on the server.', error_id=request.headers.get('X-Request-ID')), 500

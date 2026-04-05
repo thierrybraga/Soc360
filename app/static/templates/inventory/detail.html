@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+
+{% block title %}Asset Details - {{ asset.name }} - Open-Monitor{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <div class="d-flex align-items-center gap-3 mb-1">
+                <h1 class="h3 mb-0 text-white">{{ asset.name }}</h1>
+                <span class="badge {% if asset.status == 'ACTIVE' %}bg-success{% else %}bg-secondary{% endif %}">
+                    {{ asset.status }}
+                </span>
+            </div>
+            <p class="text-muted mb-0">
+                <i class="fas fa-barcode me-1"></i> {{ asset.asset_type }}
+                {% if asset.hostname %} &bull; <i class="fas fa-network-wired me-1"></i> {{ asset.hostname }}{% endif %}
+                {% if asset.ip_address %} &bull; <i class="fas fa-globe me-1"></i> {{ asset.ip_address }}{% endif %}
+                {% if asset.vendor %} &bull; <i class="fas fa-industry me-1"></i> {{ asset.vendor.name }}{% endif %}
+                {% if asset.product %} &bull; <i class="fas fa-cubes me-1"></i> {{ asset.product.name }}{% endif %}
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('inventory.index') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    <!-- Key Metrics -->
+    <div class="row g-4 mb-4">
+        <!-- Criticality -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100 border-start border-4 border-{{ 'danger' if asset.criticality == 'CRITICAL' else 'warning' if asset.criticality == 'HIGH' else 'info' }}">
+                <div class="stat-label">Criticidade</div>
+                <div class="stat-value">{{ asset.criticality }}</div>
+                <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            </div>
+        </div>
+        <!-- Vuln Count -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100 border-start border-4 border-danger">
+                <div class="stat-label">Vulnerabilidades</div>
+                <div class="stat-value">{{ asset.vulnerability_count }}</div>
+                <div class="stat-icon danger"><i class="fas fa-bug"></i></div>
+            </div>
+        </div>
+        <!-- Critical Vulns -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100 border-start border-4 border-danger">
+                <div class="stat-label">Vulns Críticas</div>
+                <div class="stat-value">{{ asset.critical_vulnerability_count }}</div>
+                <div class="stat-icon danger"><i class="fas fa-radiation"></i></div>
+            </div>
+        </div>
+        <!-- Last Scan -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="card stat-card h-100 border-start border-4 border-info">
+                <div class="stat-label">Último Scan</div>
+                <div class="stat-value" style="font-size: 1.5rem;">
+                    {{ asset.last_scan_date.strftime('%Y-%m-%d') if asset.last_scan_date else 'Nunca' }}
+                </div>
+                <div class="stat-icon info"><i class="fas fa-clock"></i></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="assetTabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" id="vulns-tab" data-bs-toggle="tab" data-bs-target="#vulns" type="button" role="tab">
+                Vulnerabilidades <span class="badge bg-danger ms-2">{{ asset.vulnerability_count }}</span>
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="details-tab" data-bs-toggle="tab" data-bs-target="#details" type="button" role="tab">Detalhes</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="software-tab" data-bs-toggle="tab" data-bs-target="#software" type="button" role="tab">Software</button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="assetTabsContent">
+        <!-- Details Tab -->
+        <div class="tab-pane fade" id="details" role="tabpanel">
+            <div class="row g-4">
+                <!-- General Info -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header"><h3 class="card-title mb-0">Informações Gerais</h3></div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <tr><th width="40%">Nome</th><td>{{ asset.name }}</td></tr>
+                                <tr><th>Hostname</th><td>{{ asset.hostname or '-' }}</td></tr>
+                                <tr><th>IP</th><td>{{ asset.ip_address or '-' }}</td></tr>
+                                <tr><th>MAC</th><td>{{ asset.mac_address or '-' }}</td></tr>
+                                <tr><th>Categoria</th><td>{{ asset.category.name if asset.category else '-' }}</td></tr>
+                                <tr><th>Pai</th><td>{{ asset.parent.name if asset.parent else '-' }}</td></tr>
+                                <tr><th>Cliente / Adon</th><td>{{ asset.client_id or '-' }}</td></tr>
+                                <tr><th>Ambiente</th><td>{{ asset.environment or '-' }}</td></tr>
+                                <tr><th>Exposição</th><td>{{ asset.exposure or '-' }}</td></tr>
+                                <tr><th>Tipo</th><td>{{ asset.asset_type }}</td></tr>
+                                <tr><th>Tags</th><td>
+                                    {% if asset.tags %}
+                                        {% for tag in asset.tags %}
+                                            <span class="badge bg-info-subtle text-info border border-info-subtle">{{ tag }}</span>
+                                        {% endfor %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Ownership & Location -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header"><h3 class="card-title mb-0">Propriedade e Localização</h3></div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <tr><th width="40%">Responsável</th><td>{{ asset.owner.full_name if asset.owner else 'Não atribuído' }}</td></tr>
+                                <tr><th>Departamento</th><td>{{ asset.department or '-' }}</td></tr>
+                                <tr><th>Localização</th><td>{{ asset.location or '-' }}</td></tr>
+                                <tr><th>Data Center</th><td>{{ asset.data_center or '-' }}</td></tr>
+                                <tr><th>Rack</th><td>{{ asset.rack or '-' }}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technical Specs -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header"><h3 class="card-title mb-0">Especificações Técnicas</h3></div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <tr><th width="40%">Família SO</th><td>{{ asset.os_family or '-' }}</td></tr>
+                                <tr><th>Nome SO</th><td>{{ asset.os_name or '-' }}</td></tr>
+                                <tr><th>Versão SO</th><td>{{ asset.os_version or '-' }}</td></tr>
+                                <tr><th>Fabricante</th><td>{{ asset.vendor.name if asset.vendor else '-' }}</td></tr>
+                                <tr><th>Produto</th><td>{{ asset.product.name if asset.product else '-' }}</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Custom Fields -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Custom Fields</h6></div>
+                        <div class="card-body">
+                            {% if asset.custom_fields %}
+                            <table class="table table-borderless table-sm">
+                                {% for key, value in asset.custom_fields.items() %}
+                                <tr><th width="40%">{{ key }}</th><td>{{ value }}</td></tr>
+                                {% endfor %}
+                            </table>
+                            {% else %}
+                            <p class="text-muted small mb-0">No custom fields defined.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Business Impact -->
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header"><h3 class="card-title mb-0">Análise de Impacto (BIA)</h3></div>
+                        <div class="card-body">
+                            <table class="table table-sm">
+                                <tr><th width="40%">RTO</th><td>{{ asset.rto_hours or '-' }} horas</td></tr>
+                                <tr><th>RPO</th><td>{{ asset.rpo_hours or '-' }} horas</td></tr>
+                                <tr><th>Custo de Indisponibilidade</th><td>${{ asset.operational_cost_per_hour or '-' }}/hr</td></tr>
+                                <tr><th>BIA Score</th><td>
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" style="width: {{ asset.bia_score }}%;">
+                                            {{ asset.bia_score }}
+                                        </div>
+                                    </div>
+                                </td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Risk Radar -->
+                {% if radar_chart %}
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header"><h3 class="card-title mb-0">Perfil de Risco</h3></div>
+                        <div class="card-body">
+                            <div style="height: 300px;">
+                                <canvas id="assetRiskRadar"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                                <tr><th width="40%">RTO (hours)</th><td>{{ asset.rto_hours or '-' }}</td></tr>
+                                <tr><th>RPO (hours)</th><td>{{ asset.rpo_hours or '-' }}</td></tr>
+                                <tr><th>Cost/Hour</th><td>{{ "${:,.2f}".format(asset.operational_cost_per_hour) if asset.operational_cost_per_hour else '-' }}</td></tr>
+                                <tr><th>BIA Score</th><td>{{ asset.bia_score }} / 100</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Description -->
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header"><h6 class="m-0 font-weight-bold text-primary">Description & Notes</h6></div>
+                        <div class="card-body">
+                            <p class="mb-3"><strong>Description:</strong> {{ asset.description or 'No description provided.' }}</p>
+                            <p class="mb-0"><strong>Notes:</strong> {{ asset.notes or 'No notes provided.' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Software Tab -->
+        <div class="tab-pane fade" id="software" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    {% if asset.installed_software %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Vendor</th>
+                                    <th>Product</th>
+                                    <th>Version</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sw in asset.installed_software %}
+                                <tr>
+                                    <td>{{ sw.get('vendor', '-') }}</td>
+                                    <td>{{ sw.get('product', '-') }}</td>
+                                    <td>{{ sw.get('version', '-') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <i class="fas fa-box-open fa-3x mb-3"></i>
+                        <p>No software information available.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Vulnerabilities Tab -->
+        <div class="tab-pane fade show active" id="vulns" role="tabpanel">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card h-100">
+                                <div class="stat-icon primary">
+                                    <i class="fas fa-bug"></i>
+                                </div>
+                                <div>
+                                    <span class="stat-value d-block">{{ total_associations or 0 }}</span>
+                                    <span class="stat-label">Total CVEs</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card h-100">
+                                <div class="stat-icon warning">
+                                    <i class="fas fa-exclamation-circle"></i>
+                                </div>
+                                <div>
+                                    <span class="stat-value d-block">{{ status_counts.get('OPEN', 0) + status_counts.get('IN_PROGRESS', 0) }}</span>
+                                    <span class="stat-label">Abertas</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card h-100">
+                                <div class="stat-icon danger">
+                                    <i class="fas fa-radiation"></i>
+                                </div>
+                                <div>
+                                    <span class="stat-value d-block">{{ severity_counts.get('CRITICAL', 0) }}</span>
+                                    <span class="stat-label">Críticas</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="card stat-card h-100">
+                                <div class="stat-icon success">
+                                    <i class="fas fa-check-circle"></i>
+                                </div>
+                                <div>
+                                    <span class="stat-value d-block">{{ status_counts.get('RESOLVED', 0) + status_counts.get('MITIGATED', 0) }}</span>
+                                    <span class="stat-label">Corrigidas</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if asset.vulnerabilities %}
+                    <div class="table-container">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>CVE ID</th>
+                                    <th>Severidade</th>
+                                    <th>CVSS</th>
+                                    <th>Risco</th>
+                                    <th>CWE</th>
+                                    <th>Status</th>
+                                    <th>Detectado</th>
+                                    <th class="text-end">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for assoc in asset.vulnerabilities %}
+                                <tr>
+                                    <td>
+                                        <a href="{{ url_for('nvd.detail', cve_id=assoc.cve_id) }}" class="fw-bold">{{ assoc.cve_id }}</a>
+                                        {% if assoc.vulnerability.description %}
+                                        <div class="small text-muted text-truncate" style="max-width: 250px;" title="{{ assoc.vulnerability.description }}">
+                                            {{ assoc.vulnerability.description }}
+                                        </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set severity = assoc.vulnerability.base_severity if assoc.vulnerability else 'UNKNOWN' %}
+                                        <span class="badge {% if severity == 'CRITICAL' %}badge-critical{% elif severity == 'HIGH' %}badge-high{% elif severity == 'MEDIUM' %}badge-medium{% else %}badge-low{% endif %}">
+                                            {{ severity }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if assoc.vulnerability.cvss_score %}
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="small fw-bold">{{ assoc.vulnerability.cvss_score }}</span>
+                                            <div class="progress flex-grow-1" style="height: 4px; width: 40px;">
+                                                <div class="progress-bar {% if assoc.vulnerability.cvss_score >= 9 %}bg-danger{% elif assoc.vulnerability.cvss_score >= 7 %}bg-warning{% else %}bg-info{% endif %}" 
+                                                     role="progressbar" style="width: {{ assoc.vulnerability.cvss_score * 10 }}%"></div>
+                                            </div>
+                                        </div>
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if assoc.contextual_risk_score is not none %}
+                                        <span class="fw-bold {% if assoc.contextual_risk_score >= 9 %}text-danger{% elif assoc.contextual_risk_score >= 7 %}text-warning{% elif assoc.contextual_risk_score >= 4 %}text-info{% else %}text-success{% endif %}">
+                                            {{ '%.1f'|format(assoc.contextual_risk_score) }}
+                                        </span>
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if assoc.vulnerability and assoc.vulnerability.weaknesses %}
+                                            {% for weakness in assoc.vulnerability.weaknesses[:2] %}
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ weakness.cwe_id }}</span>
+                                            {% endfor %}
+                                            {% if assoc.vulnerability.weaknesses|length > 2 %}
+                                            <span class="text-muted small">+{{ assoc.vulnerability.weaknesses|length - 2 }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                        -
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if assoc.status == 'RESOLVED' %}bg-success{% elif assoc.status == 'OPEN' %}bg-danger{% elif assoc.status == 'IN_PROGRESS' %}bg-warning{% else %}bg-secondary{% endif %}">
+                                            {{ assoc.status }}
+                                        </span>
+                                    </td>
+                                    <td class="small text-muted">{{ assoc.discovered_at.strftime('%Y-%m-%d') if assoc.discovered_at else '-' }}</td>
+                                    <td class="text-end">
+                                        <a href="{{ url_for('nvd.detail', cve_id=assoc.cve_id) }}" class="btn btn-sm btn-ghost" title="Ver Detalhes">
+                                            <i class="fas fa-external-link-alt"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <div class="empty-state-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <h5 class="empty-state-title">Nenhuma vulnerabilidade detectada</h5>
+                        <p class="empty-state-text">Este ativo parece estar seguro no momento.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    {% if radar_chart %}
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('assetRiskRadar').getContext('2d');
+        new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: {{ radar_chart.labels|tojson }},
+                datasets: [{
+                    label: 'Asset Risk Profile',
+                    data: {{ radar_chart.values|tojson }},
+                    fill: true,
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgb(54, 162, 235)',
+                    pointBackgroundColor: 'rgb(54, 162, 235)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgb(54, 162, 235)'
+                }]
+            },
+            options: {
+                scales: {
+                    r: {
+                        angleLines: { display: true },
+                        suggestedMin: 0,
+                        suggestedMax: 10
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    });
+    {% endif %}
+</script>
+{% endblock %}

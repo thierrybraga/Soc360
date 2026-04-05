@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Sobre - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <section class="page-header mb-4">
+        <div class="page-header__content">
+            <h1 class="page-header__title">Sobre o Open-Monitor</h1>
+            <p class="page-header__subtitle">Uma plataforma unificada para visibilidade de vulnerabilidades, gerenciamento de risco e monitoramento contínuo de segurança.</p>
+        </div>
+    </section>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-4 col-md-6">
+            <div class="card shadow-md h-100">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Versão do sistema</h2>
+                    <p class="fs-4 fw-bold mb-1">{{ app_version }}</p>
+                    <p class="text-secondary">Atualizado com foco em qualidade, controle de risco e integração com os principais feeds de vulnerabilidade.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6">
+            <div class="card shadow-md h-100">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Missão</h2>
+                    <p>Capacitar equipes de segurança a identificar, priorizar e mitigar riscos de forma rápida e inteligente.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 col-md-12">
+            <div class="card shadow-md h-100">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Visão</h2>
+                    <p>Criar um painel confiável de governança de vulnerabilidades que torne decisões de segurança mais assertivas e menos reativas.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <div class="col-lg-8">
+            <div class="card shadow-md">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">O que o Open-Monitor faz</h2>
+                    <p>O Open-Monitor agrega dados de múltiplas fontes, inclui automação de sincronização e oferece painéis e relatórios que ajudam a equipe de segurança a manter o ambiente sob controle.</p>
+                    <ul class="list-unstyled text-secondary">
+                        <li class="mb-2"><strong>Sincronização contínua</strong> com NVD, MITRE ATT&CK e feeds de vulnerabilidade externos.</li>
+                        <li class="mb-2"><strong>Gestão de ativos</strong> com visibilidade de riscos por equipamento, software e grupo.</li>
+                        <li class="mb-2"><strong>Análise de impacto</strong> para priorizar correções com base em criticidade e exposição real do ambiente.</li>
+                        <li class="mb-2"><strong>Relatórios inteligentes</strong> para auditoria, conformidade e resposta rápida.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-md h-100">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Princípios de segurança</h2>
+                    <p class="text-secondary mb-3">Desenvolvemos a plataforma com foco em:</p>
+                    <div class="d-grid gap-2">
+                        <span class="badge badge-primary">Confidencialidade</span>
+                        <span class="badge badge-info">Integridade</span>
+                        <span class="badge badge-warning">Disponibilidade</span>
+                        <span class="badge badge-success">Resiliência</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <div class="card shadow-md">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Como funciona</h2>
+                    <p>O sistema coleta dados, normaliza informações de CVEs e correlaciona com o inventário de ativos para gerar alertas e criar métricas de risco contínuo.</p>
+                    <ol class="text-secondary ps-3">
+                        <li class="mb-2">Extração de feeds de vulnerabilidade e inteligência</li>
+                        <li class="mb-2">Mapeamento de ativos e software</li>
+                        <li class="mb-2">Classificação e priorização de ameaças</li>
+                        <li class="mb-2">Exibição em dashboards e relatórios acionáveis</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="card shadow-md">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Quem deve usar</h2>
+                    <p>Projetado para:</p>
+                    <ul class="text-secondary ps-3">
+                        <li class="mb-2">Equipes de segurança e operações de TI</li>
+                        <li class="mb-2">Analistas de vulnerabilidades e gestores de risco</li>
+                        <li class="mb-2">Auditores e responsáveis por conformidade</li>
+                    </ul>
+                    <p>Ele também é ideal para organizações que precisam centralizar monitoramento e resposta em um único painel.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -23,8 +23,8 @@ class Role(CoreModel):
     __bind_key__ = 'core'
     
     name = Column(String(50), unique=True, nullable=False, index=True)
-    description = Column(Text, nullable=True)
-    permissions = Column(Text, nullable=True)  # JSON string de permissões
+    description = Column(Text(), nullable=True)
+    permissions = Column(Text(), nullable=True)  # JSON string de permissões
     
     # Relationships
     users = relationship(

@@ -77,15 +77,14 @@
 /* Auth Card */
 .auth-card {
     position: relative;
-    z-index:/* Auth Card */
-.auth-card {
-    position: relative;
     z-index: 2;
     border-radius: var(--border-radius-xl);
     padding: var(--spacing-2xl);
     box-shadow: var(--shadow-lg), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
     transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
-}.auth-card:hover {
+}
+
+.auth-card:hover {
     transform: translateY(-5px);
     box-shadow: var(--shadow-xl), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
 }

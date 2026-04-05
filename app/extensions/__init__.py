@@ -5,10 +5,10 @@ Inicialização centralizada de todas as extensões Flask.
 from app.extensions.db import db, migrate, init_db, get_db
 from app.extensions.login import login_manager, init_login, get_login_manager
 from app.extensions.csrf import csrf, init_csrf, get_csrf, exempt_csrf
-from app.extensions.middleware import (
-    init_middleware,
+from app.utils.security import (
     admin_required,
     role_required,
+    owner_required,
     owner_or_admin_required,
     api_key_required
 )
@@ -55,10 +55,10 @@ __all__ = [
     'get_csrf',
     'exempt_csrf',
     
-    # Middleware
-    'init_middleware',
+    # Permissions
     'admin_required',
     'role_required',
+    'owner_required',
     'owner_or_admin_required',
     'api_key_required',
     

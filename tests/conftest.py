@@ -57,7 +57,11 @@ def app():
     
     # Cleanup
     with app.app_context():
+        db.session.remove()
         db.drop_all()
+        db.engine.dispose()
+        for engine in db.engines.values():
+            engine.dispose()
     
     os.close(core_db_fd)
     os.close(public_db_fd)
@@ -123,6 +127,10 @@ def admin_user(db):
     from app.models.auth import User, Role
     
     admin_role = Role.query.filter_by(name='ADMIN').first()
+    existing_user = User.query.filter_by(username='admin_test').first()
+
+    if existing_user:
+        return existing_user
     
     user = User(
         username='admin_test',
@@ -218,7 +226,7 @@ def locked_user(db):
         email='locked@test.com',
         is_active=True,
         is_admin=False,
-        failed_login_attempts=5,
+        failed_login_count=5,
         locked_until=datetime(2099, 12, 31, tzinfo=timezone.utc),
     )
     user.set_password('Locked123!@#Test')

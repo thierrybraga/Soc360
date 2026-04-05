@@ -9,16 +9,29 @@ from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
 
 from app.extensions import db
-from app.models.inventory import Asset, AssetVulnerability, Vendor, Product
+from app.models.inventory import Asset, AssetVulnerability, Vendor, Product, AssetCategory
 from app.models.nvd import Vulnerability
 from app.models.system import AssetType, AssetStatus, VulnerabilityStatus
-from app.utils.security import role_required, owner_or_admin_required
+from app.utils.security import role_required, owner_or_admin_required, audit_action
+from app.services.inventory import get_asset_correlation_service
 
 
 logger = logging.getLogger(__name__)
 
 
 inventory_bp = Blueprint('inventory', __name__)
+
+
+def _split_os_label(os_label):
+    if not os_label:
+        return None, None
+    value = os_label.strip()
+    if not value:
+        return None, None
+    parts = value.rsplit(' ', 1)
+    if len(parts) == 2 and any(ch.isdigit() for ch in parts[1]):
+        return parts[0], parts[1]
+    return value, None
 
 
 @inventory_bp.route('/')
@@ -37,6 +50,43 @@ def create():
     return render_template('inventory/form.html')
 
 
+@inventory_bp.route('/api/categories')
+@login_required
+def list_categories():
+    """API: Listar categorias de ativos."""
+    categories = AssetCategory.query.all()
+    return jsonify([c.to_dict() for c in categories])
+
+
+@inventory_bp.route('/api/categories', methods=['POST'])
+@login_required
+@role_required('ADMIN', 'ANALYST')
+@audit_action('inventory.category_create')
+def create_category():
+    """API: Criar nova categoria."""
+    data = request.get_json()
+    if not data or 'name' not in data:
+        return jsonify({'error': 'Missing name'}), 400
+    
+    category = AssetCategory(
+        name=data['name'],
+        description=data.get('description'),
+        parent_id=data.get('parent_id'),
+        is_organization=data.get('is_organization', False)
+    )
+    db.session.add(category)
+    db.session.commit()
+    return jsonify(category.to_dict()), 201
+
+
+@inventory_bp.route('/api/organizations')
+@login_required
+def list_organizations():
+    """API: Listar organizações (AssetCategory com is_organization=True)."""
+    orgs = AssetCategory.query.filter_by(is_organization=True).all()
+    return jsonify([o.to_dict() for o in orgs])
+
+
 @inventory_bp.route('/api/list')
 @login_required
 def list_assets():
@@ -50,6 +100,7 @@ def list_assets():
     owner = request.args.get('owner')
     search = request.args.get('search')
     criticality = request.args.get('criticality')
+    organization_id = request.args.get('organization_id', type=int)
     
     # Query base - filtrar por owner se não admin
     query = Asset.query
@@ -57,6 +108,8 @@ def list_assets():
         query = query.filter(Asset.owner_id == current_user.id)
     
     # Aplicar filtros
+    if organization_id:
+        query = query.filter(Asset.organization_id == organization_id)
     if asset_type:
         try:
             query = query.filter(Asset.asset_type == AssetType(asset_type))
@@ -143,36 +196,46 @@ def create_asset():
         if existing:
             return jsonify({'error': 'IP address already registered'}), 409
     
-    # Resolver vendor e product
+    correlation_service = get_asset_correlation_service()
+    resolved = correlation_service.resolve_vendor_and_product(data)
     vendor_id = data.get('vendor_id')
     product_id = data.get('product_id')
-
-    # Resolver vendor por nome se não veio ID
-    if not vendor_id and data.get('vendor_name'):
-        vendor = Vendor.get_by_name(data['vendor_name'])
-        if vendor:
-            vendor_id = vendor.id
-
-    # Resolver product por nome se não veio ID
-    if not product_id and data.get('product_name') and vendor_id:
-        product = Product.get_by_name(data['product_name'], vendor_id=vendor_id)
-        if product:
-            product_id = product.id
+    if not vendor_id and not product_id:
+        ensured = correlation_service.ensure_vendor_product(
+            vendor_name=resolved.get('vendor_name'),
+            product_name=resolved.get('product_name')
+        )
+        if ensured.get('vendor'):
+            vendor_id = ensured['vendor'].id
+        if ensured.get('product'):
+            product_id = ensured['product'].id
+    os_name = data.get('os_name')
+    os_version = data.get('os_version')
+    if data.get('operating_system') and not os_name:
+        os_name, parsed_version = _split_os_label(data.get('operating_system'))
+        if not os_version:
+            os_version = parsed_version
 
     # Criar ativo
     asset = Asset(
         name=data['name'],
-        asset_type=asset_type,
+        asset_type=asset_type.value,
         ip_address=data.get('ip_address'),
         hostname=data.get('hostname'),
         mac_address=data.get('mac_address'),
         os_family=data.get('os_family'),
-        os_name=data.get('os_name'),
-        os_version=data.get('os_version'),
+        os_name=os_name,
+        os_version=os_version,
         location=data.get('location'),
         department=data.get('department'),
         owner_id=current_user.id,
-        criticality=data.get('criticality', 'MEDIUM'),
+        category_id=data.get('category_id'),
+        organization_id=data.get('organization_id'),
+        parent_id=data.get('parent_id'),
+        client_id=data.get('client_id'),
+        environment=data.get('environment', 'PRODUCTION').upper(),
+        exposure=data.get('exposure', 'INTERNAL').upper(),
+        criticality=data.get('criticality', 'MEDIUM').upper(),
         description=data.get('description'),
         tags=data.get('tags', []),
         # Vendor/Product/Version
@@ -186,15 +249,28 @@ def create_asset():
         # Software
         installed_software=data.get('installed_software', [])
     )
+    custom_fields = asset.custom_fields or {}
+    if resolved.get('model'):
+        custom_fields['model'] = resolved.get('model')
+    if resolved.get('vendor_profile'):
+        custom_fields['vendor_profile'] = resolved.get('vendor_profile')
+    asset.custom_fields = custom_fields
 
     db.session.add(asset)
+    db.session.commit()
+    correlation_result = correlation_service.correlate_asset(asset, auto_associate=True)
     db.session.commit()
 
     logger.info(f'Asset created: {asset.name} by {current_user.username}')
 
     return jsonify({
         'message': 'Asset created successfully',
-        'asset': asset.to_dict()
+        'asset': asset.to_dict(),
+        'correlation': {
+            'matched_cves': len(correlation_result['matches']),
+            'new_associations': correlation_result['new_associations'],
+            'existing_associations': correlation_result['existing_associations']
+        }
     }), 201
 
 
@@ -226,12 +302,29 @@ def update_asset(asset_id):
     if not data:
         return jsonify({'error': 'No data provided'}), 400
     
-    # Campos atualizáveis
+    correlation_service = get_asset_correlation_service()
+    resolved = correlation_service.resolve_vendor_and_product(data)
+    if ('vendor_id' not in data) and (resolved.get('vendor_name') or data.get('vendor_name')):
+        ensured = correlation_service.ensure_vendor_product(
+            vendor_name=resolved.get('vendor_name') or data.get('vendor_name'),
+            product_name=resolved.get('product_name') or data.get('product_name')
+        )
+        if ensured.get('vendor'):
+            data['vendor_id'] = ensured['vendor'].id
+        if ensured.get('product'):
+            data['product_id'] = ensured['product'].id
+    if data.get('operating_system') and not data.get('os_name'):
+        os_name, os_version = _split_os_label(data.get('operating_system'))
+        data['os_name'] = os_name
+        if os_version and not data.get('os_version'):
+            data['os_version'] = os_version
+
     updatable_fields = [
         'name', 'hostname', 'mac_address', 'os_family', 'os_name', 'os_version',
         'location', 'department', 'criticality', 'description', 'tags',
         'rto_hours', 'rpo_hours', 'operational_cost_per_hour',
-        'installed_software', 'status', 'version', 'vendor_id', 'product_id'
+        'installed_software', 'status', 'version', 'vendor_id', 'product_id',
+        'category_id', 'parent_id', 'client_id', 'environment', 'exposure'
     ]
 
     # Resolver vendor por nome se fornecido
@@ -257,14 +350,27 @@ def update_asset(asset_id):
                     continue
             else:
                 setattr(asset, field, data[field])
+    custom_fields = asset.custom_fields or {}
+    if resolved.get('model'):
+        custom_fields['model'] = resolved.get('model')
+    if resolved.get('vendor_profile'):
+        custom_fields['vendor_profile'] = resolved.get('vendor_profile')
+    asset.custom_fields = custom_fields
     
+    db.session.commit()
+    correlation_result = correlation_service.correlate_asset(asset, auto_associate=True)
     db.session.commit()
     
     logger.info(f'Asset updated: {asset.name} by {current_user.username}')
     
     return jsonify({
         'message': 'Asset updated successfully',
-        'asset': asset.to_dict()
+        'asset': asset.to_dict(),
+        'correlation': {
+            'matched_cves': len(correlation_result['matches']),
+            'new_associations': correlation_result['new_associations'],
+            'existing_associations': correlation_result['existing_associations']
+        }
     })
 
 
@@ -308,7 +414,9 @@ def asset_vulnerabilities(asset_id):
                 'discovered_at': assoc.discovered_at.isoformat() if assoc.discovered_at else None,
                 'due_date': assoc.due_date.isoformat() if assoc.due_date else None,
                 'contextual_risk_score': assoc.contextual_risk_score,
-                'notes': assoc.notes
+                'notes': assoc.notes,
+                'cwes': [w.cwe_id for w in vuln.weaknesses],
+                'model': (asset.custom_fields or {}).get('model')
             })
     
     return jsonify({'vulnerabilities': result})
@@ -418,43 +526,43 @@ def scan_assets():
         assets = Asset.query.filter(Asset.id.in_(asset_ids)).all()
     
     matches = []
+    service = get_asset_correlation_service()
+    total_new_associations = 0
+    total_existing_associations = 0
     for asset in assets:
         # Verificar permissão
         if not current_user.is_admin and asset.owner_id != current_user.id:
             continue
         
-        # Buscar vulnerabilidades por software instalado e vendors
-        asset_vendors = set()
-        asset_products = set()
-        
-        for software in asset.installed_software or []:
-            if isinstance(software, dict):
-                asset_vendors.add(software.get('vendor', '').lower())
-                asset_products.add(software.get('product', '').lower())
-        
-        # Buscar CVEs que afetam esses vendors/products
-        for vendor in asset_vendors:
-            if not vendor:
-                continue
-            
-            vulns = Vulnerability.query.filter(
-                Vulnerability.nvd_vendors_data.contains([vendor])
-            ).limit(100).all()
-            
-            for vuln in vulns:
-                matches.append({
-                    'asset_id': asset.id,
-                    'asset_name': asset.name,
-                    'cve_id': vuln.cve_id,
-                    'cvss_score': vuln.cvss_score,
-                    'severity': vuln.base_severity,
-                    'matched_vendor': vendor
-                })
+        correlation_result = service.correlate_asset(asset, auto_associate=True)
+        total_new_associations += correlation_result['new_associations']
+        total_existing_associations += correlation_result['existing_associations']
+        for match in correlation_result['matches']:
+            matches.append({
+                'asset_id': asset.id,
+                'asset_name': asset.name,
+                'cve_id': match['cve_id'],
+                'cvss_score': match['cvss_score'],
+                'severity': match['severity'],
+                'matched_vendor': asset.vendor.name if asset.vendor else None,
+                'cwes': match.get('cwes', []),
+                'confidence': match.get('confidence')
+            })
+    db.session.commit()
     
     return jsonify({
         'matches': matches,
-        'total': len(matches)
+        'total': len(matches),
+        'new_associations': total_new_associations,
+        'existing_associations': total_existing_associations
     })
+
+
+@inventory_bp.route('/api/vendor-profiles')
+@login_required
+def vendor_profiles():
+    service = get_asset_correlation_service()
+    return jsonify(service.get_vendor_profile_payload())
 
 
 @inventory_bp.route('/api/stats')
@@ -535,10 +643,36 @@ def detail(asset_id):
             key = v.base_severity or 'UNKNOWN'
             severity_counts[key] = severity_counts.get(key, 0) + 1
     total_associations = len(associations)
+    
+    # Calculate overall asset risk radar data if possible
+    radar_chart = None
+    if associations:
+        # Average metrics from open vulnerabilities
+        open_vulns = [a for a in associations if a.status in [VulnerabilityStatus.OPEN.value, VulnerabilityStatus.IN_PROGRESS.value]]
+        if open_vulns:
+            avg_cvss = sum((v.vulnerability.cvss_score or 0) for v in open_vulns if v.vulnerability) / len(open_vulns)
+            
+            # Simple profile: CVSS, BIA, Criticality, Exposure, Environment
+            criticality_map = {'LOW': 2, 'MEDIUM': 5, 'HIGH': 8, 'CRITICAL': 10}
+            env_map = {'PRODUCTION': 10, 'STAGING': 7, 'DEV': 4, 'DMZ': 9}
+            exp_map = {'INTERNAL': 4, 'CLOUD': 7, 'EXTERNAL': 10}
+            
+            radar_chart = {
+                'labels': ['Avg CVSS', 'BIA Score', 'Criticality', 'Exposure', 'Environment'],
+                'values': [
+                    round(avg_cvss, 1),
+                    round(asset.bia_score / 10, 1), # Normalize to 0-10
+                    criticality_map.get(asset.criticality.upper(), 5),
+                    exp_map.get(asset.exposure.upper(), 5),
+                    env_map.get(asset.environment.upper(), 5)
+                ]
+            }
+
     return render_template(
         'inventory/detail.html',
         asset=asset,
         status_counts=status_counts,
         severity_counts=severity_counts,
-        total_associations=total_associations
+        total_associations=total_associations,
+        radar_chart=radar_chart
     )

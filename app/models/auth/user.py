@@ -32,6 +32,7 @@ class User(CoreModel, UserMixin):
     is_active = Column(Boolean, default=True, nullable=False)
     email_confirmed = Column(Boolean, default=False, nullable=False)
     email_confirmed_at = Column(DateTime, nullable=True)
+    force_password_reset = Column(Boolean, default=False, nullable=False)
     
     # Password Reset
     password_reset_token = Column(String(255), nullable=True, unique=True)
@@ -51,7 +52,7 @@ class User(CoreModel, UserMixin):
     timezone = Column(String(50), default='UTC')
     
     # Preferences (JSON)
-    preferences = Column(Text, nullable=True)  # JSON string
+    preferences = Column(Text(), nullable=True)  # JSON string
     
     # Tracking
     last_login_at = Column(DateTime, nullable=True)
@@ -75,9 +76,12 @@ class User(CoreModel, UserMixin):
     
     def __init__(self, username, email, password=None, **kwargs):
         """Inicializa usuário com senha hasheada."""
+        # Se is_admin vier no kwargs, removemos para evitar conflito com CoreModel
+        is_admin = kwargs.pop('is_admin', False)
         super().__init__(**kwargs)
         self.username = username
         self.email = email.lower()
+        self.is_admin = is_admin
         if password:
             self.set_password(password)
     
@@ -171,12 +175,6 @@ class User(CoreModel, UserMixin):
         if self.locked_until and self.locked_until > datetime.utcnow():
             return True
         return False
-    
-    @property
-    def full_name(self):
-        """Retorna nome completo."""
-        parts = [self.first_name, self.last_name]
-        return ' '.join(filter(None, parts)) or self.username
     
     @property
     def full_name(self):

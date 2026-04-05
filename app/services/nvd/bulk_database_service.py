@@ -44,6 +44,15 @@ class BulkDatabaseService:
             'skipped': 0
         }
     
+    def reset_stats(self):
+        """Resetar estatísticas de processamento."""
+        self.stats = {
+            'inserted': 0,
+            'updated': 0,
+            'errors': 0,
+            'skipped': 0
+        }
+
     def clear_all_data(self) -> None:
         """
         Limpar todos os dados de vulnerabilidades (TRUNCATE).
@@ -61,16 +70,21 @@ class BulkDatabaseService:
             # Check for table existence
             if inspector.has_table("vulnerabilities"):
                 try:
-                    # Use TRUNCATE for PostgreSQL (faster)
-                    # Use CASCADE to clear asset_vulnerabilities and other related tables
+                    # Use TRUNCATE for PostgreSQL (faster) or DELETE for SQLite
                     with engine.connect() as conn:
-                        conn.execute(text('TRUNCATE TABLE vulnerabilities CASCADE'))
+                        if USE_SQLITE:
+                            conn.execute(text('DELETE FROM vulnerabilities'))
+                            conn.execute(text('DELETE FROM cvss_metrics'))
+                            conn.execute(text('DELETE FROM weaknesses'))
+                            conn.execute(text('DELETE FROM references'))
+                        else:
+                            conn.execute(text('TRUNCATE TABLE vulnerabilities CASCADE'))
                         conn.commit()
                     logger.info("Data cleared successfully.")
                 except Exception as trunc_err:
-                    logger.warning(f"Could not truncate 'vulnerabilities' table: {trunc_err}")
+                    logger.warning(f"Could not clear 'vulnerabilities' table: {trunc_err}")
             else:
-                logger.warning("Table 'vulnerabilities' not found in public DB. Skipping TRUNCATE.")
+                logger.warning("Table 'vulnerabilities' not found in public DB. Skipping clear.")
 
         except Exception as e:
             logger.error(f"Error clearing data: {e}")

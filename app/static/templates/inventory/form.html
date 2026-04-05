@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Add Asset - Open-Monitor{% endblock %}
+
+{% block content %}
+<div class="page-shell" data-page="inventory-form">
+    <div class="page-header">
+        <div class="page-header__content">
+            <h1 class="page-header__title"><i class="fas fa-plus-circle"></i> Add New Asset</h1>
+            <p class="page-header__subtitle">Register infrastructure assets with vendor intelligence, Fortinet-aware product mapping and automatic CVE correlation.</p>
+        </div>
+        <div class="page-header__actions">
+            <a href="{{ url_for('inventory.index') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Inventory
+            </a>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-12 col-xl-10">
+            <div class="card">
+                <div class="card-body p-4">
+                    <form id="asset-form">
+                        <div class="form-section mb-4">
+                            <h3 class="mb-3">Basic Information</h3>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label required">Asset Name</label>
+                                    <input type="text" id="asset-name" name="name" class="form-input" required placeholder="e.g., prod-db-01">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label required">Type</label>
+                                    <select id="asset-type" name="type" class="form-select" required>
+                                        <option value="">Select Type</option>
+                                        <option value="SERVER">Server</option>
+                                        <option value="WORKSTATION">Workstation</option>
+                                        <option value="NETWORK_DEVICE">Network Device</option>
+                                        <option value="FIREWALL">Firewall</option>
+                                        <option value="APPLICATION">Application</option>
+                                        <option value="DATABASE">Database</option>
+                                        <option value="CLOUD_SERVICE">Cloud Resource</option>
+                                        <option value="CONTAINER">Container</option>
+                                        <option value="IOT_DEVICE">IoT Device</option>
+                                        <option value="MOBILE_DEVICE">Mobile Device</option>
+                                        <option value="OTHER">Other</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">IP Address</label>
+                                    <input type="text" id="asset-ip" name="ip_address" class="form-input" 
+                                           pattern="^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+                                           placeholder="e.g., 192.168.1.10">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Hostname</label>
+                                    <input type="text" id="asset-hostname" name="hostname" class="form-input" placeholder="e.g., db01.internal">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label required">Criticality</label>
+                                    <select id="asset-criticality" name="criticality" class="form-select" required>
+                                        <option value="LOW">Low</option>
+                                        <option value="MEDIUM" selected>Medium</option>
+                                        <option value="HIGH">High</option>
+                                        <option value="CRITICAL">Critical</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Category</label>
+                                    <select id="asset-category" name="category_id" class="form-select">
+                                        <option value="">No Category</option>
+                                        <!-- Categories populated via API -->
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Environment</label>
+                                    <select id="asset-environment" name="environment" class="form-select">
+                                        <option value="PRODUCTION" selected>Production</option>
+                                        <option value="STAGING">Staging</option>
+                                        <option value="DEV">Development</option>
+                                        <option value="DMZ">DMZ</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Exposure</label>
+                                    <select id="asset-exposure" name="exposure" class="form-select">
+                                        <option value="INTERNAL" selected>Internal</option>
+                                        <option value="EXTERNAL">External (Public)</option>
+                                        <option value="CLOUD">Cloud (Shared)</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Client / Adon ID</label>
+                                    <input type="text" id="asset-client" name="client_id" class="form-input" placeholder="e.g., Client-A, Adon-X">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Parent Asset</label>
+                                    <select id="asset-parent" name="parent_id" class="form-select">
+                                        <option value="">No Parent (Root)</option>
+                                        <!-- Assets populated via API -->
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Description</label>
+                                    <textarea id="asset-description" name="description" class="form-textarea" rows="3" placeholder="Brief description of the asset's role and function..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section mb-4">
+                            <h3 class="mb-3">Vendor & Platform</h3>
+                            <p class="text-muted mb-3">Use a vendor profile to prefill platform details and improve product matching against the vulnerability database.</p>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">Vendor Profile</label>
+                                    <select id="asset-vendor-profile" name="vendor_profile" class="form-select">
+                                        <option value="">Manual</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">Vendor</label>
+                                    <input type="text" id="asset-vendor-name" name="vendor_name" class="form-input" placeholder="e.g., Fortinet, Cisco">
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">Product</label>
+                                    <input type="text" id="asset-product-name" name="product_name" class="form-input" placeholder="e.g., FortiGate, Meraki MX">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Model</label>
+                                    <input type="text" id="asset-model" name="model" class="form-input" placeholder="e.g., FG-100F, MX95">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Firmware / OS Name</label>
+                                    <input type="text" id="asset-os-name" name="os_name" class="form-input" placeholder="e.g., FortiOS, Meraki Firmware">
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label">Firmware / OS Version</label>
+                                    <input type="text" id="asset-os-version" name="os_version" class="form-input" placeholder="e.g., 7.4.3, 18.107.10">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section mb-4">
+                            <h3 class="mb-3">Business Impact Analysis</h3>
+                            <div class="row g-3">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">RTO (hours)</label>
+                                    <input type="number" id="asset-rto" name="rto_hours" class="form-input" 
+                                           min="0" step="0.5" placeholder="Recovery Time Objective">
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">RPO (hours)</label>
+                                    <input type="number" id="asset-rpo" name="rpo_hours" class="form-input" 
+                                           min="0" step="0.5" placeholder="Recovery Point Objective">
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">Cost/Hour ($)</label>
+                                    <input type="number" id="asset-cost" name="operational_cost_per_hour" class="form-input" 
+                                           min="0" step="0.01" placeholder="Downtime cost">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3 class="mb-0">Installed Software</h3>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="add-software-btn">
+                                    <i class="fas fa-plus"></i> Add Software
+                                </button>
+                            </div>
+                            <p class="text-muted small mb-3">Add software to automatically match against CVE database</p>
+                            <div id="software-list" class="software-list">
+                                <!-- Dynamic software entries -->
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-4">
+                            <a href="{{ url_for('inventory.index') }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Create Asset
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pages/inventory/form.js') }}"></script>
+{% endblock %}

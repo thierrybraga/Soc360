@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Fortinet CVEs - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fas fa-bug"></i> Fortinet CVEs</h1>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="filters-row">
+            <select id="filter-product" class="form-select" onchange="loadCVEs()">
+                <option value="">All Products</option>
+            </select>
+            <select id="filter-severity" class="form-select" onchange="loadCVEs()">
+                <option value="">All Severities</option>
+                <option value="CRITICAL">Critical</option>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+            </select>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table" id="cves-table">
+                <thead>
+                    <tr>
+                        <th>CVE ID</th>
+                        <th>Severity</th>
+                        <th>CVSS</th>
+                        <th>Product</th>
+                        <th>Published</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody id="cves-tbody">
+                    <tr><td colspan="6" class="text-center text-muted">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function loadProducts() {
+    fetch('/fortinet/api/products')
+        .then(r => r.json())
+        .then(data => {
+            const select = document.getElementById('filter-product');
+            (data.products || []).forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name || p;
+                opt.textContent = p.name || p;
+                select.appendChild(opt);
+            });
+        })
+        .catch(() => {});
+}
+
+function loadCVEs() {
+    const product = document.getElementById('filter-product').value;
+    const severity = document.getElementById('filter-severity').value;
+    let url = '/fortinet/api/cves?';
+    if (product) url += `product=${encodeURIComponent(product)}&`;
+    if (severity) url += `severity=${encodeURIComponent(severity)}&`;
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('cves-tbody');
+            const cves = data.cves || [];
+            if (cves.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No CVEs found.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = cves.map(c => {
+                const severityClass = {CRITICAL:'danger',HIGH:'warning',MEDIUM:'info',LOW:'success'}[c.base_severity] || '';
+                const desc = (c.description || '').substring(0, 120);
+                return `<tr>
+                    <td><a href="/vulnerabilities/${c.cve_id}">${c.cve_id}</a></td>
+                    <td><span class="badge badge-${severityClass}">${c.base_severity || '-'}</span></td>
+                    <td>${c.cvss_score || '-'}</td>
+                    <td>${c.product || '-'}</td>
+                    <td>${c.published_date ? new Date(c.published_date).toLocaleDateString() : '-'}</td>
+                    <td title="${c.description || ''}">${desc}${desc.length >= 120 ? '...' : ''}</td>
+                </tr>`;
+            }).join('');
+        })
+        .catch(() => {
+            document.getElementById('cves-tbody').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error loading CVEs.</td></tr>';
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadProducts();
+    loadCVEs();
+});
+</script>
+{% endblock %}

@@ -1,13 +1,13 @@
 """
 Open-Monitor Base Settings
-Configurações compartilhadas entre todos os ambientes.
+Shared configurations across all environments.
 """
 import os
 from datetime import timedelta
 
 
 class BaseConfig:
-    """Configurações base do Open-Monitor."""
+    """Base configurations for Open-Monitor."""
     
     # Application
     APP_NAME = "Open-Monitor"
@@ -68,14 +68,17 @@ class BaseConfig:
     CELERY_RESULT_SERIALIZER = 'json'
     CELERY_TIMEZONE = 'UTC'
     
-    from celery.schedules import crontab
-    CELERY_BEAT_SCHEDULE = {
-        'sync-nvd-incremental': {
-            'task': 'nvd.sync',
-            'schedule': crontab(minute=0, hour='*/4'),  # Every 4 hours
-            'args': ('incremental',)
-        },
-    }
+    try:
+        from celery.schedules import crontab
+        CELERY_BEAT_SCHEDULE = {
+            'sync-nvd-incremental': {
+                'task': 'nvd.sync',
+                'schedule': crontab(minute=0, hour='*/4'),  # Every 4 hours
+                'args': ('incremental',)
+            },
+        }
+    except ImportError:
+        CELERY_BEAT_SCHEDULE = {}
     
     # NVD API
     NVD_API_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
@@ -135,3 +138,35 @@ class BaseConfig:
     AUTO_ROOT_USERNAME = os.environ.get('AUTO_ROOT_USERNAME', 'admin')
     AUTO_ROOT_EMAIL = os.environ.get('AUTO_ROOT_EMAIL', 'admin@open-monitor.local')
     AUTO_ROOT_PASSWORD = os.environ.get('AUTO_ROOT_PASSWORD', None)
+
+    @staticmethod
+    def _is_postgres_available(uri, timeout=3):
+        """Check if PostgreSQL is available at the given URI."""
+        try:
+            from sqlalchemy import create_engine, text
+            engine = create_engine(uri, pool_pre_ping=True, connect_args={'connect_timeout': timeout})
+            with engine.connect() as conn:
+                conn.execute(text('SELECT 1'))
+            return True
+        except Exception:
+            return False
+
+    @classmethod
+    def fallback_to_sqlite(cls, app, db_uri):
+        """Fallback to SQLite if PostgreSQL is not available."""
+        if db_uri and db_uri.startswith('postgresql://') and not cls._is_postgres_available(db_uri):
+            basedir = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            db_path = os.path.join(basedir, 'instance', 'app.db')
+            app.logger.warning('PostgreSQL not accessible (%s). Falling back to SQLite at %s', db_uri, db_path)
+            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
+            app.config['SQLALCHEMY_BINDS'] = {
+                'core': 'sqlite:///' + db_path,
+                'public': 'sqlite:///' + db_path
+            }
+            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+                'connect_args': {'check_same_thread': False}
+            }
+            app.config['REDIS_URL'] = None
+            app.config['REDIS_HOST'] = 'localhost'
+            app.config['DB_CORE_HOST'] = 'localhost'
+            app.config['DB_PUBLIC_HOST'] = 'localhost'

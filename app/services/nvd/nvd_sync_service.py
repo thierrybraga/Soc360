@@ -10,7 +10,7 @@ from enum import Enum
 
 from flask import current_app
 
-from app.jobs.nvd_fetcher import NVDFetcher
+from app.jobs.fetchers import NVDFetcher
 from app.services.nvd.bulk_database_service import BulkDatabaseService
 from app.services.monitoring.alert_service import AlertService
 from app.models.system import SyncMetadata
@@ -28,16 +28,9 @@ class SyncMode(Enum):
     CUSTOM = 'custom'  # Range personalizado
 
 
-class SyncStatus(Enum):
-    """Status da sincronização."""
-    IDLE = 'idle'
-    RUNNING = 'running'
-    COMPLETED = 'completed'
-    FAILED = 'failed'
-    CANCELLED = 'cancelled'
+from app.services.core.base_sync_service import BaseSyncService, SyncStatus
 
-
-class NVDSyncService:
+class NVDSyncService(BaseSyncService):
     """
     Serviço de sincronização com NVD.
     
@@ -50,6 +43,7 @@ class NVDSyncService:
     """
     
     def __init__(self, api_key: Optional[str] = None):
+        super().__init__(prefix='nvd')
         # Tentar carregar API key do SyncMetadata se não fornecida
         if not api_key:
             stored_key = SyncMetadata.get('nvd_api_key')
@@ -67,25 +61,7 @@ class NVDSyncService:
     def is_running(self) -> bool:
         """Verificar se sync está em execução."""
         status = SyncMetadata.get('nvd_sync_progress_status')
-        return status == 'running'
-    
-    def get_progress(self) -> Dict:
-        """Obter progresso atual do sync."""
-        return {
-            'status': SyncMetadata.get('nvd_sync_progress_status') or 'idle',
-            'mode': SyncMetadata.get('nvd_sync_progress_mode'),
-            'current_window': SyncMetadata.get('nvd_sync_progress_current_window'),
-            'total_windows': SyncMetadata.get('nvd_sync_progress_total_windows'),
-            'processed_cves': SyncMetadata.get('nvd_sync_progress_processed_cves') or 0,
-            'total_cves': SyncMetadata.get('nvd_sync_progress_total_cves') or 0,
-            'inserted': SyncMetadata.get('nvd_sync_progress_inserted') or 0,
-            'updated': SyncMetadata.get('nvd_sync_progress_updated') or 0,
-            'errors': SyncMetadata.get('nvd_sync_progress_errors') or 0,
-            'skipped': SyncMetadata.get('nvd_sync_progress_skipped') or 0,
-            'started_at': SyncMetadata.get('nvd_sync_progress_started_at'),
-            'last_updated': SyncMetadata.get('nvd_sync_progress_last_updated'),
-            'error': SyncMetadata.get('nvd_sync_progress_error')
-        }
+        return status == SyncStatus.RUNNING.value
     
     def cancel_sync(self) -> bool:
         """Cancelar sync em execução."""
@@ -145,11 +121,21 @@ class NVDSyncService:
                 logger.error('Invalid date range')
                 return False
             
-            # Inicializar progresso
+            # Inicializar progresso e resetar stats
             self._update_progress(
                 status='running',
                 mode=mode.value,
-                started_at=datetime.now(timezone.utc).isoformat()
+                started_at=datetime.now(timezone.utc).isoformat(),
+                processed=0,
+                processed_cves=0,
+                total=0,
+                total_cves=0,
+                inserted=0,
+                updated=0,
+                errors=0,
+                skipped=0,
+                error=None,
+                message='Iniciando sincronização...'
             )
             
             if async_mode:
@@ -187,6 +173,7 @@ class NVDSyncService:
     def _execute_sync_logic(self, mode: SyncMode, start_date: datetime, end_date: datetime) -> None:
         """Lógica interna de sincronização (dentro do contexto)."""
         try:
+            self.db_service.reset_stats()
             logger.info(
                 f'Starting NVD sync: mode={mode.value}, '
                 f'range={start_date.date()} to {end_date.date()}'
@@ -219,12 +206,12 @@ class NVDSyncService:
                             grand_total += resp.total_results
                             # Update partial total to give user feedback
                             if resp.total_results > 0:
-                                SyncMetadata.set('nvd_sync_progress_total_cves', grand_total)
+                                self._update_progress(total=grand_total, total_cves=grand_total)
                     except Exception as e:
                         logger.error(f"Error calculating total for window {i}: {e}")
                 
                 logger.info(f"Grand Total CVEs to fetch: {grand_total}")
-                SyncMetadata.set('nvd_sync_progress_total_cves', grand_total)
+                self._update_progress(total=grand_total, total_cves=grand_total)
             
             if mode == SyncMode.INCREMENTAL:
                 self._run_incremental_sync(start_date, end_date)
@@ -250,6 +237,7 @@ class NVDSyncService:
                 
                 self._update_progress(
                     status='completed',
+                    message='Sincronização concluída com sucesso.',
                     last_updated=datetime.now(timezone.utc).isoformat()
                 )
                 
@@ -259,7 +247,8 @@ class NVDSyncService:
             logger.error(f'NVD sync failed: {e}')
             self._update_progress(
                 status='failed',
-                error=str(e)
+                error=str(e),
+                message=f'Falha na sincronização: {str(e)}'
             )
     
     def _run_incremental_sync(
@@ -281,6 +270,7 @@ class NVDSyncService:
             return
         
         self._update_progress(
+            total=len(vulnerabilities),
             total_cves=len(vulnerabilities)
         )
         
@@ -334,7 +324,7 @@ class NVDSyncService:
         # Initialize with current value from metadata (should be 0 for new full sync)
         global_processed = 0
         if is_full_sync:
-            global_processed = SyncMetadata.get('nvd_sync_progress_processed_cves') or 0
+            global_processed = self.get_progress().get('processed_cves') or 0
         
         for i, (window_start, window_end) in enumerate(windows):
             if self._cancel_flag:
@@ -354,6 +344,7 @@ class NVDSyncService:
                     # current here is just for this window
                     # We don't overwrite total_cves because we calculated Grand Total
                     self._update_progress(
+                        processed=global_processed + current,
                         processed_cves=global_processed + current,
                         last_updated=datetime.now(timezone.utc).isoformat()
                     )
@@ -380,7 +371,7 @@ class NVDSyncService:
             if is_full_sync:
                 global_processed += len(vulnerabilities)
                 # Ensure metadata is updated with exact count after window
-                self._update_progress(processed_cves=global_processed)
+                self._update_progress(processed=global_processed, processed_cves=global_processed)
             
             # Checkpoint
             self.db_service.update_sync_metadata(
@@ -391,7 +382,9 @@ class NVDSyncService:
     def _fetch_progress_callback(self, current: int, total: int) -> None:
         """Callback de progresso do fetch."""
         self._update_progress(
+            processed=current,
             processed_cves=current,
+            total=total,
             total_cves=total,
             last_updated=datetime.now(timezone.utc).isoformat()
         )
@@ -399,6 +392,7 @@ class NVDSyncService:
     def _db_progress_callback(self, processed: int, total: int, stats: Dict = None) -> None:
         """Callback de progresso do banco."""
         updates = {
+            'processed': processed,
             'processed_cves': processed,
             'last_updated': datetime.now(timezone.utc).isoformat()
         }
@@ -413,10 +407,7 @@ class NVDSyncService:
             
         self._update_progress(**updates)
     
-    def _update_progress(self, **kwargs) -> None:
-        """Atualizar metadados de progresso."""
-        for key, value in kwargs.items():
-            SyncMetadata.set(f'nvd_sync_progress_{key}', value)
+
 
 
 def trigger_nvd_sync(mode: str = 'incremental') -> bool:

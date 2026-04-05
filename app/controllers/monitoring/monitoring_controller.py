@@ -7,6 +7,7 @@ from datetime import datetime
 
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
+from sqlalchemy import or_
 
 from app.extensions import db
 from app.models.monitoring import MonitoringRule, Alert
@@ -18,6 +19,23 @@ logger = logging.getLogger(__name__)
 
 
 monitoring_bp = Blueprint('monitoring', __name__)
+
+
+def _serialize_rule(rule: MonitoringRule):
+    data = rule.to_dict()
+    data['owner_id'] = rule.user_id
+    data['is_active'] = rule.enabled
+    channels = rule.alert_channels or []
+    normalized_channels = []
+    for channel in channels:
+        if isinstance(channel, dict):
+            channel_type = channel.get('type')
+            if channel_type:
+                normalized_channels.append(channel_type)
+        elif channel:
+            normalized_channels.append(str(channel))
+    data['notification_channels'] = normalized_channels
+    return data
 
 
 @monitoring_bp.route('/')
@@ -37,7 +55,7 @@ def list_rules():
     # Query base - filtrar por owner se não admin
     query = MonitoringRule.query
     if not current_user.is_admin:
-        query = query.filter(MonitoringRule.owner_id == current_user.id)
+        query = query.filter(MonitoringRule.user_id == current_user.id)
     
     # Filtros
     rule_type = request.args.get('type')
@@ -50,7 +68,7 @@ def list_rules():
             pass
     
     if is_active is not None:
-        query = query.filter(MonitoringRule.is_active == (is_active.lower() == 'true'))
+        query = query.filter(MonitoringRule.enabled == (is_active.lower() == 'true'))
     
     # Ordenação
     query = query.order_by(MonitoringRule.created_at.desc())
@@ -59,7 +77,7 @@ def list_rules():
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     
     return jsonify({
-        'items': [r.to_dict() for r in pagination.items],
+        'items': [_serialize_rule(r) for r in pagination.items],
         'total': pagination.total,
         'pages': pagination.pages,
         'page': page
@@ -80,7 +98,7 @@ def create_rule_page():
 def edit_rule_page(rule_id):
     """Página de edição de regra."""
     rule = MonitoringRule.query.get_or_404(rule_id)
-    if not current_user.is_admin and rule.owner_id != current_user.id:
+    if not current_user.is_admin and rule.user_id != current_user.id:
         abort(403)
     return render_template('monitoring/rule_form.html', rule=rule)
 
@@ -100,6 +118,14 @@ def list_alerts():
     per_page = min(request.args.get('per_page', 20, type=int), 100)
     
     query = Alert.query
+
+    if not current_user.is_admin:
+        query = query.outerjoin(MonitoringRule).filter(
+            or_(
+                Alert.rule_id.is_(None),
+                MonitoringRule.user_id == current_user.id
+            )
+        )
     
     # Filtros
     status = request.args.get('status')
@@ -122,7 +148,12 @@ def list_alerts():
         'items': [a.to_dict() for a in pagination.items],
         'total': pagination.total,
         'pages': pagination.pages,
-        'page': page
+        'page': page,
+        'per_page': per_page,
+        'has_prev': pagination.has_prev,
+        'has_next': pagination.has_next,
+        'prev_num': pagination.prev_num,
+        'next_num': pagination.next_num
     })
 
 
@@ -132,7 +163,7 @@ def list_alerts():
 def update_alert_status(alert_id):
     """API: Atualizar status do alerta."""
     alert = Alert.query.get_or_404(alert_id)
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     
     new_status = data.get('status')
     if not new_status:
@@ -178,10 +209,17 @@ def create_rule():
         return jsonify({'error': f'Invalid rule type: {data["rule_type"]}'}), 400
     
     # Validar canais
+    channel_names = data.get('notification_channels', [])
+    if not channel_names and data.get('alert_channels'):
+        channel_names = data.get('alert_channels', [])
+
     channels = []
-    for channel_name in data.get('notification_channels', []):
+    for channel_name in channel_names:
         try:
-            channels.append(AlertChannel(channel_name))
+            channels.append({
+                'type': AlertChannel(channel_name).value,
+                'config': {}
+            })
         except ValueError:
             pass
     
@@ -191,11 +229,10 @@ def create_rule():
         description=data.get('description'),
         rule_type=rule_type,
         parameters=data.get('parameters', {}),
-        notification_channels=channels,
-        notification_config=data.get('notification_config', {}),
+        alert_channels=channels,
         cooldown_minutes=data.get('cooldown_minutes', 60),
-        owner_id=current_user.id,
-        is_active=data.get('is_active', True)
+        user_id=current_user.id,
+        enabled=data.get('is_active', data.get('enabled', True))
     )
     
     db.session.add(rule)
@@ -205,7 +242,7 @@ def create_rule():
     
     return jsonify({
         'message': 'Rule created successfully',
-        'rule': rule.to_dict()
+        'rule': _serialize_rule(rule)
     }), 201
 
 
@@ -215,10 +252,10 @@ def get_rule(rule_id):
     """API: Obter detalhes de uma regra."""
     rule = MonitoringRule.query.get_or_404(rule_id)
     
-    if not current_user.is_admin and rule.owner_id != current_user.id:
+    if not current_user.is_admin and rule.user_id != current_user.id:
         abort(403)
     
-    return jsonify(rule.to_dict())
+    return jsonify(_serialize_rule(rule))
 
 
 @monitoring_bp.route('/api/rules/<int:rule_id>', methods=['PUT'])
@@ -228,7 +265,7 @@ def update_rule(rule_id):
     """API: Atualizar regra de monitoramento."""
     rule = MonitoringRule.query.get_or_404(rule_id)
     
-    if not current_user.is_admin and rule.owner_id != current_user.id:
+    if not current_user.is_admin and rule.user_id != current_user.id:
         abort(403)
     
     data = request.get_json()
@@ -242,21 +279,27 @@ def update_rule(rule_id):
         rule.description = data['description']
     if 'parameters' in data:
         rule.parameters = data['parameters']
-    if 'notification_config' in data:
-        rule.notification_config = data['notification_config']
     if 'cooldown_minutes' in data:
         rule.cooldown_minutes = data['cooldown_minutes']
     if 'is_active' in data:
-        rule.is_active = data['is_active']
+        rule.enabled = data['is_active']
+    if 'enabled' in data:
+        rule.enabled = data['enabled']
     
-    if 'notification_channels' in data:
+    if 'notification_channels' in data or 'alert_channels' in data:
+        input_channels = data.get('notification_channels')
+        if input_channels is None:
+            input_channels = data.get('alert_channels', [])
         channels = []
-        for channel_name in data['notification_channels']:
+        for channel_name in input_channels:
             try:
-                channels.append(AlertChannel(channel_name))
+                channels.append({
+                    'type': AlertChannel(channel_name).value,
+                    'config': {}
+                })
             except ValueError:
                 pass
-        rule.notification_channels = channels
+        rule.alert_channels = channels
     
     db.session.commit()
     
@@ -264,7 +307,7 @@ def update_rule(rule_id):
     
     return jsonify({
         'message': 'Rule updated successfully',
-        'rule': rule.to_dict()
+        'rule': _serialize_rule(rule)
     })
 
 
@@ -290,18 +333,18 @@ def toggle_rule(rule_id):
     """API: Ativar/desativar regra."""
     rule = MonitoringRule.query.get_or_404(rule_id)
     
-    if not current_user.is_admin and rule.owner_id != current_user.id:
+    if not current_user.is_admin and rule.user_id != current_user.id:
         abort(403)
     
-    rule.is_active = not rule.is_active
+    rule.enabled = not rule.enabled
     db.session.commit()
     
-    status = 'activated' if rule.is_active else 'deactivated'
+    status = 'activated' if rule.enabled else 'deactivated'
     logger.info(f'Monitoring rule {status}: {rule.name} by {current_user.username}')
     
     return jsonify({
         'message': f'Rule {status}',
-        'is_active': rule.is_active
+        'is_active': rule.enabled
     })
 
 
@@ -312,7 +355,7 @@ def test_rule(rule_id):
     """API: Testar regra de monitoramento."""
     rule = MonitoringRule.query.get_or_404(rule_id)
     
-    if not current_user.is_admin and rule.owner_id != current_user.id:
+    if not current_user.is_admin and rule.user_id != current_user.id:
         abort(403)
     
     data = request.get_json() or {}
@@ -399,10 +442,10 @@ def stats():
     # Query base
     query = MonitoringRule.query
     if not current_user.is_admin:
-        query = query.filter(MonitoringRule.owner_id == current_user.id)
+        query = query.filter(MonitoringRule.user_id == current_user.id)
     
     total = query.count()
-    active = query.filter(MonitoringRule.is_active == True).count()
+    active = query.filter(MonitoringRule.enabled == True).count()
     
     # Por tipo
     type_counts = db.session.query(
@@ -411,7 +454,7 @@ def stats():
     )
     
     if not current_user.is_admin:
-        type_counts = type_counts.filter(MonitoringRule.owner_id == current_user.id)
+        type_counts = type_counts.filter(MonitoringRule.user_id == current_user.id)
     
     type_counts = type_counts.group_by(MonitoringRule.rule_type).all()
     
@@ -424,7 +467,7 @@ def stats():
         'total': total,
         'active': active,
         'inactive': total - active,
-        'by_type': {str(row[0].value): row[1] for row in type_counts},
+        'by_type': {str(row[0]): row[1] for row in type_counts},
         'recent_triggers': [
             {
                 'rule_name': r.name,

@@ -8,6 +8,10 @@ from app.models.nvd.weakness import Weakness
 from app.models.nvd.reference import Reference, Mitigation
 from app.models.nvd.credit import Credit
 from app.models.nvd.product import AffectedProduct
+from app.models.nvd.cve_product import CVEProduct
+from app.models.nvd.cve_vendor import CVEVendor
+from app.models.nvd.reference_type import ReferenceTypeModel
+from app.models.nvd.version_reference import VersionReference
 
 
 __all__ = [
@@ -17,5 +21,9 @@ __all__ = [
     'Reference',
     'Mitigation',
     'Credit',
-    'AffectedProduct'
+    'AffectedProduct',
+    'CVEProduct',
+    'CVEVendor',
+    'ReferenceTypeModel',
+    'VersionReference',
 ]

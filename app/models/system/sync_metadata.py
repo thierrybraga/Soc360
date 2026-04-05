@@ -25,7 +25,7 @@ class SyncMetadata(db.Model):
     __bind_key__ = 'core'
     
     key = Column(String(255), primary_key=True)
-    value = Column(Text, nullable=True)
+    value = Column(Text(), nullable=True)
     last_modified = Column(
         DateTime,
         default=datetime.utcnow,
@@ -75,6 +75,23 @@ class SyncMetadata(db.Model):
             db.session.add(metadata)
         db.session.commit()
         return metadata
+
+    @classmethod
+    def set_multi(cls, data: dict):
+        """Define múltiplos valores de uma vez."""
+        if not data:
+            return
+        
+        for key, value in data.items():
+            metadata = cls.query.get(key)
+            if metadata:
+                metadata.value = str(value) if value is not None else None
+                metadata.last_modified = datetime.utcnow()
+            else:
+                metadata = cls(key=key, value=str(value) if value is not None else None)
+                db.session.add(metadata)
+        
+        db.session.commit()
     
     @classmethod
     def delete(cls, key):
