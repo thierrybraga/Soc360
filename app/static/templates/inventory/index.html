@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Asset Inventory - {{ super() }}{% endblock %}
+{% block title %}Inventário de Ativos - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/assets.css') }}">
+{% endblock %}
 
 {% block content %}
 <div class="page-shell page-shell--wide" data-page="inventory">
@@ -54,7 +58,7 @@
                 </div>
                 <div>
                     <span class="stat-value d-block skeleton-text w-50" id="stat-pending"></span>
-                    <span class="stat-label">Em Revisão</span>
+                    <span class="stat-label">Vulnerabilidades Abertas</span>
                 </div>
             </div>
         </div>
@@ -148,7 +152,7 @@
             </div>
         </div>
         <div class="table-container position-relative">
-            <div class="table-loading" id="table-loading" style="display: none;" role="status" aria-live="polite">
+            <div class="inventory-table-overlay" id="table-loading" style="display: none;" role="status" aria-live="polite">
                 <div class="spinner"></div>
                 <span>Carregando ativos...</span>
             </div>

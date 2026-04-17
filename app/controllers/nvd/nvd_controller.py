@@ -16,6 +16,11 @@ from app.models.nvd import Vulnerability, CvssMetric, Weakness, Reference, Mitig
 from app.services.nvd import NVDSyncService
 from app.models.inventory.category import AssetCategory
 from app.utils.security import role_required
+def _is_sqlite():
+    """Detecta se o banco em uso é SQLite verificando o URI configurado no app."""
+    from flask import current_app
+    uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    return uri.startswith('sqlite')
 
 
 logger = logging.getLogger(__name__)
@@ -161,8 +166,35 @@ def list_vulnerabilities():
     query = Vulnerability.query
 
     # Aplicar filtros
+    _valid_severities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+    _score_ranges = {
+        'CRITICAL': (9.0, None),
+        'HIGH': (7.0, 9.0),
+        'MEDIUM': (4.0, 7.0),
+        'LOW': (0.001, 4.0),
+    }
     if severity:
-        query = query.filter(Vulnerability.base_severity == severity.upper())
+        sev_upper = severity.upper()
+        if sev_upper in _score_ranges:
+            min_score, max_score = _score_ranges[sev_upper]
+            score_conditions = [Vulnerability.cvss_score >= min_score]
+            if max_score is not None:
+                score_conditions.append(Vulnerability.cvss_score < max_score)
+            # Match stored severity OR derive from score for UNKNOWN/NULL records
+            query = query.filter(
+                db.or_(
+                    Vulnerability.base_severity == sev_upper,
+                    db.and_(
+                        db.or_(
+                            Vulnerability.base_severity.is_(None),
+                            Vulnerability.base_severity.notin_(_valid_severities)
+                        ),
+                        *score_conditions
+                    )
+                )
+            )
+        else:
+            query = query.filter(Vulnerability.base_severity == sev_upper)
 
     if vendor:
         # PostgreSQL JSONB containment
@@ -219,33 +251,83 @@ def list_vulnerabilities():
         page=page, per_page=per_page, error_out=False
     )
 
-    # Estatísticas de severidade (contagem global, não filtrada)
-    severity_counts = db.session.query(
-        Vulnerability.base_severity,
-        db.func.count(Vulnerability.cve_id)
-    ).group_by(Vulnerability.base_severity).all()
+    # Estatísticas de severidade (contagem global, não filtrada).
+    # Usa ORM + JOIN com CvssMetric para obter severidade mesmo quando ausente na tabela principal.
+    try:
+        total_cves = Vulnerability.query.count()
 
-    severity_map = {}
-    total_cves = 0
-    for sev_name, count in severity_counts:
-        key = (sev_name or 'NONE').upper()
-        severity_map[key] = count
-        total_cves += count
+        # Busca (severity, score) com fallback para cvss_metrics
+        sev_rows = db.session.execute(
+            db.select(
+                Vulnerability.base_severity,
+                Vulnerability.cvss_score,
+                func.max(CvssMetric.base_score).label('metric_score'),
+                func.max(CvssMetric.base_severity).label('metric_sev'),
+            )
+            .outerjoin(CvssMetric, CvssMetric.cve_id == Vulnerability.cve_id)
+            .group_by(Vulnerability.cve_id, Vulnerability.base_severity, Vulnerability.cvss_score)
+        ).all()
+
+        _valid = {'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'}
+        count_critical = count_high = count_medium = count_low = 0
+
+        def _score_bucket(score):
+            if score is None:
+                return None
+            if score >= 9.0:
+                return 'CRITICAL'
+            if score >= 7.0:
+                return 'HIGH'
+            if score >= 4.0:
+                return 'MEDIUM'
+            if score > 0:
+                return 'LOW'
+            return None
+
+        for row in sev_rows:
+            sev = row.base_severity if row.base_severity in _valid else None
+            if sev is None:
+                sev = row.metric_sev if row.metric_sev in _valid else None
+            if sev is None:
+                score = row.cvss_score if row.cvss_score is not None else row.metric_score
+                sev = _score_bucket(score)
+            if sev == 'CRITICAL':
+                count_critical += 1
+            elif sev == 'HIGH':
+                count_high += 1
+            elif sev == 'MEDIUM':
+                count_medium += 1
+            elif sev == 'LOW':
+                count_low += 1
+    except Exception as _stats_err:
+        logger.error(f'Stats query error: {type(_stats_err).__name__}: {_stats_err}')
+        count_critical = count_high = count_medium = count_low = 0
+        total_cves = pagination.total
+
+    def _serialize_item(v):
+        d = v.to_list_dict()
+        # Ensure products and vuln_status are always present
+        if 'products' not in d:
+            d['products'] = v.products
+        if 'vuln_status' not in d:
+            d['vuln_status'] = v.vuln_status
+        return d
 
     return jsonify({
-        'items': [v.to_list_dict() for v in pagination.items],
+        'items': [_serialize_item(v) for v in pagination.items],
         'total': pagination.total,
         'pages': pagination.pages,
         'page': page,
         'per_page': per_page,
         'has_next': pagination.has_next,
         'has_prev': pagination.has_prev,
+        '_v': 'v2-raw-sql',
         'stats': {
             'total': total_cves,
-            'critical': severity_map.get('CRITICAL', 0),
-            'high': severity_map.get('HIGH', 0),
-            'medium': severity_map.get('MEDIUM', 0),
-            'low': severity_map.get('LOW', 0),
+            'critical': count_critical,
+            'high': count_high,
+            'medium': count_medium,
+            'low': count_low,
         }
     })
 
@@ -487,20 +569,91 @@ def mitigation_history(cve_id):
 @nvd_bp.route('/api/<cve_id>')
 @login_required
 def api_detail(cve_id):
-    """API: Detalhes de uma vulnerabilidade."""
-    vuln = Vulnerability.query.filter_by(cve_id=cve_id.upper()).first_or_404()
-    
-    # Carregar relacionamentos
-    cvss_metrics = CvssMetric.query.filter_by(cve_id=cve_id.upper()).all()
-    weaknesses = Weakness.query.filter_by(cve_id=cve_id.upper()).all()
-    references = Reference.query.filter_by(cve_id=cve_id.upper()).all()
-    
+    """API JSON: Detalhes completos de uma CVE para modal e integrações."""
+    cve_id_upper = cve_id.upper()
+    vuln = Vulnerability.query.filter_by(cve_id=cve_id_upper).first_or_404()
+
+    cvss_metrics = (
+        CvssMetric.query.filter_by(cve_id=cve_id_upper)
+        .order_by(CvssMetric.version.desc())
+        .all()
+    )
+    weaknesses = Weakness.query.filter_by(cve_id=cve_id_upper).all()
+    references = (
+        Reference.query.filter_by(cve_id=cve_id_upper)
+        .order_by(
+            Reference.is_patch.desc(),
+            Reference.is_vendor_advisory.desc(),
+            Reference.is_exploit.desc(),
+        )
+        .limit(30)
+        .all()
+    )
+
     return jsonify({
         'vulnerability': vuln.to_dict(),
         'cvss_metrics': [m.to_dict() for m in cvss_metrics],
         'weaknesses': [w.to_dict() for w in weaknesses],
-        'references': [r.to_dict() for r in references]
+        'references': [r.to_dict() for r in references],
     })
+
+
+
+@nvd_bp.route('/api/sync/reprocess-raw', methods=['POST'])
+@login_required
+def reprocess_raw():
+    """
+    Re-extrai weaknesses, references e credits do raw_nvd_data já armazenado.
+    Útil quando o sync original rodou com bug no dialeto SQLite e não gravou esses dados.
+    """
+    from app.services.nvd.bulk_database_service import BulkDatabaseService
+    svc = BulkDatabaseService()
+    batch_size = 500
+    page = 0
+    stats = {'weaknesses': 0, 'references': 0, 'credits': 0, 'processed': 0, 'skipped': 0}
+
+    while True:
+        vulns = Vulnerability.query.filter(
+            Vulnerability.raw_nvd_data.isnot(None)
+        ).offset(page * batch_size).limit(batch_size).all()
+
+        if not vulns:
+            break
+
+        weakness_records = []
+        reference_records = []
+        credit_records = []
+        cve_ids = []
+
+        for v in vulns:
+            raw = v.raw_nvd_data
+            if not raw:
+                stats['skipped'] += 1
+                continue
+            cve_ids.append(v.cve_id)
+            weakness_records.extend(svc._extract_weakness_data(raw))
+            reference_records.extend(svc._extract_reference_data(raw))
+            credit_records.extend(svc._extract_credits_data(raw))
+            stats['processed'] += 1
+
+        try:
+            with svc.bulk_session():
+                if weakness_records:
+                    svc._upsert_weaknesses(weakness_records)
+                    stats['weaknesses'] += len(weakness_records)
+                if reference_records:
+                    svc._upsert_references(reference_records)
+                    stats['references'] += len(reference_records)
+                if credit_records:
+                    svc._upsert_credits(cve_ids, credit_records)
+                    stats['credits'] += len(credit_records)
+        except Exception as e:
+            logger.error(f'reprocess_raw batch error: {e}')
+            return jsonify({'error': str(e)}), 500
+
+        page += 1
+
+    return jsonify({'ok': True, 'stats': stats})
 
 
 @nvd_bp.route('/api/stats')
@@ -564,84 +717,105 @@ def stats():
     })
 
 
+
 @nvd_bp.route('/api/vendors')
 @login_required
 def list_vendors():
-    """API: Listar vendors com contagem."""
+    """API: Listar vendors com contagem. Compatível com PostgreSQL e SQLite."""
     search = request.args.get('search', '')
     limit = min(request.args.get('limit', 50, type=int), 200)
 
-    # Query JSONB array com contagem (PostgreSQL)
     try:
-        with db.engines['public'].connect() as conn:
-            result = conn.execute(
-                db.text("""
-                    SELECT vendor, COUNT(*) as count
-                    FROM vulnerabilities,
-                         jsonb_array_elements_text(nvd_vendors_data) as vendor
-                    WHERE vendor ILIKE :search
-                    GROUP BY vendor
-                    ORDER BY count DESC
-                    LIMIT :limit
-                """),
-                {'search': f'%{search}%', 'limit': limit}
-            ).fetchall()
-        vendors = [{'name': row[0], 'count': row[1]} for row in result]
-    except Exception:
+        # Usa ORM para garantir o engine correto independente de fallback SQLite/PG
+        rows = db.session.execute(
+            db.select(Vulnerability.nvd_vendors_data).where(
+                Vulnerability.nvd_vendors_data.isnot(None)
+            )
+        ).scalars().all()
+
+        vendor_counts: dict = {}
+        search_lower = search.lower()
+        for raw in rows:
+            if not raw:
+                continue
+            lst = raw if isinstance(raw, list) else (list(raw) if hasattr(raw, '__iter__') and not isinstance(raw, str) else [])
+            for v in lst:
+                if not v or not isinstance(v, str):
+                    continue
+                if search_lower and search_lower not in v.lower():
+                    continue
+                vendor_counts[v] = vendor_counts.get(v, 0) + 1
+
+        vendors = sorted(
+            [{'name': k, 'count': v} for k, v in vendor_counts.items()],
+            key=lambda x: x['count'], reverse=True
+        )[:limit]
+    except Exception as e:
+        logger.error(f'list_vendors error: {type(e).__name__}: {e}')
         vendors = []
 
-    return jsonify({
-        'vendors': vendors
-    })
+    return jsonify({'vendors': vendors})
 
 
 @nvd_bp.route('/api/products')
 @login_required
 def list_products():
-    """API: Listar produtos (opcionalmente filtrado por vendor)."""
+    """API: Listar produtos (opcionalmente filtrado por vendor). Compatível com PostgreSQL e SQLite."""
     vendor = request.args.get('vendor')
     search = request.args.get('search', '')
     limit = min(request.args.get('limit', 50, type=int), 200)
 
     try:
-        with db.engines['public'].connect() as conn:
-            if vendor:
-                # Produtos de um vendor específico
-                result = conn.execute(
-                    db.text("""
-                        SELECT product, COUNT(*) as count
-                        FROM vulnerabilities v,
-                             jsonb_array_elements_text(v.nvd_vendors_data) as vendor,
-                             jsonb_array_elements_text(v.nvd_products_data) as product
-                        WHERE vendor = :vendor
-                        AND product ILIKE :search
-                        GROUP BY product
-                        ORDER BY count DESC
-                        LIMIT :limit
-                    """),
-                    {'vendor': vendor, 'search': f'%{search}%', 'limit': limit}
-                ).fetchall()
+        # Usa ORM para garantir o engine correto independente de fallback SQLite/PG
+        q = db.select(Vulnerability.nvd_vendors_data, Vulnerability.nvd_products_data).where(
+            Vulnerability.nvd_products_data.isnot(None)
+        )
+        if vendor:
+            # Filtra linhas que contêm o vendor — cast para text para ilike funcionar
+            q = q.where(
+                db.cast(Vulnerability.nvd_vendors_data, db.Text).contains(vendor)
+            )
+        rows = db.session.execute(q).all()
+
+        product_counts: dict = {}
+        search_lower = search.lower()
+        for vendors_raw, products_raw in rows:
+            if not products_raw:
+                continue
+            # nvd_products_data pode ser dict {vendor: [products]} ou list
+            if isinstance(products_raw, dict):
+                if vendor:
+                    # Apenas produtos do vendor especificado
+                    prod_list = products_raw.get(vendor, [])
+                    all_prods = prod_list if isinstance(prod_list, list) else [prod_list]
+                else:
+                    all_prods = []
+                    for v_prods in products_raw.values():
+                        if isinstance(v_prods, list):
+                            all_prods.extend(v_prods)
+                        elif v_prods:
+                            all_prods.append(v_prods)
+            elif isinstance(products_raw, list):
+                all_prods = products_raw
             else:
-                # Todos os produtos
-                result = conn.execute(
-                    db.text("""
-                        SELECT product, COUNT(*) as count
-                        FROM vulnerabilities,
-                             jsonb_array_elements_text(nvd_products_data) as product
-                        WHERE product ILIKE :search
-                        GROUP BY product
-                        ORDER BY count DESC
-                        LIMIT :limit
-                    """),
-                    {'search': f'%{search}%', 'limit': limit}
-                ).fetchall()
-        products = [{'name': row[0], 'count': row[1]} for row in result]
-    except Exception:
+                continue
+
+            for p in all_prods:
+                if not p or not isinstance(p, str):
+                    continue
+                if search_lower and search_lower not in p.lower():
+                    continue
+                product_counts[p] = product_counts.get(p, 0) + 1
+
+        products = sorted(
+            [{'name': k, 'count': v} for k, v in product_counts.items()],
+            key=lambda x: x['count'], reverse=True
+        )[:limit]
+    except Exception as e:
+        logger.error(f'list_products error: {type(e).__name__}: {e}')
         products = []
 
-    return jsonify({
-        'products': products
-    })
+    return jsonify({'products': products})
 
 
 @nvd_bp.route('/sync')
@@ -772,6 +946,53 @@ def start_sync():
         })
     else:
         return jsonify({'error': 'Sync already running'}), 409
+
+
+@nvd_bp.route('/api/sync/keyword', methods=['POST'])
+@login_required
+@role_required('ADMIN')
+def sync_by_keyword():
+    """Sync NVD CVEs por keyword (ex: 'fortinet fortigate'). Síncrono, retorna stats."""
+    data = request.get_json() or {}
+    keyword = (data.get('keyword') or '').strip()
+    if not keyword or len(keyword) < 3:
+        return jsonify({'error': 'keyword obrigatório (min 3 chars)'}), 400
+
+    from app.jobs.fetchers import NVDFetcher
+    from app.services.nvd.bulk_database_service import BulkDatabaseService
+
+    fetcher = NVDFetcher()
+    db_svc = BulkDatabaseService()
+    db_svc.reset_stats()
+
+    try:
+        all_vulns = []
+        start_index = 0
+        while True:
+            page = fetcher.fetch_page(
+                start_index=start_index,
+                results_per_page=2000,
+                keyword_search=keyword
+            )
+            if not page:
+                break
+            all_vulns.extend(page.vulnerabilities)
+            if start_index + page.results_per_page >= page.total_results:
+                break
+            start_index += page.results_per_page
+
+        if all_vulns:
+            db_svc.process_vulnerabilities(all_vulns)
+
+        return jsonify({
+            'ok': True,
+            'keyword': keyword,
+            'fetched': len(all_vulns),
+            'stats': db_svc.stats
+        })
+    except Exception as e:
+        logger.error(f'sync_by_keyword error: {e}')
+        return jsonify({'error': str(e)}), 500
 
 
 @nvd_bp.route('/api/sync/cancel', methods=['POST'])

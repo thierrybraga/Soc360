@@ -264,7 +264,11 @@ class AssetCorrelationService:
         if not versions:
             return True
         if not vulnerability.cpe_configurations:
-            return True
+            # No CPE data: fall back to description text search
+            if vulnerability.description:
+                desc = vulnerability.description.lower()
+                return any(v.lower() in desc for v in versions)
+            return False
         configs = vulnerability.cpe_configurations
         if not isinstance(configs, list):
             configs = [configs]
@@ -313,27 +317,26 @@ class AssetCorrelationService:
             db.cast(Vulnerability.nvd_products_data, db.Text).ilike(f'%{product}%')
             for product in candidates['products']
         ]
-        if vendor_filters and product_filters:
-            query = query.filter(db.or_(*vendor_filters, *product_filters))
-        elif vendor_filters:
-            query = query.filter(db.or_(*vendor_filters))
-        elif product_filters:
-            query = query.filter(db.or_(*product_filters))
+        all_filters = vendor_filters + product_filters
+        if all_filters:
+            query = query.filter(db.or_(*all_filters))
         potential = query.order_by(Vulnerability.cvss_score.desc().nullslast()).limit(1500).all()
         matches = []
         for vuln in potential:
             vendor_hit = self._vendor_match(vuln, candidates['vendors'])
             product_hit = self._product_match(vuln, candidates['products'], candidates['os_tokens'])
             version_hit = self._version_match(vuln, candidates['versions'])
-            if not (vendor_hit and (product_hit or version_hit)):
+
+            # Only accept vendor + product + version match (HIGH confidence)
+            if not (vendor_hit and product_hit and version_hit):
                 continue
-            confidence = 'HIGH' if vendor_hit and product_hit and version_hit else 'MEDIUM' if vendor_hit and product_hit else 'LOW'
+
             matches.append({
                 'cve_id': vuln.cve_id,
                 'cvss_score': vuln.cvss_score,
                 'severity': vuln.base_severity,
                 'is_cisa_kev': vuln.is_in_cisa_kev,
-                'confidence': confidence
+                'confidence': 'HIGH'
             })
         cve_ids = [m['cve_id'] for m in matches]
         weakness_map = {}

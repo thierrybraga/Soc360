@@ -251,7 +251,7 @@
                         <span class="text-muted small d-block mb-2">Vendors</span>
                         <div class="d-flex flex-wrap gap-1">
                             {% for vendor in vulnerability.vendors %}
-                            <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ vendor }}</span>
+                            <span class="badge border border-primary text-primary">{{ vendor }}</span>
                             {% endfor %}
                         </div>
                     </div>
@@ -587,7 +587,7 @@
                         {% for item in affected_products %}
                         <tr>
                             <td>
-                                <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ item.vendor }}</span>
+                                <span class="badge border border-primary text-primary">{{ item.vendor }}</span>
                             </td>
                             <td class="fw-medium text-white">{{ item.product }}</td>
                             <td>
@@ -634,7 +634,7 @@
                         {% for item in vulnerability.affected_software_list %}
                         <tr>
                             <td>
-                                <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ item.vendor }}</span>
+                                <span class="badge border border-primary text-primary">{{ item.vendor }}</span>
                             </td>
                             <td class="fw-medium text-white">{{ item.product }}</td>
                             <td>
@@ -658,7 +658,7 @@
                     {% if vulnerability.nvd_vendors_data %}
                     <div class="d-flex flex-wrap gap-1">
                         {% for vendor in vulnerability.nvd_vendors_data %}
-                        <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">{{ vendor }}</span>
+                        <span class="badge border border-primary text-primary">{{ vendor }}</span>
                         {% endfor %}
                     </div>
                     {% else %}
@@ -667,9 +667,9 @@
                 </div>
                 <div class="col-md-6">
                     <span class="text-muted small d-block mb-2">Products</span>
-                    {% if vulnerability.nvd_products_data %}
+                    {% if vulnerability.products %}
                     <div class="d-flex flex-wrap gap-1">
-                        {% for product in vulnerability.nvd_products_data %}
+                        {% for product in vulnerability.products %}
                         <span class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25">{{ product }}</span>
                         {% endfor %}
                     </div>
@@ -903,7 +903,7 @@
                                             {% endif %}
                                         </div>
                                     </div>
-                                    <span class="text-muted small">{{ item.timestamp.strftime('%d/%m/%Y %H:%M') if item.timestamp else '-' }}</span>
+                                    <span class="text-muted small">{{ item.timestamp[:16].replace('T', ' ') if item.timestamp else '-' }}</span>
                                 </div>
                             </li>
                             {% endfor %}

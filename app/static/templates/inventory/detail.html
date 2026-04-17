@@ -21,7 +21,13 @@
                 {% if asset.product %} &bull; <i class="fas fa-cubes me-1"></i> {{ asset.product.name }}{% endif %}
             </p>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="button" class="btn btn-outline-primary btn-sm" id="correlate-btn" onclick="correlateAsset({{ asset.id }})">
+                <i class="fas fa-search"></i> Correlacionar CVEs
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#addCveModal">
+                <i class="fas fa-plus"></i> Adicionar CVE
+            </button>
             <a href="{{ url_for('inventory.index') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-arrow-left"></i> Voltar
             </a>
@@ -81,7 +87,7 @@
         </li>
     </ul>
 
-    <div class="tab-content" id="assetTabsContent">
+    <div class="tab-content active" id="assetTabsContent">
         <!-- Details Tab -->
         <div class="tab-pane fade" id="details" role="tabpanel">
             <div class="row g-4">
@@ -199,15 +205,7 @@
                     </div>
                 </div>
                 {% endif %}
-                                <tr><th width="40%">RTO (hours)</th><td>{{ asset.rto_hours or '-' }}</td></tr>
-                                <tr><th>RPO (hours)</th><td>{{ asset.rpo_hours or '-' }}</td></tr>
-                                <tr><th>Cost/Hour</th><td>{{ "${:,.2f}".format(asset.operational_cost_per_hour) if asset.operational_cost_per_hour else '-' }}</td></tr>
-                                <tr><th>BIA Score</th><td>{{ asset.bia_score }} / 100</td></tr>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                
+
                 <!-- Description -->
                 <div class="col-12">
                     <div class="card">
@@ -390,15 +388,62 @@
                         </table>
                     </div>
                     {% else %}
-                    <div class="empty-state">
-                        <div class="empty-state-icon">
-                            <i class="fas fa-shield-alt"></i>
+                    <div class="empty-state py-5 text-center">
+                        <div class="empty-state-icon mb-3">
+                            <i class="fas fa-shield-alt fa-3x text-muted"></i>
                         </div>
                         <h5 class="empty-state-title">Nenhuma vulnerabilidade detectada</h5>
-                        <p class="empty-state-text">Este ativo parece estar seguro no momento.</p>
+                        <p class="empty-state-text text-muted">Execute a correlação para detectar CVEs automaticamente, ou adicione manualmente.</p>
+                        <div class="d-flex justify-content-center gap-2 mt-3">
+                            <button class="btn btn-primary btn-sm" onclick="correlateAsset({{ asset.id }})">
+                                <i class="fas fa-search me-1"></i> Correlacionar CVEs
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#addCveModal">
+                                <i class="fas fa-plus me-1"></i> Adicionar CVE Manualmente
+                            </button>
+                        </div>
                     </div>
                     {% endif %}
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add CVE Modal -->
+<div class="modal fade" id="addCveModal" tabindex="-1" aria-labelledby="addCveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addCveModalLabel"><i class="fas fa-plus me-2"></i>Associar CVE ao Ativo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="cve-id-input" class="form-label">CVE ID</label>
+                    <input type="text" class="form-control" id="cve-id-input" placeholder="Ex: CVE-2026-26928" autocomplete="off">
+                    <div class="form-text">Digite o CVE ID para associar a este ativo.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="cve-status-input" class="form-label">Status</label>
+                    <select class="form-select" id="cve-status-input">
+                        <option value="OPEN">Aberta</option>
+                        <option value="IN_PROGRESS">Em Andamento</option>
+                        <option value="MITIGATED">Mitigada</option>
+                        <option value="RESOLVED">Resolvida</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="cve-notes-input" class="form-label">Notas</label>
+                    <textarea class="form-control" id="cve-notes-input" rows="2" placeholder="Observações opcionais..."></textarea>
+                </div>
+                <div id="add-cve-error" class="alert alert-danger d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="add-cve-btn" onclick="addCve({{ asset.id }})">
+                    <i class="fas fa-plus me-1"></i> Associar
+                </button>
             </div>
         </div>
     </div>
@@ -414,10 +459,10 @@
         new Chart(ctx, {
             type: 'radar',
             data: {
-                labels: {{ radar_chart.labels|tojson }},
+                labels: {{ radar_chart['labels']|tojson }},
                 datasets: [{
                     label: 'Asset Risk Profile',
-                    data: {{ radar_chart.values|tojson }},
+                    data: {{ radar_chart['data']|tojson }},
                     fill: true,
                     backgroundColor: 'rgba(54, 162, 235, 0.2)',
                     borderColor: 'rgb(54, 162, 235)',
@@ -442,5 +487,80 @@
         });
     });
     {% endif %}
+
+    async function correlateAsset(assetId) {
+        const btn = document.getElementById('correlate-btn');
+        const original = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Correlacionando...'; }
+        try {
+            const res = await fetch('/assets/api/scan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrf_token=([^;]+)/)?.[1] || ''},
+                body: JSON.stringify({ asset_ids: [assetId] })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                const msg = `Correlação concluída: ${data.new_associations || 0} novas CVEs encontradas.`;
+                showToast(msg, data.new_associations > 0 ? 'success' : 'info');
+                if ((data.new_associations || 0) > 0) {
+                    setTimeout(() => window.location.reload(), 1200);
+                }
+            } else {
+                showToast(data.error || 'Erro ao correlacionar', 'danger');
+            }
+        } catch (e) {
+            showToast('Erro de conexão', 'danger');
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        }
+    }
+
+    async function addCve(assetId) {
+        const cveId = document.getElementById('cve-id-input').value.trim().toUpperCase();
+        const status = document.getElementById('cve-status-input').value;
+        const notes = document.getElementById('cve-notes-input').value.trim();
+        const errEl = document.getElementById('add-cve-error');
+        errEl.classList.add('d-none');
+
+        if (!cveId || !cveId.startsWith('CVE-')) {
+            errEl.textContent = 'Digite um CVE ID válido (ex: CVE-2026-12345)';
+            errEl.classList.remove('d-none');
+            return;
+        }
+
+        const btn = document.getElementById('add-cve-btn');
+        btn.disabled = true;
+        try {
+            const res = await fetch(`/assets/api/${assetId}/vulnerabilities/${cveId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.cookie.match(/csrf_token=([^;]+)/)?.[1] || ''},
+                body: JSON.stringify({ status, notes })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('addCveModal'))?.hide();
+                showToast(`CVE ${cveId} associado com sucesso!`, 'success');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                errEl.textContent = data.error || 'Erro ao associar CVE';
+                errEl.classList.remove('d-none');
+            }
+        } catch (e) {
+            errEl.textContent = 'Erro de conexão';
+            errEl.classList.remove('d-none');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    function showToast(msg, type = 'info') {
+        if (window.OpenMonitor?.showToast) { window.OpenMonitor.showToast(msg, type); return; }
+        const t = document.createElement('div');
+        t.className = `alert alert-${type} position-fixed bottom-0 end-0 m-3 shadow`;
+        t.style.zIndex = 9999;
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 4000);
+    }
 </script>
 {% endblock %}

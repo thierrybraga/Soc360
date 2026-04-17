@@ -406,7 +406,7 @@ def asset_vulnerabilities(asset_id):
     
     result = []
     for assoc in associations:
-        vuln = Vulnerability.query.get(assoc.cve_id)
+        vuln = Vulnerability.query.filter_by(cve_id=assoc.cve_id).first()
         if vuln:
             result.append({
                 'vulnerability': vuln.to_dict(),
@@ -428,7 +428,7 @@ def asset_vulnerabilities(asset_id):
 def associate_vulnerability(asset_id, cve_id):
     """API: Associar vulnerabilidade a um ativo."""
     asset = Asset.query.get_or_404(asset_id)
-    vuln = Vulnerability.query.get_or_404(cve_id.upper())
+    vuln = Vulnerability.query.filter_by(cve_id=cve_id.upper()).first_or_404()
     
     # Verificar permissão
     if not current_user.is_admin and asset.owner_id != current_user.id:
@@ -466,6 +466,36 @@ def associate_vulnerability(asset_id, cve_id):
         'message': 'Vulnerability associated successfully',
         'contextual_risk_score': assoc.contextual_risk_score
     }), 201
+
+
+@inventory_bp.route('/api/<int:asset_id>/vulnerabilities/<cve_id>', methods=['DELETE'])
+@login_required
+@role_required('ADMIN', 'ANALYST')
+def remove_vulnerability(asset_id, cve_id):
+    """API: Remover associação de vulnerabilidade de um ativo."""
+    assoc = AssetVulnerability.query.filter_by(
+        asset_id=asset_id,
+        cve_id=cve_id.upper()
+    ).first_or_404()
+    asset = Asset.query.get(asset_id)
+    if not current_user.is_admin and asset.owner_id != current_user.id:
+        abort(403)
+    db.session.delete(assoc)
+    db.session.commit()
+    return jsonify({'message': f'{cve_id} removed from asset'})
+
+
+@inventory_bp.route('/api/<int:asset_id>/vulnerabilities', methods=['DELETE'])
+@login_required
+@role_required('ADMIN', 'ANALYST')
+def remove_all_vulnerabilities(asset_id):
+    """API: Remover todas as associações de vulnerabilidade de um ativo."""
+    asset = Asset.query.get_or_404(asset_id)
+    if not current_user.is_admin and asset.owner_id != current_user.id:
+        abort(403)
+    count = AssetVulnerability.query.filter_by(asset_id=asset_id).delete()
+    db.session.commit()
+    return jsonify({'message': f'{count} vulnerabilities removed from asset'})
 
 
 @inventory_bp.route('/api/<int:asset_id>/vulnerabilities/<cve_id>', methods=['PUT'])
@@ -648,21 +678,25 @@ def detail(asset_id):
         # Average metrics from open vulnerabilities
         open_vulns = [a for a in associations if a.status in [VulnerabilityStatus.OPEN.value, VulnerabilityStatus.IN_PROGRESS.value]]
         if open_vulns:
-            avg_cvss = sum((v.vulnerability.cvss_score or 0) for v in open_vulns if v.vulnerability) / len(open_vulns)
-            
-            # Simple profile: CVSS, BIA, Criticality, Exposure, Environment
+            avg_cvss = sum(float(v.vulnerability.cvss_score or 0) for v in open_vulns if v.vulnerability) / len(open_vulns)
+
             criticality_map = {'LOW': 2, 'MEDIUM': 5, 'HIGH': 8, 'CRITICAL': 10}
             env_map = {'PRODUCTION': 10, 'STAGING': 7, 'DEV': 4, 'DMZ': 9}
             exp_map = {'INTERNAL': 4, 'CLOUD': 7, 'EXTERNAL': 10}
-            
+
+            bia = float(asset.bia_score or 0)
+            crit_val = int(criticality_map.get((asset.criticality or '').upper(), 5))
+            exp_val = int(exp_map.get((asset.exposure or '').upper(), 5))
+            env_val = int(env_map.get((asset.environment or '').upper(), 5))
+
             radar_chart = {
                 'labels': ['Avg CVSS', 'BIA Score', 'Criticality', 'Exposure', 'Environment'],
-                'values': [
+                'data': [
                     round(avg_cvss, 1),
-                    round(asset.bia_score / 10, 1), # Normalize to 0-10
-                    criticality_map.get(asset.criticality.upper(), 5),
-                    exp_map.get(asset.exposure.upper(), 5),
-                    env_map.get(asset.environment.upper(), 5)
+                    round(bia / 10, 1),
+                    crit_val,
+                    exp_val,
+                    env_val
                 ]
             }
 

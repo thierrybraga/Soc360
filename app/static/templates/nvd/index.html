@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Vulnerabilities - {{ super() }}{% endblock %}
+{% block title %}Vulnerabilidades - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vulnerabilities.css') }}">
+{% endblock %}
 
 {% block content %}
 <div class="page-shell page-shell--wide" data-page="nvd-index">
@@ -125,9 +129,9 @@
                 <div class="col-12 col-md-4">
                     <label class="form-label">Published Date Range</label>
                     <div class="input-group">
-                        <input type="date" class="form-input" id="nvd-date-from">
+                        <input type="date" class="form-control" id="nvd-date-from">
                         <span class="input-group-text">to</span>
-                        <input type="date" class="form-input" id="nvd-date-to">
+                        <input type="date" class="form-control" id="nvd-date-to">
                     </div>
                 </div>
             </div>
@@ -149,11 +153,11 @@
                 </select>
             </div>
         </div>
-        <div class="table-container">
+        <div class="table-container position-relative">
             <!-- Loading Overlay -->
-            <div id="nvd-loading" class="table-loading" style="display: none;">
+            <div id="nvd-loading" class="table-loading" style="display: none;" role="status" aria-live="polite">
                 <div class="spinner"></div>
-                <span>Carregando...</span>
+                <span>Carregando vulnerabilidades...</span>
             </div>
 
             <table class="table table-hover">
@@ -188,8 +192,9 @@
                 <p class="empty-state-text">Tente ajustar seus filtros de busca.</p>
             </div>
         </div>
-        <div class="card-footer d-flex justify-content-center" id="nvd-pagination">
-            <!-- Pagination populated by JS -->
+        <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="pagination-info text-muted small" id="nvd-page-info"></div>
+            <div id="nvd-pagination"></div>
         </div>
     </div>
 </div>

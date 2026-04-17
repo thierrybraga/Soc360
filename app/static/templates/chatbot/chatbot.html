@@ -1,112 +1,122 @@
 {% extends "base.html" %}
-
-{% block title %}Chatbot de Segurança - {{ app_name }}{% endblock %}
-{% block og_title %}Chatbot de Segurança - {{ app_name }}{% endblock %}
+{% block title %}SecuriBot — Assistente IA{% endblock %}
+{% block og_title %}SecuriBot — Assistente de Segurança{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/chatbot.css') }}">
 {% endblock %}
 
 {% block content %}
-<div class="chatbot-page page-shell page-shell--wide" data-page="chatbot">
-    <section class="chatbot-hero card">
-        <div class="chatbot-hero__content">
-            <span class="chatbot-hero__eyebrow">Assistente de segurança</span>
-            <h1 class="chatbot-hero__title">Converse com o SecuriBot sem sair do contexto da análise</h1>
-            <p class="chatbot-hero__subtitle">
-                Faça perguntas sobre CVEs, mitigação, priorização de patches e conceitos técnicos com uma interface de chat mais focada e consistente.
-            </p>
-            <div class="chatbot-hero__chips" aria-label="Capacidades do assistente">
-                <span class="chatbot-chip"><i class="fas fa-bug"></i> CVEs e vulnerabilidades</span>
-                <span class="chatbot-chip"><i class="fas fa-shield-alt"></i> Mitigação e resposta</span>
-                <span class="chatbot-chip"><i class="fas fa-list-check"></i> Priorização de correções</span>
-            </div>
-        </div>
-        <div class="chatbot-hero__aside">
-            <div class="chatbot-hero__stat">
-                <span class="chatbot-hero__stat-label">Melhor uso</span>
-                <strong>Perguntas objetivas com contexto técnico</strong>
-                <p>O assistente responde melhor quando você informa CVE, produto, impacto ou objetivo da análise.</p>
-            </div>
-            <div class="chatbot-hero__stat">
-                <span class="chatbot-hero__stat-label">Atalho</span>
-                <strong>Enter para enviar</strong>
-                <p>Use <code>Shift + Enter</code> para quebrar linha e manter perguntas mais detalhadas legíveis.</p>
-            </div>
-        </div>
-    </section>
+<div class="chatbot-page page-shell" data-page="chatbot">
+  <div class="chat-shell card">
 
-    <section class="chatbot-shell card">
-        <div class="chatbot-shell__header">
-            <div>
-                <h2 class="chatbot-shell__title">Conversa com SecuriBot</h2>
-                <p class="chatbot-shell__subtitle">Histórico local da sessão atual. Limpar remove a conversa exibida e solicita limpeza no backend.</p>
-            </div>
-            <div class="chatbot-shell__actions">
-                <span class="chatbot-status" id="chatStatus">
-                    <i class="fas fa-circle"></i>
-                    Pronto para conversar
-                </span>
-                <button class="btn btn-outline-secondary btn-sm" id="clearChatBtn" type="button" aria-label="Limpar conversa">
-                    <i class="fas fa-trash-alt"></i>
-                    Limpar conversa
-                </button>
-            </div>
+    <!-- Integrated slim header (inside the card, not a separate card) -->
+    <div class="chat-shell__header">
+      <div class="chat-shell__identity">
+        <div class="chat-shell__avatar">
+          <i class="fas fa-robot"></i>
+          <span class="chat-shell__pulse"></span>
         </div>
-
-        <div class="chat-messages" id="chatMessages" role="log" aria-live="polite" aria-label="Histórico de mensagens do chatbot">
-            <article class="chat-message chat-message--bot chat-message--intro" data-static-message="welcome">
-                <div class="chat-avatar" aria-hidden="true">
-                    <i class="fas fa-robot"></i>
-                </div>
-                <div class="chat-bubble">
-                    <div class="chat-bubble__meta">
-                        <strong>SecuriBot</strong>
-                        <span>Agora</span>
-                    </div>
-                    <div class="chat-bubble__text">
-                        Olá! Posso ajudar com CVEs específicas, explicações técnicas, recomendações de mitigação e priorização de patches.
-                    </div>
-                </div>
-            </article>
+        <div>
+          <span class="chat-shell__name">SecuriBot</span>
+          <span class="chat-shell__sub">CVEs · Mitigação · Análise de risco</span>
         </div>
+      </div>
+      <div class="chat-shell__controls">
+        <span class="chat-status" id="chatStatus">
+          <span class="chat-status__dot"></span>
+          <span class="chat-status__label">Pronto</span>
+        </span>
+        <button class="btn btn-sm btn-ghost" id="clearChatBtn" type="button"
+                title="Limpar conversa" aria-label="Limpar conversa">
+          <i class="fas fa-rotate-left"></i>
+          <span class="d-none d-md-inline">Limpar</span>
+        </button>
+      </div>
+    </div>
 
-        <div class="chat-suggestions" aria-label="Sugestões de perguntas rápidas">
-            <button type="button" class="chat-suggestion-btn" data-suggestion="O que é CVE-2023-1234?">O que é CVE-2023-1234?</button>
-            <button type="button" class="chat-suggestion-btn" data-suggestion="Como mitigar Log4Shell?">Como mitigar Log4Shell?</button>
-            <button type="button" class="chat-suggestion-btn" data-suggestion="Quais critérios usar para definir prioridade de patch?">Como definir prioridade de patch?</button>
-            <button type="button" class="chat-suggestion-btn" data-suggestion="Explique a diferença entre severidade e risco em vulnerabilidades.">Severidade vs. risco</button>
+    <!-- Messages -->
+    <div class="chat-messages" id="chatMessages"
+         role="log" aria-live="polite" aria-label="Histórico de mensagens">
+
+      <article class="chat-msg chat-msg--bot" data-static="welcome">
+        <div class="chat-msg__avatar">
+          <i class="fas fa-robot"></i>
         </div>
+        <div class="chat-msg__bubble">
+          <header class="chat-msg__meta">
+            <strong class="chat-msg__author">SecuriBot</strong>
+          </header>
+          <div class="chat-msg__body">
+            <p>Olá! Sou especializado em segurança cibernética e análise de vulnerabilidades CVE.
+               Use as sugestões abaixo ou escreva sua pergunta diretamente.</p>
+            <ul>
+              <li>Análise e explicação de CVEs específicas</li>
+              <li>Estratégias de mitigação e resposta a incidentes</li>
+              <li>Priorização de patches e gestão de risco</li>
+              <li>Conceitos de segurança ofensiva e defensiva</li>
+            </ul>
+          </div>
+        </div>
+      </article>
 
-        <form id="chatForm" class="chat-input-area" aria-labelledby="chatFormLabel">
-            <label id="chatFormLabel" class="visually-hidden" for="chatInput">Mensagem para o SecuriBot</label>
-            <div class="chat-input-wrap">
-                <textarea
-                    class="form-control chat-input"
-                    id="chatInput"
-                    rows="1"
-                    placeholder="Digite sua pergunta sobre segurança, CVEs, mitigação ou priorização..."
-                    aria-describedby="chatHelp"
-                    autocomplete="off"
-                ></textarea>
-                <button class="btn btn-primary chat-send-btn" type="submit" id="sendBtn">
-                    <span class="chat-send-btn__idle">
-                        <i class="fas fa-paper-plane"></i>
-                        <span>Enviar</span>
-                    </span>
-                    <span class="chat-send-btn__loading d-none" aria-hidden="true">
-                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                        <span>Enviando...</span>
-                    </span>
-                </button>
-            </div>
-            <div class="chat-input-help" id="chatHelp">
-                <i class="fas fa-circle-info"></i>
-                Respostas podem variar conforme a configuração do serviço de IA. Para melhores resultados, inclua CVE, produto afetado ou objetivo da análise.
-            </div>
-        </form>
-    </section>
-</div>
+    </div><!-- /.chat-messages -->
+
+    <!-- Scroll-to-bottom FAB -->
+    <button class="chat-scroll-fab" id="scrollFab"
+            aria-label="Ir para o final da conversa" hidden>
+      <i class="fas fa-arrow-down"></i>
+    </button>
+
+    <!-- Quick suggestions -->
+    <div class="chat-suggestions" id="chatSuggestions">
+      <button class="chat-suggestion" type="button"
+        data-suggestion="Como funciona a pontuação CVSS e o que cada faixa de severidade significa na prática?">
+        <i class="fas fa-chart-bar"></i> Pontuação CVSS
+      </button>
+      <button class="chat-suggestion" type="button"
+        data-suggestion="Como mitigar a vulnerabilidade Log4Shell (CVE-2021-44228) em ambientes Java?">
+        <i class="fas fa-shield-alt"></i> Mitigar Log4Shell
+      </button>
+      <button class="chat-suggestion" type="button"
+        data-suggestion="Quais critérios usar para priorizar quais patches aplicar primeiro em ambientes de produção?">
+        <i class="fas fa-list-check"></i> Priorizar patches
+      </button>
+      <button class="chat-suggestion" type="button"
+        data-suggestion="Qual a diferença entre severidade CVSS e risco real de exploração de uma vulnerabilidade?">
+        <i class="fas fa-scale-balanced"></i> Severidade vs. risco
+      </button>
+    </div>
+
+    <!-- Input -->
+    <form class="chat-input-bar" id="chatForm" autocomplete="off" novalidate>
+      <label class="visually-hidden" for="chatInput">Mensagem para o SecuriBot</label>
+      <textarea
+        class="chat-input"
+        id="chatInput"
+        rows="1"
+        placeholder="Pergunte sobre CVEs, mitigação, conceitos de segurança..."
+        aria-label="Mensagem"
+        maxlength="4000"
+        spellcheck="true"
+      ></textarea>
+      <button class="chat-send-btn" type="submit" id="sendBtn"
+              aria-label="Enviar mensagem" disabled>
+        <i class="fas fa-paper-plane chat-send-btn__icon"></i>
+        <span class="spinner-border spinner-border-sm chat-send-btn__spinner d-none"
+              role="status"></span>
+      </button>
+    </form>
+
+    <div class="chat-input-meta">
+      <span class="chat-hint">
+        <kbd>Enter</kbd> envia &middot; <kbd>Shift+Enter</kbd> nova linha
+      </span>
+      <span class="chat-char" id="charCount"></span>
+    </div>
+
+  </div><!-- /.chat-shell -->
+</div><!-- /.chatbot-page -->
 {% endblock %}
 
 {% block extra_js %}

@@ -7,16 +7,28 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from contextlib import contextmanager
 
-from sqlalchemy import text, inspect
-from app.extensions.db_types import USE_SQLITE
+from sqlalchemy import text, inspect, literal_column, bindparam, delete
+from sqlalchemy.dialects.sqlite import insert as _sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as _pg_insert
 
-if USE_SQLITE:
-    from sqlalchemy.dialects.sqlite import insert
-else:
-    from sqlalchemy.dialects.postgresql import insert
+
+def _is_sqlite() -> bool:
+    """Runtime check: returns True if the active database is SQLite.
+
+    Uses current_app config so it correctly handles the PostgreSQL→SQLite
+    fallback that happens when PostgreSQL is unreachable at startup.
+    """
+    from flask import current_app
+    uri = current_app.config.get('SQLALCHEMY_DATABASE_URI', '')
+    return uri.startswith('sqlite')
+
+
+def _insert():
+    """Return the correct dialect insert function for the active database."""
+    return _sqlite_insert if _is_sqlite() else _pg_insert
 
 from app.extensions import db
-from app.models.nvd import Vulnerability, CvssMetric, Weakness, Reference, Mitigation
+from app.models.nvd import Vulnerability, CvssMetric, Weakness, Reference, Mitigation, Credit, AffectedProduct
 from app.models.system import SyncMetadata
 
 
@@ -55,28 +67,27 @@ class BulkDatabaseService:
 
     def clear_all_data(self) -> None:
         """
-        Limpar todos os dados de vulnerabilidades (TRUNCATE).
+        Limpar todos os dados de vulnerabilidades (TRUNCATE/DELETE).
         Usado para Full Sync forçado.
         """
-        logger.info("Clearing existing vulnerability data (TRUNCATE)...")
+        logger.info("Clearing existing vulnerability data...")
         try:
-            # Ensure tables exist in ALL DBs (core and public)
-            db.create_all() # Creates for default bind (core) where SyncMetadata lives
-            db.create_all(bind='public') # Creates for public bind where Vulnerabilities live
+            # Ensure all tables exist
+            db.create_all()
 
-            engine = db.get_engine(bind='public')
+            # Use the session-configured engine (respects SQLite fallback)
+            engine = db.engine
             inspector = inspect(engine)
-            
-            # Check for table existence
+
             if inspector.has_table("vulnerabilities"):
                 try:
-                    # Use TRUNCATE for PostgreSQL (faster) or DELETE for SQLite
                     with engine.connect() as conn:
-                        if USE_SQLITE:
-                            conn.execute(text('DELETE FROM vulnerabilities'))
-                            conn.execute(text('DELETE FROM cvss_metrics'))
-                            conn.execute(text('DELETE FROM weaknesses'))
-                            conn.execute(text('DELETE FROM references'))
+                        if _is_sqlite():
+                            # SQLite: no TRUNCATE, no CASCADE — delete in order
+                            for tbl in ('cvss_metrics', 'weaknesses', 'references',
+                                        'credits', 'affected_products', 'vulnerabilities'):
+                                if inspector.has_table(tbl):
+                                    conn.execute(text(f'DELETE FROM "{tbl}"'))
                         else:
                             conn.execute(text('TRUNCATE TABLE vulnerabilities CASCADE'))
                         conn.commit()
@@ -84,7 +95,7 @@ class BulkDatabaseService:
                 except Exception as trunc_err:
                     logger.warning(f"Could not clear 'vulnerabilities' table: {trunc_err}")
             else:
-                logger.warning("Table 'vulnerabilities' not found in public DB. Skipping clear.")
+                logger.warning("Table 'vulnerabilities' not found. Skipping clear.")
 
         except Exception as e:
             logger.error(f"Error clearing data: {e}")
@@ -149,131 +160,216 @@ class BulkDatabaseService:
         weakness_records = []
         reference_records = []
         
+        credit_records = []
+        affected_product_records = []
+        cve_ids_in_batch = []
+
         for item in batch:
             cve = item.get('cve', {})
             cve_id = cve.get('id')
-            
+
             if not cve_id:
                 self.stats['skipped'] += 1
                 continue
-            
+
+            cve_ids_in_batch.append(cve_id)
+
             # Extrair dados da vulnerabilidade
             vuln_data = self._extract_vulnerability_data(cve)
             if vuln_data:
                 vuln_records.append(vuln_data)
-            
+
             # Extrair métricas CVSS
             cvss_data = self._extract_cvss_data(cve)
             cvss_records.extend(cvss_data)
-            
+
             # Extrair weaknesses (CWEs)
             weakness_data = self._extract_weakness_data(cve)
             weakness_records.extend(weakness_data)
-            
+
             # Extrair referências
             ref_data = self._extract_reference_data(cve)
             reference_records.extend(ref_data)
-        
+
+            # Extrair créditos
+            credit_data = self._extract_credits_data(cve)
+            credit_records.extend(credit_data)
+
+            # Extrair produtos afetados detalhados
+            ap_data = self._extract_affected_product_records(cve)
+            affected_product_records.extend(ap_data)
+
         # Inserir em lote
         with self.bulk_session():
             if vuln_records:
                 self._upsert_vulnerabilities(vuln_records)
-            
+
             if cvss_records:
                 self._upsert_cvss(cvss_records)
-            
+
             if weakness_records:
                 self._upsert_weaknesses(weakness_records)
-            
+
             if reference_records:
                 self._upsert_references(reference_records)
+
+            if credit_records:
+                self._upsert_credits(cve_ids_in_batch, credit_records)
+
+            if affected_product_records:
+                self._upsert_affected_products(cve_ids_in_batch, affected_product_records)
     
     def _extract_vulnerability_data(self, cve: Dict) -> Optional[Dict]:
         """Extrair dados da vulnerabilidade."""
         cve_id = cve.get('id')
-        
+
         # Descrição em inglês
         descriptions = cve.get('descriptions', [])
         description = next(
             (d['value'] for d in descriptions if d.get('lang') == 'en'),
             descriptions[0]['value'] if descriptions else ''
         )
-        
+
         # Datas
         published = cve.get('published')
         modified = cve.get('lastModified')
-        
-        # Métricas CVSS (pegar maior severidade)
+
+        # Métricas CVSS (pegar maior severidade + versão + vector)
         metrics = cve.get('metrics', {})
-        cvss_score, severity = self._get_highest_cvss(metrics)
-        
+        cvss_score, severity, cvss_version, cvss_vector = self._get_highest_cvss(metrics)
+
         # Vendors e Products (do configurations)
         vendors_data, products_data = self._extract_affected_products(cve)
-        
-        # Status CISA KEV
-        cisa_data = cve.get('cisaExploitAdd')
+
+        # CISA KEV fields
+        cisa_exploit_add = cve.get('cisaExploitAdd')
         cisa_action_due = cve.get('cisaActionDue')
-        
+        cisa_required_action = cve.get('cisaRequiredAction')
+        cisa_vuln_name = cve.get('cisaVulnerabilityName')
+
+        # Exploit / patch flags derived from references
+        references = cve.get('references', [])
+        exploit_available = any(
+            'exploit' in [t.lower() for t in (r.get('tags') or [])]
+            for r in references
+        )
+        patch_refs = [
+            r for r in references
+            if 'patch' in [t.lower() for t in (r.get('tags') or [])]
+        ]
+        patch_available = len(patch_refs) > 0
+        patch_url = patch_refs[0]['url'] if patch_refs else None
+
         return {
             'cve_id': cve_id,
             'description': description[:10000] if description else '',
-            'published_date': datetime.fromisoformat(published.replace('Z', '+00:00')) if published else None,
-            'last_modified_date': datetime.fromisoformat(modified.replace('Z', '+00:00')) if modified else None,
+            'description_lang': 'en',
+            'published_date': self._parse_dt(published),
+            'last_modified_date': self._parse_dt(modified),
             'vuln_status': cve.get('vulnStatus'),
             'cvss_score': cvss_score,
             'base_severity': severity,
+            'cvss_version': cvss_version,
+            'cvss_vector_string': cvss_vector,
             'nvd_vendors_data': vendors_data,
             'nvd_products_data': products_data,
             'cpe_configurations': cve.get('configurations'),
-            'cisa_exploit_add': datetime.fromisoformat(cisa_data.replace('Z', '+00:00')) if cisa_data else None,
-            'cisa_action_due': datetime.fromisoformat(cisa_action_due.replace('Z', '+00:00')) if cisa_action_due else None,
-            'is_in_cisa_kev': cisa_data is not None
+            'cisa_exploit_add': self._parse_dt(cisa_exploit_add),
+            'cisa_action_due': self._parse_dt(cisa_action_due),
+            'cisa_required_action': cisa_required_action,
+            'cisa_notes': cisa_vuln_name,
+            'is_in_cisa_kev': cisa_exploit_add is not None,
+            'exploit_available': exploit_available,
+            'patch_available': patch_available,
+            'patch_url': patch_url[:2048] if patch_url else None,
+            'raw_nvd_data': cve,
         }
+
+    @staticmethod
+    def _parse_dt(value: Optional[str]) -> Optional[datetime]:
+        """Parse ISO date string to datetime, tolerant of missing timezone."""
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value.replace('Z', '+00:00'))
+        except (ValueError, AttributeError):
+            return None
     
     def _get_highest_cvss(self, metrics: Dict) -> tuple:
-        """Obter maior score CVSS e severidade."""
+        """Obter maior score CVSS, severidade, versão e vector string."""
         score = None
-        severity = 'UNKNOWN'
-        
-        # Verificar CVSS v4, v3.1, v3.0, v2 (em ordem de prioridade)
-        for version in ['cvssMetricV40', 'cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2']:
-            if version in metrics and metrics[version]:
-                metric = metrics[version][0]
+        severity = None
+        version = None
+        vector = None
+
+        version_map = {
+            'cvssMetricV40': '4.0',
+            'cvssMetricV31': '3.1',
+            'cvssMetricV30': '3.0',
+            'cvssMetricV2': '2.0',
+        }
+
+        # Priority: v4.0 > v3.1 > v3.0 > v2.0
+        for metric_key, ver_label in version_map.items():
+            if metric_key in metrics and metrics[metric_key]:
+                metric = metrics[metric_key][0]
                 cvss_data = metric.get('cvssData', {})
-                
                 score = cvss_data.get('baseScore')
-                severity = cvss_data.get('baseSeverity', 'UNKNOWN')
+                severity = cvss_data.get('baseSeverity') or metric.get('baseSeverity')
+                vector = cvss_data.get('vectorString')
+                version = ver_label
                 break
-        
-        return score, severity
+
+        # Derive severity from score when the API field is absent (common for CVSSv2)
+        if not severity and score is not None:
+            if score >= 9.0:
+                severity = 'CRITICAL'
+            elif score >= 7.0:
+                severity = 'HIGH'
+            elif score >= 4.0:
+                severity = 'MEDIUM'
+            else:
+                severity = 'LOW'
+
+        return score, severity, version, vector
     
+    @staticmethod
+    def _iter_cpe_matches(nodes: List[Dict]):
+        """Yield all cpeMatch entries from nodes, including nested children."""
+        for node in nodes:
+            yield from node.get('cpeMatch', [])
+            # NVD API nests CPE data under 'children' for AND/OR compound configs
+            children = node.get('children', [])
+            if children:
+                yield from BulkDatabaseService._iter_cpe_matches(children)
+
     def _extract_affected_products(self, cve: Dict) -> tuple:
         """Extrair vendors e products afetados."""
         vendors = set()
         products = {}
-        
+
         configurations = cve.get('configurations', [])
-        
+
         for config in configurations:
-            for node in config.get('nodes', []):
-                for cpe_match in node.get('cpeMatch', []):
-                    criteria = cpe_match.get('criteria', '')
-                    
-                    # Parse CPE: cpe:2.3:a:vendor:product:version:...
-                    parts = criteria.split(':')
-                    if len(parts) >= 5:
-                        vendor = parts[3]
-                        product = parts[4]
-                        
-                        if vendor and vendor != '*':
-                            vendors.add(vendor)
-                            
-                            if product and product != '*':
-                                if vendor not in products:
-                                    products[vendor] = []
-                                if product not in products[vendor]:
-                                    products[vendor].append(product)
-        
+            nodes = config.get('nodes', [])
+            for cpe_match in self._iter_cpe_matches(nodes):
+                criteria = cpe_match.get('criteria', '')
+
+                # Parse CPE 2.3: cpe:2.3:part:vendor:product:version:...
+                parts = criteria.split(':')
+                if len(parts) >= 5:
+                    vendor = parts[3]
+                    product = parts[4]
+
+                    if vendor and vendor != '*':
+                        vendors.add(vendor)
+
+                        if product and product != '*':
+                            if vendor not in products:
+                                products[vendor] = []
+                            if product not in products[vendor]:
+                                products[vendor].append(product)
+
         return list(vendors), products
     
     def _extract_cvss_data(self, cve: Dict) -> List[Dict]:
@@ -399,53 +495,175 @@ class BulkDatabaseService:
         
         return records
     
+    def _extract_credits_data(self, cve: Dict) -> List[Dict]:
+        """Extrair créditos/contribuidores da CVE."""
+        cve_id = cve.get('id')
+        records = []
+        for credit in cve.get('credits', []):
+            value = credit.get('value', '')
+            if value:
+                records.append({
+                    'cve_id': cve_id,
+                    'value': value[:255],
+                    'user': credit.get('user', '')[:255] if credit.get('user') else None,
+                    'type': credit.get('type', '')[:100] if credit.get('type') else None,
+                })
+        return records
+
+    def _extract_affected_product_records(self, cve: Dict) -> List[Dict]:
+        """Extrair produtos afetados com versões e plataformas dos nós CPE."""
+        cve_id = cve.get('id')
+        seen = {}  # (vendor, product) -> {versions, platforms}
+
+        for config in cve.get('configurations', []):
+            nodes = config.get('nodes', [])
+            for cpe_match in self._iter_cpe_matches(nodes):
+                criteria = cpe_match.get('criteria', '')
+                parts = criteria.split(':')
+                if len(parts) < 5:
+                    continue
+                vendor = parts[3]
+                product = parts[4]
+                if not vendor or vendor == '*' or not product or product == '*':
+                    continue
+
+                key = (vendor, product)
+                if key not in seen:
+                    seen[key] = {'versions': [], 'platforms': set()}
+
+                if not cpe_match.get('vulnerable', True):
+                    continue
+
+                # Build version range descriptor
+                ver_parts = []
+                if cpe_match.get('versionStartIncluding'):
+                    ver_parts.append(f">={cpe_match['versionStartIncluding']}")
+                if cpe_match.get('versionStartExcluding'):
+                    ver_parts.append(f">{cpe_match['versionStartExcluding']}")
+                if cpe_match.get('versionEndIncluding'):
+                    ver_parts.append(f"<={cpe_match['versionEndIncluding']}")
+                if cpe_match.get('versionEndExcluding'):
+                    ver_parts.append(f"<{cpe_match['versionEndExcluding']}")
+
+                # Exact version from CPE
+                cpe_ver = parts[5] if len(parts) > 5 else '*'
+                if not ver_parts and cpe_ver not in ('*', '-', ''):
+                    ver_parts.append(cpe_ver)
+
+                # Platform from CPE (edition/sw_edition/target_hw)
+                if len(parts) > 10 and parts[10] not in ('*', '-', ''):
+                    seen[key]['platforms'].add(parts[10])
+
+                if ver_parts:
+                    ver_str = ' '.join(ver_parts)
+                    if ver_str not in seen[key]['versions']:
+                        seen[key]['versions'].append(ver_str)
+
+        records = []
+        for (vendor, product), data in seen.items():
+            records.append({
+                'cve_id': cve_id,
+                'vendor': vendor[:255],
+                'product': product[:255],
+                'versions': data['versions'] or None,
+                'platforms': list(data['platforms']) or None,
+            })
+        return records
+
+    def _upsert_credits(self, cve_ids: List[str], records: List[Dict]) -> None:
+        """Substituir créditos: delete existing + insert new."""
+        if not cve_ids:
+            return
+        db.session.execute(delete(Credit).where(Credit.cve_id.in_(cve_ids)))
+        if records:
+            ins = _insert()
+            stmt = ins(Credit).values(records)
+            stmt = stmt.prefix_with('OR IGNORE') if _is_sqlite() else stmt.on_conflict_do_nothing()
+            db.session.execute(stmt)
+
+    def _upsert_affected_products(self, cve_ids: List[str], records: List[Dict]) -> None:
+        """Substituir produtos afetados: delete existing + insert new."""
+        if not cve_ids:
+            return
+        db.session.execute(delete(AffectedProduct).where(AffectedProduct.cve_id.in_(cve_ids)))
+        if records:
+            ins = _insert()
+            use_sqlite = _is_sqlite()
+            chunk_size = 500
+            for i in range(0, len(records), chunk_size):
+                chunk = records[i:i + chunk_size]
+                stmt = ins(AffectedProduct).values(chunk)
+                stmt = stmt.prefix_with('OR IGNORE') if use_sqlite else stmt.on_conflict_do_nothing()
+                db.session.execute(stmt)
+
     def _upsert_vulnerabilities(self, records: List[Dict]) -> None:
         """Upsert de vulnerabilidades."""
         if not records:
             return
 
+        use_sqlite = _is_sqlite()
+        ins = _insert()
         chunk_size = 1000
         total_records = len(records)
-        
+
         for i in range(0, total_records, chunk_size):
             chunk = records[i:i + chunk_size]
-            stmt = insert(Vulnerability).values(chunk)
-            
+            stmt = ins(Vulnerability).values(chunk)
+
             update_dict = {
                 'description': stmt.excluded.description,
+                'description_lang': stmt.excluded.description_lang,
+                'published_date': stmt.excluded.published_date,
                 'last_modified_date': stmt.excluded.last_modified_date,
                 'vuln_status': stmt.excluded.vuln_status,
                 'cvss_score': stmt.excluded.cvss_score,
                 'base_severity': stmt.excluded.base_severity,
+                'cvss_version': stmt.excluded.cvss_version,
+                'cvss_vector_string': stmt.excluded.cvss_vector_string,
                 'nvd_vendors_data': stmt.excluded.nvd_vendors_data,
                 'nvd_products_data': stmt.excluded.nvd_products_data,
                 'cpe_configurations': stmt.excluded.cpe_configurations,
                 'cisa_exploit_add': stmt.excluded.cisa_exploit_add,
                 'cisa_action_due': stmt.excluded.cisa_action_due,
+                'cisa_required_action': stmt.excluded.cisa_required_action,
+                'cisa_notes': stmt.excluded.cisa_notes,
                 'is_in_cisa_kev': stmt.excluded.is_in_cisa_kev,
+                'exploit_available': stmt.excluded.exploit_available,
+                'patch_available': stmt.excluded.patch_available,
+                'patch_url': stmt.excluded.patch_url,
+                'raw_nvd_data': stmt.excluded.raw_nvd_data,
                 'updated_at': datetime.utcnow()
             }
-            
+
             stmt = stmt.on_conflict_do_update(
                 index_elements=['cve_id'],
                 set_=update_dict
             )
-            
-            result = db.session.execute(stmt)
-            self.stats['inserted'] += result.rowcount
+
+            if not use_sqlite:
+                # PostgreSQL: use RETURNING + xmax trick to count inserts vs updates
+                stmt = stmt.returning(literal_column('(xmax = 0)::boolean'))
+                result = db.session.execute(stmt)
+                rows = result.fetchall()
+                self.stats['inserted'] += sum(1 for r in rows if r[0])
+                self.stats['updated'] += sum(1 for r in rows if not r[0])
+            else:
+                result = db.session.execute(stmt)
+                self.stats['inserted'] += result.rowcount
     
     def _upsert_cvss(self, records: List[Dict]) -> None:
         """Upsert de métricas CVSS."""
         if not records:
             return
-            
+
+        ins = _insert()
         chunk_size = 1000
         total_records = len(records)
-        
+
         for i in range(0, total_records, chunk_size):
             chunk = records[i:i + chunk_size]
-            stmt = insert(CvssMetric).values(chunk)
-            
+            stmt = ins(CvssMetric).values(chunk)
+
             stmt = stmt.on_conflict_do_update(
                 index_elements=['cve_id', 'version', 'source'],
                 set_={
@@ -476,13 +694,14 @@ class BulkDatabaseService:
         """Upsert de CWEs."""
         if not records:
             return
-            
+
+        ins = _insert()
         chunk_size = 1000
         total_records = len(records)
-        
+
         for i in range(0, total_records, chunk_size):
             chunk = records[i:i + chunk_size]
-            stmt = insert(Weakness).values(chunk)
+            stmt = ins(Weakness).values(chunk)
             
             stmt = stmt.on_conflict_do_update(
                 index_elements=['cve_id', 'cwe_id', 'source'],
@@ -505,9 +724,10 @@ class BulkDatabaseService:
         chunk_size = 1000
         total_records = len(records)
         
+        ins = _insert()
         for i in range(0, total_records, chunk_size):
             chunk = records[i:i + chunk_size]
-            stmt = insert(Reference).values(chunk)
+            stmt = ins(Reference).values(chunk)
             stmt = stmt.on_conflict_do_update(
                 index_elements=['cve_id', 'url'],
                 set_={

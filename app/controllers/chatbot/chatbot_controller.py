@@ -44,7 +44,7 @@ def chat():
     if not openai_key:
         return jsonify({
             'success': True,
-            'response': 'The AI chatbot is not configured. Please set OPENAI_API_KEY in your environment.',
+            'response': 'O assistente de IA não está configurado. Defina a variável `OPENAI_API_KEY` no ambiente para habilitar respostas completas.',
             'source': 'system',
             'timestamp': timestamp
         })
@@ -57,6 +57,7 @@ def chat():
             'success': True,
             'response': response,
             'source': 'ai',
+            'model': service.model,
             'timestamp': timestamp
         })
     except Exception as e:
