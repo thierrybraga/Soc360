@@ -1,11 +1,11 @@
 """
 Open-Monitor Chatbot Controller
-AI-powered chatbot for vulnerability analysis.
+AI-powered chatbot — suporta Ollama (local) e OpenAI via AI_PROVIDER.
 """
 import logging
 from datetime import datetime, timezone
 
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required
 
 logger = logging.getLogger(__name__)
@@ -16,76 +16,64 @@ chatbot_bp = Blueprint('chatbot', __name__, url_prefix='/chatbot')
 @chatbot_bp.route('/')
 @login_required
 def index():
-    """Chatbot page."""
     return render_template('chatbot/chatbot.html')
 
 
 @chatbot_bp.route('/api/chat', methods=['POST'])
 @login_required
 def chat():
-    """API: Send message to chatbot."""
+    """Envia mensagem para o provedor de IA configurado (Ollama ou OpenAI)."""
     data = request.get_json(silent=True) or {}
-    if 'message' not in data:
-        return jsonify({
-            'success': False,
-            'error': 'Message is required'
-        }), 400
+    user_message = (data.get('message') or '').strip()
 
-    user_message = data['message'].strip()
     if not user_message:
-        return jsonify({
-            'success': False,
-            'error': 'Message cannot be empty'
-        }), 400
+        return jsonify({'success': False, 'error': 'Mensagem não pode estar vazia.'}), 400
 
-    openai_key = current_app.config.get('OPENAI_API_KEY')
     timestamp = datetime.now(timezone.utc).isoformat()
 
-    if not openai_key:
-        return jsonify({
-            'success': True,
-            'response': 'O assistente de IA não está configurado. Defina a variável `OPENAI_API_KEY` no ambiente para habilitar respostas completas.',
-            'source': 'system',
-            'timestamp': timestamp
-        })
-
     try:
-        from app.services.core.openai_service import OpenAIService
-        service = OpenAIService()
+        from app.services.core.ai_service import get_ai_service
+        service = get_ai_service()
         response = service.generate_chat_response(user_message)
         return jsonify({
             'success': True,
             'response': response,
             'source': 'ai',
             'model': service.model,
-            'timestamp': timestamp
+            'timestamp': timestamp,
         })
-    except Exception as e:
-        logger.error(f'Chatbot error: {e}')
+    except Exception as exc:
+        logger.error(f'Chatbot error: {exc}')
         return jsonify({
             'success': False,
-            'error': 'An error occurred while processing your request. Please try again.',
-            'response': 'An error occurred while processing your request. Please try again.',
+            'response': 'Ocorreu um erro ao processar sua mensagem. Tente novamente.',
             'source': 'error',
-            'timestamp': timestamp
+            'timestamp': timestamp,
         }), 500
+
+
+@chatbot_bp.route('/api/health', methods=['GET'])
+@login_required
+def health():
+    """Verifica o status do provedor de IA atual."""
+    try:
+        from app.services.core.ai_service import get_ai_service
+        service = get_ai_service()
+        result = service.check_health() if hasattr(service, 'check_health') else {'ok': True}
+        result['provider'] = service.__class__.__name__
+        result['model'] = getattr(service, 'model', None)
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 500
 
 
 @chatbot_bp.route('/api/history', methods=['GET'])
 @login_required
 def history():
-    """API: Get chat history for current user."""
-    return jsonify({
-        'success': True,
-        'sessions': []
-    })
+    return jsonify({'success': True, 'sessions': []})
 
 
 @chatbot_bp.route('/api/clear', methods=['POST'])
 @login_required
 def clear():
-    """API: Clear chat history."""
-    return jsonify({
-        'success': True,
-        'message': 'Chat history cleared'
-    })
+    return jsonify({'success': True, 'message': 'Conversa limpa.'})

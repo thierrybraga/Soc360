@@ -89,10 +89,21 @@ class BaseConfig:
     NVD_INCREMENTAL_DAYS = 30
     NVD_RESULTS_PER_PAGE = 2000
     
-    # OpenAI
-    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', None)
-    OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-4')
-    OPENAI_MAX_TOKENS = 4000
+    # ── AI Provider ────────────────────────────────────────────────────────
+    # AI_PROVIDER: 'ollama' (local, padrão) | 'openai'
+    AI_PROVIDER = os.environ.get('AI_PROVIDER', 'ollama')
+
+    # Ollama (local)
+    OLLAMA_BASE_URL   = os.environ.get('OLLAMA_BASE_URL',  'http://localhost:11434/v1')
+    OLLAMA_MODEL      = os.environ.get('OLLAMA_MODEL',     'llama3.2:latest')
+    OLLAMA_MAX_TOKENS = int(os.environ.get('OLLAMA_MAX_TOKENS', 2048))
+    OLLAMA_TEMPERATURE = float(os.environ.get('OLLAMA_TEMPERATURE', 0.7))
+
+    # OpenAI (cloud — opcional)
+    OPENAI_API_KEY    = os.environ.get('OPENAI_API_KEY', None)
+    OPENAI_MODEL      = os.environ.get('OPENAI_MODEL',  'gpt-4o-mini')
+    OPENAI_MAX_TOKENS = int(os.environ.get('OPENAI_MAX_TOKENS', 2048))
+    OPENAI_TEMPERATURE = float(os.environ.get('OPENAI_TEMPERATURE', 0.7))
     
     # Email (SMTP)
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
@@ -163,8 +174,11 @@ class BaseConfig:
                 'core': 'sqlite:///' + db_path,
                 'public': 'sqlite:///' + db_path
             }
+            # StaticPool: compartilha uma única conexão entre threads de forma segura
+            from sqlalchemy.pool import StaticPool
             app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-                'connect_args': {'check_same_thread': False}
+                'connect_args': {'check_same_thread': False},
+                'poolclass': StaticPool,
             }
             app.config['REDIS_URL'] = None
             app.config['REDIS_HOST'] = 'localhost'
