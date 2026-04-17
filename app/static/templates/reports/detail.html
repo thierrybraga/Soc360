@@ -4,6 +4,88 @@
 
 {% block extra_css %}
 <link href="{{ url_for('static', filename='css/reports.css') }}" rel="stylesheet">
+<style>
+  .ai-report-narrative {
+    border: 1px solid var(--border-color, rgba(255,255,255,.1));
+    background: linear-gradient(180deg, rgba(99,102,241,.05) 0%, rgba(99,102,241,0) 60%);
+    border-radius: .75rem;
+    padding: 1.25rem 1.5rem;
+  }
+  .ai-report-narrative__header {
+    display: flex; align-items: center; gap: .75rem;
+    margin-bottom: 1rem; flex-wrap: wrap;
+  }
+  .ai-report-narrative__badge {
+    display: inline-flex; align-items: center; gap: .4rem;
+    background: rgba(99,102,241,.15); color: #a5b4fc;
+    padding: .25rem .6rem; border-radius: 999px;
+    font-size: .75rem; font-weight: 600; letter-spacing: .02em;
+  }
+  .ai-report-narrative__model,
+  .ai-report-narrative__time {
+    font-size: .75rem; color: var(--text-muted, #9ca3af);
+  }
+  .ai-report-narrative__copy {
+    margin-left: auto; background: transparent;
+    border: 1px solid var(--border-color, rgba(255,255,255,.15));
+    color: var(--text-muted, #9ca3af);
+    width: 32px; height: 32px; border-radius: 6px;
+    cursor: pointer; transition: all .15s;
+  }
+  .ai-report-narrative__copy:hover {
+    background: rgba(99,102,241,.1); color: #a5b4fc;
+    border-color: rgba(99,102,241,.3);
+  }
+  .ai-report-narrative__body {
+    line-height: 1.65; color: var(--text-primary, #e5e7eb);
+  }
+  .ai-report-narrative__body h1,
+  .ai-report-narrative__body h2,
+  .ai-report-narrative__body h3 {
+    color: #fff; margin-top: 1.5rem; margin-bottom: .75rem;
+    font-weight: 600;
+  }
+  .ai-report-narrative__body h2 {
+    font-size: 1.25rem; padding-bottom: .4rem;
+    border-bottom: 1px solid var(--border-color, rgba(255,255,255,.08));
+  }
+  .ai-report-narrative__body h3 { font-size: 1.05rem; }
+  .ai-report-narrative__body p { margin: .75rem 0; }
+  .ai-report-narrative__body ul,
+  .ai-report-narrative__body ol { padding-left: 1.4rem; margin: .75rem 0; }
+  .ai-report-narrative__body li { margin: .3rem 0; }
+  .ai-report-narrative__body code {
+    background: rgba(255,255,255,.08); padding: .15rem .4rem;
+    border-radius: 4px; font-size: .9em;
+  }
+  .ai-report-narrative__body pre {
+    background: rgba(0,0,0,.3); padding: 1rem;
+    border-radius: 6px; overflow-x: auto;
+  }
+  .ai-report-narrative__body pre code { background: transparent; padding: 0; }
+  .ai-report-narrative__body table {
+    width: 100%; border-collapse: collapse; margin: 1rem 0;
+    font-size: .9rem;
+  }
+  .ai-report-narrative__body th,
+  .ai-report-narrative__body td {
+    padding: .55rem .75rem; text-align: left;
+    border-bottom: 1px solid var(--border-color, rgba(255,255,255,.08));
+  }
+  .ai-report-narrative__body th {
+    background: rgba(255,255,255,.04); font-weight: 600;
+    color: #fff;
+  }
+  .ai-report-narrative__body strong { color: #fff; font-weight: 600; }
+  .ai-report-narrative__body hr {
+    border: 0; border-top: 1px solid var(--border-color, rgba(255,255,255,.08));
+    margin: 1.25rem 0;
+  }
+  .ai-report-narrative__body a.md-cve {
+    color: #a5b4fc; text-decoration: none; font-family: ui-monospace, monospace;
+  }
+  .ai-report-narrative__body a.md-cve:hover { text-decoration: underline; }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -21,10 +103,10 @@
             <p class="text-muted mb-0">
                 <i class="fas fa-calendar me-1"></i>
                 Created {{ report.created_at.strftime('%Y-%m-%d %H:%M') if report.created_at else 'N/A' }}
-                {% if report.completed_at %}
+                {% if report.generation_completed_at %}
                     <span class="mx-2">|</span>
                     <i class="fas fa-check me-1"></i>
-                    Completed {{ report.completed_at.strftime('%Y-%m-%d %H:%M') }}
+                    Completed {{ report.generation_completed_at.strftime('%Y-%m-%d %H:%M') }}
                 {% endif %}
             </p>
         </div>
@@ -88,6 +170,31 @@
                             {% endif %}
                         </div>
                     {% elif report.data %}
+                        {# ─── AI-generated narrative (single complete prompt) ─── #}
+                        {% if report.ai_summary %}
+                        <div class="ai-report-narrative mb-4">
+                            <div class="ai-report-narrative__header">
+                                <span class="ai-report-narrative__badge">
+                                    <i class="fas fa-robot"></i>
+                                    Gerado por IA
+                                </span>
+                                {% if report.ai_model_used %}
+                                <span class="ai-report-narrative__model">modelo: {{ report.ai_model_used }}</span>
+                                {% endif %}
+                                {% if report.ai_generated_at %}
+                                <span class="ai-report-narrative__time">· {{ report.ai_generated_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                                {% endif %}
+                                <button type="button" class="ai-report-narrative__copy" onclick="copyAiMarkdown()" title="Copiar markdown">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                            <div class="ai-report-narrative__body" id="aiReportBody"></div>
+                            <template id="aiReportMarkdown">{{ report.ai_summary }}</template>
+                        </div>
+                        <hr class="my-4" />
+                        <h6 class="text-uppercase text-muted small mb-3">Dados de suporte</h6>
+                        {% endif %}
+
                         {% if report.report_type == 'EXECUTIVE' %}
                             <!-- Executive Summary -->
                             <div class="row g-4 mb-4">
@@ -207,8 +314,104 @@
                                 </table>
                             </div>
                             {% endif %}
+                        {% elif report.report_type == 'TECHNICAL' %}
+                            <!-- Technical Report -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-sm-4"><div class="card stat-card h-100"><div class="stat-icon primary"><i class="fas fa-shield-alt"></i></div><div><span class="stat-value d-block">{{ report.data.period_cves or 0 }}</span><span class="stat-label">CVEs no período</span></div></div></div>
+                                <div class="col-sm-4"><div class="card stat-card h-100"><div class="stat-icon danger"><i class="fas fa-bug"></i></div><div><span class="stat-value d-block">{{ report.data.with_exploit or 0 }}</span><span class="stat-label">Com exploit</span></div></div></div>
+                                <div class="col-sm-4"><div class="card stat-card h-100"><div class="stat-icon success"><i class="fas fa-wrench"></i></div><div><span class="stat-value d-block">{{ report.data.with_patch or 0 }}</span><span class="stat-label">Com patch</span></div></div></div>
+                            </div>
+                            {% if report.data.exploitable_top %}
+                            <h6 class="mb-3">Top CVEs Exploráveis (Critical/High)</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead><tr><th>CVE</th><th>Severidade</th><th>CVSS</th><th>Descrição</th></tr></thead>
+                                    <tbody>
+                                        {% for v in report.data.exploitable_top %}
+                                        <tr>
+                                            <td><a href="/vulnerabilities/{{ v.cve_id }}" class="text-primary fw-medium">{{ v.cve_id }}</a></td>
+                                            <td><span class="badge badge-{{ v.base_severity|lower if v.base_severity else 'secondary' }}">{{ v.base_severity or '?' }}</span></td>
+                                            <td>{{ '%.1f'|format(v.cvss_score) if v.cvss_score else 'N/A' }}</td>
+                                            <td class="text-muted small">{{ v.description[:120] ~ '…' if v.description and v.description|length > 120 else v.description or '' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endif %}
+
+                        {% elif report.report_type == 'COMPLIANCE' %}
+                            <!-- Compliance Report -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-sm-3"><div class="card stat-card h-100"><div class="stat-icon danger"><i class="fas fa-exclamation-circle"></i></div><div><span class="stat-value d-block">{{ report.data.total_open or 0 }}</span><span class="stat-label">Em aberto</span></div></div></div>
+                                <div class="col-sm-3"><div class="card stat-card h-100"><div class="stat-icon success"><i class="fas fa-check-circle"></i></div><div><span class="stat-value d-block">{{ report.data.total_mitigated or 0 }}</span><span class="stat-label">Mitigados</span></div></div></div>
+                                <div class="col-sm-3"><div class="card stat-card h-100"><div class="stat-icon info"><i class="fas fa-flag"></i></div><div><span class="stat-value d-block">{{ report.data.total_accepted or 0 }}</span><span class="stat-label">Aceitos</span></div></div></div>
+                                <div class="col-sm-3"><div class="card stat-card h-100"><div class="stat-icon primary"><i class="fas fa-check-double"></i></div><div><span class="stat-value d-block">{{ report.data.remediation_rate_pct or 0 }}%</span><span class="stat-label">Taxa de remediação</span></div></div></div>
+                            </div>
+
+                        {% elif report.report_type == 'TREND' %}
+                            <!-- Trend Analysis -->
+                            <div class="mb-3">
+                                <span class="fw-bold">Total no período:</span> {{ report.data.total_period or 0 }} CVEs
+                            </div>
+                            {% if report.data.by_severity %}
+                            <h6 class="mb-2">Distribuição de Severidade</h6>
+                            <div class="d-flex flex-wrap gap-2 mb-4">
+                                {% for sev, cnt in report.data.by_severity.items() %}
+                                <span class="badge bg-secondary">{{ sev }}: {{ cnt }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            {% if report.data.timeline %}
+                            <h6 class="mb-2">Evolução Mensal</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead><tr><th>Mês</th><th>CRITICAL</th><th>HIGH</th><th>MEDIUM</th><th>LOW</th></tr></thead>
+                                    <tbody>
+                                        {% for month, severities in report.data.timeline.items()|sort %}
+                                        <tr>
+                                            <td>{{ month }}</td>
+                                            <td>{{ severities.CRITICAL or 0 }}</td>
+                                            <td>{{ severities.HIGH or 0 }}</td>
+                                            <td>{{ severities.MEDIUM or 0 }}</td>
+                                            <td>{{ severities.LOW or 0 }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endif %}
+
+                        {% elif report.report_type == 'INCIDENT' %}
+                            <!-- Incident Report -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-sm-4"><div class="card stat-card h-100"><div class="stat-icon danger"><i class="fas fa-radiation"></i></div><div><span class="stat-value d-block">{{ report.data.critical_count or 0 }}</span><span class="stat-label">Critical</span></div></div></div>
+                                <div class="col-sm-4"><div class="card stat-card h-100"><div class="stat-icon warning"><i class="fas fa-exclamation-triangle"></i></div><div><span class="stat-value d-block">{{ report.data.high_count or 0 }}</span><span class="stat-label">High</span></div></div></div>
+                                <div class="col-sm-4"><div class="card stat-card h-100"><div class="stat-icon info"><i class="fas fa-list"></i></div><div><span class="stat-value d-block">{{ report.data.total_incident_cves or 0 }}</span><span class="stat-label">Total listadas</span></div></div></div>
+                            </div>
+                            {% if report.data.incident_cves %}
+                            <h6 class="mb-3">CVEs do incidente</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead><tr><th>CVE</th><th>Severidade</th><th>CVSS</th><th>CISA KEV</th><th>Exploit</th><th>Descrição</th></tr></thead>
+                                    <tbody>
+                                        {% for v in report.data.incident_cves %}
+                                        <tr>
+                                            <td><a href="/vulnerabilities/{{ v.cve_id }}" class="text-primary fw-medium">{{ v.cve_id }}</a></td>
+                                            <td><span class="badge badge-{{ v.base_severity|lower if v.base_severity else 'secondary' }}">{{ v.base_severity or '?' }}</span></td>
+                                            <td>{{ '%.1f'|format(v.cvss_score) if v.cvss_score else 'N/A' }}</td>
+                                            <td>{% if v.is_in_cisa_kev %}<i class="fas fa-check text-danger"></i>{% else %}<i class="fas fa-minus text-muted"></i>{% endif %}</td>
+                                            <td>{% if v.exploit_available %}<i class="fas fa-check text-warning"></i>{% else %}<i class="fas fa-minus text-muted"></i>{% endif %}</td>
+                                            <td class="text-muted small">{{ v.description[:100] ~ '…' if v.description and v.description|length > 100 else v.description or '' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% endif %}
+
                         {% else %}
-                            <!-- Generic Data Display -->
+                            <!-- Generic Data Display (fallback) -->
                             <pre class="bg-light p-3 rounded" style="max-height: 400px; overflow: auto;">{{ report.data | tojson(indent=2) }}</pre>
                         {% endif %}
                     {% else %}
@@ -246,10 +449,10 @@
                             <th class="text-muted">Created</th>
                             <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') if report.created_at else 'N/A' }}</td>
                         </tr>
-                        {% if report.completed_at %}
+                        {% if report.generation_completed_at %}
                         <tr>
                             <th class="text-muted">Completed</th>
-                            <td>{{ report.completed_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ report.generation_completed_at.strftime('%Y-%m-%d %H:%M') }}</td>
                         </tr>
                         {% endif %}
                         {% if report.filters %}
@@ -303,6 +506,144 @@
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ─── Minimal markdown renderer (headings, lists, tables, code, CVE links) ───
+(function renderAiMarkdown() {
+  const tpl = document.getElementById('aiReportMarkdown');
+  const out = document.getElementById('aiReportBody');
+  if (!tpl || !out) return;
+  const raw = tpl.innerHTML
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  out.innerHTML = mdToHtml(raw);
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({
+      '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+    }[c]));
+  }
+
+  function mdToHtml(src) {
+    const lines = src.split(/\r?\n/);
+    let html = '';
+    let i = 0;
+    let inCode = false;
+    let codeBuf = [];
+    let inTable = false;
+    let tableBuf = [];
+    let inList = null; // 'ul' | 'ol'
+    let paraBuf = [];
+
+    const flushPara = () => {
+      if (paraBuf.length) {
+        html += '<p>' + inline(paraBuf.join(' ')) + '</p>';
+        paraBuf = [];
+      }
+    };
+    const flushList = () => {
+      if (inList) { html += `</${inList}>`; inList = null; }
+    };
+    const flushTable = () => {
+      if (!inTable) return;
+      if (tableBuf.length < 2) { tableBuf = []; inTable = false; return; }
+      const head = tableBuf[0].split('|').slice(1, -1).map(s => s.trim());
+      const body = tableBuf.slice(2).map(r => r.split('|').slice(1, -1).map(s => s.trim()));
+      html += '<table><thead><tr>' +
+        head.map(h => `<th>${inline(h)}</th>`).join('') +
+        '</tr></thead><tbody>' +
+        body.map(row => '<tr>' + row.map(c => `<td>${inline(c)}</td>`).join('') + '</tr>').join('') +
+        '</tbody></table>';
+      tableBuf = []; inTable = false;
+    };
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // code fences
+      if (/^```/.test(line)) {
+        flushPara(); flushList(); flushTable();
+        if (inCode) {
+          html += `<pre><code>${escapeHtml(codeBuf.join('\n'))}</code></pre>`;
+          codeBuf = []; inCode = false;
+        } else { inCode = true; }
+        i++; continue;
+      }
+      if (inCode) { codeBuf.push(line); i++; continue; }
+
+      // horizontal rule
+      if (/^---+\s*$/.test(line)) {
+        flushPara(); flushList(); flushTable();
+        html += '<hr />'; i++; continue;
+      }
+
+      // headings
+      const h = line.match(/^(#{1,6})\s+(.*)$/);
+      if (h) {
+        flushPara(); flushList(); flushTable();
+        const level = h[1].length;
+        html += `<h${level}>${inline(h[2])}</h${level}>`;
+        i++; continue;
+      }
+
+      // table
+      if (/^\s*\|.*\|\s*$/.test(line)) {
+        flushPara(); flushList();
+        tableBuf.push(line); inTable = true;
+        i++; continue;
+      }
+      if (inTable) flushTable();
+
+      // lists
+      const ul = line.match(/^\s*[-*]\s+(.*)$/);
+      const ol = line.match(/^\s*\d+\.\s+(.*)$/);
+      if (ul || ol) {
+        flushPara();
+        const wanted = ul ? 'ul' : 'ol';
+        if (inList !== wanted) { flushList(); html += `<${wanted}>`; inList = wanted; }
+        const text = (ul ? ul[1] : ol[1]);
+        html += `<li>${inline(text)}</li>`;
+        i++; continue;
+      } else if (inList && line.trim() === '') {
+        flushList();
+      }
+
+      // blank line → paragraph break
+      if (line.trim() === '') { flushPara(); i++; continue; }
+
+      // default: accumulate paragraph
+      paraBuf.push(line);
+      i++;
+    }
+    flushPara(); flushList(); flushTable();
+    if (inCode) html += `<pre><code>${escapeHtml(codeBuf.join('\n'))}</code></pre>`;
+    return html;
+  }
+
+  function inline(text) {
+    let t = escapeHtml(text);
+    // inline code
+    t = t.replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`);
+    // bold
+    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // italic
+    t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    // CVE ids
+    t = t.replace(/\b(CVE-\d{4}-\d{4,7})\b/g, '<a class="md-cve" href="/nvd/cve/$1">$1</a>');
+    // markdown links [text](url)
+    t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    return t;
+  }
+})();
+
+function copyAiMarkdown() {
+  const tpl = document.getElementById('aiReportMarkdown');
+  if (!tpl) return;
+  const txt = tpl.innerHTML
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  navigator.clipboard.writeText(txt).then(() => {
+    window.OpenMonitor?.showToast?.('Markdown copiado', 'success');
+  }).catch(() => {});
+}
+</script>
 <script>
 {% if report.data and report.report_type == 'EXECUTIVE' and report.data.by_severity %}
 document.addEventListener('DOMContentLoaded', function() {

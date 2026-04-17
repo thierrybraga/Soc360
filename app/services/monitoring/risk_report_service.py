@@ -1,21 +1,17 @@
 # app/services/monitoring/risk_report_service.py
 
-import os
 import re
-import sqlite3
 import logging
-from typing import Dict, Any, Optional
-from openai import OpenAI
 from flask import current_app
 
 logger = logging.getLogger(__name__)
 
 class RiskReportService:
     """
-    Servico para geracao de relatorios de risco de vulnerabilidades usando OpenAI.
+    Servico para geracao de relatorios de risco de vulnerabilidades.
 
-    Baseado no codigo de exemplo fornecido, este servico gera analises
-    detalhadas de risco em formato Markdown para vulnerabilidades CVE.
+    Usa o factory ``get_ai_service()`` — honra ``AI_PROVIDER`` (ollama|openai)
+    definido no ambiente. Gera analises detalhadas em Markdown para CVEs.
     """
 
     def __init__(self):
@@ -23,30 +19,32 @@ class RiskReportService:
         Inicializa o servico de relatorios de risco.
         """
         self.client = None
+        self.model = None
+        self.max_tokens = 800
+        self.temperature = 0.5
         self._initialized = False
 
     def _initialize_client(self):
         """
-        Inicializa o cliente OpenAI dentro do contexto da aplicacao.
+        Inicializa o cliente de IA (Ollama ou OpenAI) dentro do contexto da aplicacao.
         """
         if self._initialized:
             return
 
-        self.api_key = current_app.config.get('OPENAI_API_KEY')
-        self.model = current_app.config.get('OPENAI_MODEL', 'gpt-3.5-turbo')
-        self.max_tokens = current_app.config.get('OPENAI_MAX_TOKENS', 800)
-        self.temperature = current_app.config.get('OPENAI_TEMPERATURE', 0.5)
-
-        if not self.api_key:
-            logger.warning("OPENAI_API_KEY nao configurada - modo demo ativo")
+        try:
+            from app.services.core.ai_service import get_ai_service
+            service = get_ai_service()
+            self.client = getattr(service, 'client', None)
+            self.model = getattr(service, 'model', 'unknown')
+            self.max_tokens = int(getattr(service, 'max_tokens', 800))
+            self.temperature = float(getattr(service, 'temperature', 0.5))
+            if self.client:
+                logger.info(f"RiskReportService: provider {service.__class__.__name__} / modelo {self.model}")
+            else:
+                logger.warning("RiskReportService: cliente de IA indisponivel - modo demo ativo")
+        except Exception as e:
+            logger.error(f"Erro ao inicializar provider de IA: {e}")
             self.client = None
-        else:
-            try:
-                self.client = OpenAI(api_key=self.api_key)
-                logger.info("Cliente OpenAI inicializado com sucesso")
-            except Exception as e:
-                logger.error(f"Erro ao inicializar cliente OpenAI: {e}")
-                self.client = None
 
         self._initialized = True
 
@@ -108,73 +106,61 @@ Classifique o risco considerando que a organizacao **utiliza a tecnologia afetad
     def get_risk_analysis(self, cve_id: str) -> str:
         """
         Retorna a analise de risco para a CVE fornecida.
+
+        Usa SQLAlchemy ORM para compatibilidade com SQLite e PostgreSQL.
+        O resultado e armazenado na coluna ``Vulnerability.risks`` para cache.
         """
         self._initialize_client()
 
-        db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', '..', '..', 'vulnerabilities.db')
-
         try:
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
+            from app.extensions import db
+            from app.models.nvd import Vulnerability
 
-                cursor.execute("PRAGMA table_info(vulnerabilities)")
-                colunas_nomes = [col[1] for col in cursor.fetchall()]
-                if 'risks' not in colunas_nomes:
-                    cursor.execute("ALTER TABLE vulnerabilities ADD COLUMN risks TEXT")
-                    conn.commit()
-                    logger.info("Coluna 'risks' adicionada a tabela vulnerabilities")
+            vuln = Vulnerability.query.filter_by(cve_id=cve_id).first()
+            if not vuln:
+                logger.warning(f"CVE {cve_id} nao encontrada no banco de dados")
+                return "CVE id nao encontrada."
 
-                cursor.execute("""
-                    SELECT vendor, description, baseSeverity, cvssScore, risks
-                    FROM vulnerabilities
-                    WHERE cve_id = ?
-                """, (cve_id,))
-                row = cursor.fetchone()
+            description = vuln.description or ''
+            base_severity = vuln.base_severity or 'UNKNOWN'
+            cvss_score = vuln.cvss_score or 0.0
+            risks = vuln.risks
 
-                if not row:
-                    logger.warning(f"CVE {cve_id} nao encontrada no banco de dados")
-                    return "CVE id nao encontrada."
+            if not risks or not risks.strip():
+                logger.info(f"Gerando nova analise de risco para CVE {cve_id}")
 
-                vendor, description, base_severity, cvss_score, risks = row
+                if not self.client:
+                    risks = self._generate_demo_risk_analysis(cve_id, description, base_severity, cvss_score)
+                else:
+                    try:
+                        prompt = self.build_markdown_prompt(description)
 
-                if not risks or not risks.strip():
-                    logger.info(f"Gerando nova analise de risco para CVE {cve_id}")
+                        response = self.client.chat.completions.create(
+                            model=self.model,
+                            messages=[
+                                {"role": "system", "content": "Voce e um analista de risco especializado em vulnerabilidades."},
+                                {"role": "user", "content": prompt}
+                            ],
+                            max_tokens=self.max_tokens,
+                            temperature=self.temperature
+                        )
 
-                    if not self.client:
+                        risks = response.choices[0].message.content.strip()
+                        risks = self.sanitize_markdown_output(risks)
+
+                    except Exception as e:
+                        logger.error(f"Erro ao consultar OpenAI: {e}")
                         risks = self._generate_demo_risk_analysis(cve_id, description, base_severity, cvss_score)
-                    else:
-                        try:
-                            prompt = self.build_markdown_prompt(description)
 
-                            response = self.client.chat.completions.create(
-                                model=self.model,
-                                messages=[
-                                    {"role": "system", "content": "Voce e um analista de risco especializado em vulnerabilidades."},
-                                    {"role": "user", "content": prompt}
-                                ],
-                                max_tokens=self.max_tokens,
-                                temperature=self.temperature
-                            )
+                vuln.risks = risks
+                db.session.commit()
+                logger.info(f"Analise de risco salva para CVE {cve_id}")
 
-                            risks = response.choices[0].message.content.strip()
-                            risks = self.sanitize_markdown_output(risks)
+            return risks
 
-                        except Exception as e:
-                            logger.error(f"Erro ao consultar OpenAI: {e}")
-                            risks = self._generate_demo_risk_analysis(cve_id, description, base_severity, cvss_score)
-
-                    cursor.execute("UPDATE vulnerabilities SET risks = ? WHERE cve_id = ?", (risks, cve_id))
-                    conn.commit()
-                    logger.info(f"Analise de risco salva para CVE {cve_id}")
-
-                return risks
-
-        except sqlite3.Error as e:
-            logger.error(f"Erro no banco de dados: {e}")
-            return f"Erro ao acessar banco de dados: {e}"
         except Exception as e:
-            logger.error(f"Erro desconhecido: {e}")
-            return f"Erro desconhecido: {e}"
+            logger.error(f"Erro ao acessar banco de dados: {e}")
+            return f"Erro ao acessar banco de dados: {e}"
 
     def _generate_demo_risk_analysis(self, cve_id: str, description: str, base_severity: str, cvss_score: float) -> str:
         """
