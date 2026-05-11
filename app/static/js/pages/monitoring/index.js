@@ -1,5 +1,5 @@
 /**
- * Open-Monitor Monitoring Module
+ * SOC360 Monitoring Module
  * Handles monitoring rules list, stats, and recent alerts.
  */
 

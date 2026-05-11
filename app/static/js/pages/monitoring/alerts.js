@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             renderAlerts(Array.isArray(data.items) ? data.items : []);
             renderPagination(data);
+            loadSummary();
         } catch (error) {
             if (error.name === 'AbortError') {
                 return;
@@ -194,10 +195,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="fw-bold">${escapeHtml(alert.title || 'Sem título')}</div>
                     <div class="small text-muted text-truncate" style="max-width: 300px;">${escapeHtml(alert.description || '')}</div>
                 </td>
+                <td>${renderCveCell(alert.cve_id)}</td>
                 <td><span class="badge bg-light text-dark border">${escapeHtml(alert.rule_name || (alert.rule_id ? `Rule #${alert.rule_id}` : 'System'))}</span></td>
                 <td class="small text-muted">${formatDate(alert.created_at)}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-outline-primary view-alert-btn" data-id="${alert.id}" type="button">
+                    <button class="btn btn-sm btn-outline-primary view-alert-btn" data-id="${alert.id}" type="button" title="Ver detalhes">
                         <i class="fas fa-eye"></i>
                     </button>
                     ${renderActionButtons(alert)}
@@ -205,6 +207,16 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             tableBody.appendChild(tr);
         });
+    }
+
+    function renderCveCell(cveId) {
+        if (!cveId) {
+            return '<span class="text-muted small">—</span>';
+        }
+        const safe = escapeHtml(cveId);
+        return `<a href="/vulnerabilities/${encodeURIComponent(cveId)}" class="text-decoration-none" title="Abrir detalhes da CVE">
+            <i class="fas fa-bug me-1"></i>${safe}
+        </a>`;
     }
 
     function renderSeverityBadge(severity) {
@@ -275,10 +287,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const pages = Number(data.pages || 0);
         const perPage = Number(data.per_page || 20);
 
-        if (!total || !pages) {
+        if (!total || !pages || pages <= 1) {
             paginationEl.innerHTML = '';
-            paginationInfo.textContent = '';
-            paginationContainer.style.display = 'none';
+            paginationInfo.textContent = total
+                ? `Mostrando ${total} alerta${total === 1 ? '' : 's'}`
+                : '';
+            paginationContainer.style.display = total ? 'flex' : 'none';
             return;
         }
 
@@ -373,8 +387,82 @@ document.addEventListener('DOMContentLoaded', () => {
         descriptionEl.textContent = alert.description || 'Sem descrição';
         detailsEl.textContent = JSON.stringify(alert.details || {}, null, 2);
 
+        renderModalMeta(alert);
         renderModalActions(alert);
         modal.show();
+    }
+
+    function renderModalMeta(alert) {
+        const metaEl = document.getElementById('modal-meta');
+        if (!metaEl) return;
+
+        const rows = [];
+        if (alert.cve_id) {
+            const safe = escapeHtml(alert.cve_id);
+            rows.push([
+                'CVE',
+                `<a href="/vulnerabilities/${encodeURIComponent(alert.cve_id)}" class="text-decoration-none"><i class="fas fa-bug me-1"></i>${safe}</a>`,
+            ]);
+        }
+        if (alert.rule_name || alert.rule_id) {
+            rows.push([
+                'Regra',
+                escapeHtml(alert.rule_name || `Rule #${alert.rule_id}`),
+            ]);
+        }
+        rows.push(['Criado em', escapeHtml(formatDate(alert.created_at))]);
+        if (alert.acknowledged_at || alert.acknowledged_by_name) {
+            rows.push([
+                'Reconhecido',
+                `${escapeHtml(formatDate(alert.acknowledged_at))}${
+                    alert.acknowledged_by_name ? ` <span class="text-muted">por ${escapeHtml(alert.acknowledged_by_name)}</span>` : ''
+                }`,
+            ]);
+        }
+        if (alert.resolved_at || alert.resolved_by_name) {
+            rows.push([
+                alert.status === 'DISMISSED' ? 'Descartado' : 'Resolvido',
+                `${escapeHtml(formatDate(alert.resolved_at))}${
+                    alert.resolved_by_name ? ` <span class="text-muted">por ${escapeHtml(alert.resolved_by_name)}</span>` : ''
+                }`,
+            ]);
+        }
+
+        metaEl.innerHTML = rows
+            .map(([label, value]) => `<dt class="col-sm-4 col-md-3 text-muted">${escapeHtml(label)}</dt><dd class="col-sm-8 col-md-9">${value}</dd>`)
+            .join('');
+    }
+
+    async function loadSummary() {
+        const targets = {
+            NEW: document.getElementById('summary-new'),
+            ACKNOWLEDGED: document.getElementById('summary-ack'),
+            RESOLVED: document.getElementById('summary-resolved'),
+            DISMISSED: document.getElementById('summary-dismissed'),
+        };
+        if (!targets.NEW) return;
+
+        const counts = { NEW: 0, ACKNOWLEDGED: 0, RESOLVED: 0, DISMISSED: 0 };
+        try {
+            const results = await Promise.all(
+                Object.keys(counts).map((s) =>
+                    fetch(`/monitoring/api/alerts?status=${s}&per_page=1`, {
+                        headers: { Accept: 'application/json' },
+                    })
+                        .then((r) => (r.ok ? r.json() : { total: 0 }))
+                        .then((d) => [s, Number(d.total || 0)])
+                )
+            );
+            results.forEach(([s, n]) => {
+                counts[s] = n;
+            });
+        } catch (err) {
+            console.warn('Summary load failed', err);
+        }
+
+        Object.entries(targets).forEach(([k, el]) => {
+            if (el) el.textContent = counts[k].toLocaleString();
+        });
     }
 
     async function updateAlertStatus(id, status) {

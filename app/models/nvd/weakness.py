@@ -1,5 +1,5 @@
 """
-Open-Monitor Weakness Model
+SOC360 Weakness Model
 Model para CWE (Common Weakness Enumeration) associadas a CVEs.
 """
 from sqlalchemy import Column, String, Text, ForeignKey, UniqueConstraint

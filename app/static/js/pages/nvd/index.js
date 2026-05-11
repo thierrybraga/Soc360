@@ -1,5 +1,5 @@
 /**
- * Open-Monitor v3.0 - NVD Module
+ * SOC360 v3.0 - NVD Module
  * Vulnerability list management, filtering, and detail views
  */
 
@@ -34,6 +34,7 @@ class NVDModule {
         this.initModals();
         this.bindEvents();
         this.loadVendors();
+        this.loadProducts();
         this.loadVulnerabilities();
         this.checkSyncStatus();
         this.startSyncStatusPolling();
@@ -266,8 +267,8 @@ class NVDModule {
             
         } catch (error) {
             console.error('Failed to load vulnerabilities:', error);
-            window.OpenMonitor?.showToast('Failed to load vulnerabilities', 'error');
-            this.renderEmptyState('Error loading data. Please try again.');
+            window.OpenMonitor?.showToast('Falha ao carregar vulnerabilidades', 'error');
+            this.renderEmptyState('Erro ao carregar dados. Tente novamente.');
         } finally {
             this.isLoading = false;
             this.showLoading(false);
@@ -278,7 +279,7 @@ class NVDModule {
         if (!this.tableBody) return;
         
         if (!items || items.length === 0) {
-            this.renderEmptyState('No vulnerabilities found matching your criteria.');
+            this.renderEmptyState('Nenhuma vulnerabilidade encontrada com os filtros atuais.');
             return;
         }
         
@@ -304,7 +305,7 @@ class NVDModule {
                 </td>
                 <td>
                     <div class="d-flex align-items-center gap-2">
-                        <div class="fw-bold ${this.getTextColorClass(severityClass)}">${vuln.cvss_score ? vuln.cvss_score.toFixed(1) : 'N/A'}</div>
+                        <div class="fw-bold ${this.getTextColorClass(severityClass)}">${vuln.cvss_score ? vuln.cvss_score.toFixed(1) : '—'}</div>
                         <span class="badge bg-light text-secondary border">${vuln.cvss_version || ''}</span>
                     </div>
                 </td>
@@ -314,7 +315,7 @@ class NVDModule {
                     </span>
                 </td>
                 <td>
-                    ${this.renderVendorProducts(vuln.vendors)}
+                    ${this.renderVendorProducts(vuln.vendors, vuln.products)}
                 </td>
                 <td class="text-nowrap text-muted">
                     ${publishedDate}
@@ -325,7 +326,7 @@ class NVDModule {
                     </span>
                 </td>
                 <td class="text-end">
-                    <a href="/vulnerabilities/${vuln.cve_id}" class="btn btn-sm btn-ghost text-primary" title="View Details">
+                    <a href="/vulnerabilities/${vuln.cve_id}" class="btn btn-sm btn-ghost text-primary" title="Ver Detalhes">
                         <i class="fas fa-eye"></i>
                     </a>
                 </td>
@@ -333,23 +334,29 @@ class NVDModule {
         `;
     }
     
-    renderVendorProducts(vendors) {
-        if (!vendors || vendors.length === 0) {
+    renderVendorProducts(vendors, products) {
+        const hasVendors = vendors && vendors.length > 0;
+        const hasProducts = products && products.length > 0;
+        if (!hasVendors && !hasProducts) {
             return '<span class="text-muted small">—</span>';
         }
-        
+
         const maxDisplay = 2;
-        const displayed = vendors.slice(0, maxDisplay);
-        const remaining = vendors.length - maxDisplay;
-        
-        let html = displayed.map(v => 
+        const displayed = (vendors || []).slice(0, maxDisplay);
+        const remaining = (vendors || []).length - maxDisplay;
+
+        let html = displayed.map(v =>
             `<span class="badge bg-secondary me-1 mb-1 fw-normal">${this.escapeHtml(v)}</span>`
         ).join('');
-        
+
         if (remaining > 0) {
-            html += `<span class="badge bg-light text-secondary border fw-normal">+${remaining}</span>`;
+            html += `<span class="badge bg-light text-secondary border fw-normal me-1">+${remaining}</span>`;
         }
-        
+
+        if (hasProducts) {
+            html += `<span class="text-muted small d-block mt-1">${products.length} produto${products.length !== 1 ? 's' : ''}</span>`;
+        }
+
         return html;
     }
     
@@ -519,17 +526,19 @@ class NVDModule {
     
     async loadProducts(vendor) {
         if (!this.productSelect) return;
-        
+
+        const currentValue = this.productSelect.value;
         this.productSelect.innerHTML = '<option value="">All Products</option>';
-        
-        if (!vendor) return;
-        
+
         try {
-            const response = await fetch(`/vulnerabilities/api/products?vendor=${encodeURIComponent(vendor)}`);
+            const url = vendor
+                ? `/vulnerabilities/api/products?vendor=${encodeURIComponent(vendor)}`
+                : '/vulnerabilities/api/products';
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to load products');
-            
+
             const data = await response.json();
-            
+
             if (data.products) {
                 data.products.forEach(product => {
                     const option = document.createElement('option');
@@ -537,6 +546,8 @@ class NVDModule {
                     option.textContent = `${product.name} (${product.count})`;
                     this.productSelect.appendChild(option);
                 });
+                // Restore previous selection if still in list
+                if (currentValue) this.productSelect.value = currentValue;
             }
         } catch (error) {
             console.error('Failed to load products:', error);
@@ -559,12 +570,12 @@ class NVDModule {
         if (this.vendorSelect) this.vendorSelect.value = '';
         if (this.productSelect) {
             this.productSelect.value = '';
-            this.productSelect.innerHTML = '<option value="">All Products</option>';
         }
         if (this.dateFromInput) this.dateFromInput.value = '';
         if (this.dateToInput) this.dateToInput.value = '';
         if (this.cisaKevCheckbox) this.cisaKevCheckbox.checked = false;
-        
+
+        this.loadProducts(); // Recarrega todos os produtos
         this.currentPage = 1;
         this.loadVulnerabilities();
     }
@@ -604,8 +615,8 @@ class NVDModule {
             this.modalContent.innerHTML = `
                 <div class="text-center py-5 text-danger">
                     <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
-                    <p>Failed to load vulnerability details</p>
-                    <button class="btn btn-secondary mt-2" data-bs-dismiss="modal">Close</button>
+                    <p>Falha ao carregar detalhes da vulnerabilidade</p>
+                    <button class="btn btn-secondary mt-2" data-bs-dismiss="modal">Fechar</button>
                 </div>
             `;
         }
@@ -613,7 +624,6 @@ class NVDModule {
 
     renderDetailModal(vuln) {
         const severityClass = this.getSeverityClass(vuln.base_severity || vuln.severity);
-        // Normalise field names — backend uses snake_case from to_dict()
         const severity = vuln.base_severity || vuln.severity || 'NONE';
         const cvssScore = vuln.cvss_score;
         const cvssVersion = vuln.cvss_version || '';
@@ -621,16 +631,24 @@ class NVDModule {
         const lastModifiedDate = vuln.last_modified_date || vuln.last_modified;
         const isKev = vuln.is_in_cisa_kev || vuln.cisa_kev || false;
         const vendors = vuln.vendors || vuln.nvd_vendors_data || [];
-        // Weaknesses come from _weaknesses (dicts with cwe_id) or flat array
+        const products = vuln.products || [];
+        const vulnStatus = vuln.vuln_status || '';
+        const exploitAvailable = vuln.exploit_available || false;
+        const patchAvailable = vuln.patch_available || false;
+
+        // Weaknesses from API response (_weaknesses) or inline
         const weaknesses = (vuln._weaknesses && vuln._weaknesses.length)
-            ? vuln._weaknesses.map(w => w.cwe_id || w)
+            ? vuln._weaknesses
             : (vuln.weaknesses || []);
+
         const references = (vuln._references && vuln._references.length)
             ? vuln._references
             : (vuln.references || []);
-        // Build CVSS object from first metric if available
-        let cvssObj = vuln.cvss || null;
-        if (!cvssObj && vuln._cvss_metrics && vuln._cvss_metrics.length) {
+
+        // CVSS detail metrics — prefer _cvss_metrics from API response
+        let cvssObj = null;
+        if (vuln._cvss_metrics && vuln._cvss_metrics.length) {
+            // Pick highest version metric
             cvssObj = vuln._cvss_metrics[0];
         }
 
@@ -640,14 +658,15 @@ class NVDModule {
                     <h4 class="mb-1 d-flex align-items-center gap-2">
                         ${this.escapeHtml(vuln.cve_id)}
                         ${isKev ? '<span class="badge bg-danger">CISA KEV</span>' : ''}
+                        ${exploitAvailable ? '<span class="badge bg-warning text-dark">Exploit</span>' : ''}
+                        ${patchAvailable ? '<span class="badge bg-success">Patch</span>' : ''}
                     </h4>
                     <div class="d-flex align-items-center gap-2 mt-2">
-                        <span class="badge ${this.getBadgeClass(severityClass)} fs-6">
-                            ${severity}
-                        </span>
+                        <span class="badge ${this.getBadgeClass(severityClass)} fs-6">${severity}</span>
                         <span class="text-muted">|</span>
-                        <div class="fw-bold ${this.getTextColorClass(severityClass)}">CVSS: ${cvssScore ? cvssScore.toFixed(1) : 'N/A'}</div>
-                        <span class="text-muted small">(${cvssVersion})</span>
+                        <span class="fw-bold ${this.getTextColorClass(severityClass)}">CVSS: ${cvssScore ? cvssScore.toFixed(1) : '—'}</span>
+                        <span class="text-muted small">${cvssVersion ? `(${cvssVersion})` : ''}</span>
+                        ${vulnStatus ? `<span class="badge bg-light text-secondary border fw-normal ms-1">${this.escapeHtml(vulnStatus)}</span>` : ''}
                     </div>
                 </div>
                 <div class="d-flex gap-2">
@@ -656,9 +675,9 @@ class NVDModule {
                        class="btn btn-outline-secondary btn-sm">
                         <i class="fas fa-external-link-alt"></i> NVD
                     </a>
-                    <button class="btn btn-primary btn-sm action-add-asset" data-cve-id="${vuln.cve_id}">
-                        <i class="fas fa-plus"></i> Add to Asset
-                    </button>
+                    <a href="/vulnerabilities/${vuln.cve_id}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-file-alt"></i> Full Report
+                    </a>
                 </div>
             </div>
 
@@ -672,7 +691,7 @@ class NVDModule {
             <div class="row g-4 mb-4">
                 <div class="col-md-6">
                     <h6 class="fw-bold border-bottom pb-2">Timeline</h6>
-                    <ul class="list-unstyled">
+                    <ul class="list-unstyled mb-0">
                         <li class="mb-2"><i class="fas fa-calendar-plus text-muted me-2"></i> Published: ${this.formatDate(publishedDate)}</li>
                         <li><i class="fas fa-calendar-check text-muted me-2"></i> Last Modified: ${this.formatDate(lastModifiedDate)}</li>
                     </ul>
@@ -682,7 +701,7 @@ class NVDModule {
                 </div>
             </div>
 
-            ${this.renderVendorsSection(vendors)}
+            ${this.renderVendorsSection(vendors, products)}
             ${this.renderReferencesSection(references)}
         `;
     }
@@ -692,54 +711,54 @@ class NVDModule {
         
         return `
             <div class="mb-4">
-                <h6 class="fw-bold border-bottom pb-2">CVSS ${cvss.version || ''} Metrics</h6>
+                <h6 class="fw-bold border-bottom pb-2">Métricas CVSS ${cvss.version || ''}</h6>
                 <div class="row g-2">
                     <div class="col-6 col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="d-block text-muted">Attack Vector</small>
-                            <div class="fw-medium">${cvss.attack_vector || 'N/A'}</div>
+                            <small class="d-block text-muted">Vetor de Ataque</small>
+                            <div class="fw-medium">${cvss.attack_vector || '—'}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="d-block text-muted">Complexity</small>
-                            <div class="fw-medium">${cvss.attack_complexity || 'N/A'}</div>
+                            <small class="d-block text-muted">Complexidade</small>
+                            <div class="fw-medium">${cvss.attack_complexity || '—'}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="d-block text-muted">Privileges</small>
-                            <div class="fw-medium">${cvss.privileges_required || 'N/A'}</div>
+                            <small class="d-block text-muted">Privilégios</small>
+                            <div class="fw-medium">${cvss.privileges_required || '—'}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="d-block text-muted">User Interaction</small>
-                            <div class="fw-medium">${cvss.user_interaction || 'N/A'}</div>
+                            <small class="d-block text-muted">Interação do Usuário</small>
+                            <div class="fw-medium">${cvss.user_interaction || '—'}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="d-block text-muted">Scope</small>
-                            <div class="fw-medium">${cvss.scope || 'N/A'}</div>
+                            <small class="d-block text-muted">Escopo</small>
+                            <div class="fw-medium">${cvss.scope || '—'}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="d-block text-muted">Confidentiality</small>
-                            <div class="fw-medium">${cvss.confidentiality_impact || 'N/A'}</div>
+                            <small class="d-block text-muted">Confidencialidade</small>
+                            <div class="fw-medium">${cvss.confidentiality_impact || '—'}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="d-block text-muted">Integrity</small>
-                            <div class="fw-medium">${cvss.integrity_impact || 'N/A'}</div>
+                            <small class="d-block text-muted">Integridade</small>
+                            <div class="fw-medium">${cvss.integrity_impact || '—'}</div>
                         </div>
                     </div>
                     <div class="col-6 col-md-3">
                         <div class="p-2 border rounded bg-light">
-                            <small class="d-block text-muted">Availability</small>
-                            <div class="fw-medium">${cvss.availability_impact || 'N/A'}</div>
+                            <small class="d-block text-muted">Disponibilidade</small>
+                            <div class="fw-medium">${cvss.availability_impact || '—'}</div>
                         </div>
                     </div>
                 </div>
@@ -748,32 +767,52 @@ class NVDModule {
         `;
     }
     
-    renderVendorsSection(vendors) {
-        if (!vendors || vendors.length === 0) return '';
-        
+    renderVendorsSection(vendors, products) {
+        const hasVendors = vendors && vendors.length > 0;
+        const hasProducts = products && products.length > 0;
+        if (!hasVendors && !hasProducts) return '';
+
+        const MAX_PRODUCTS = 25;
         return `
             <div class="mb-4">
-                <h6 class="fw-bold border-bottom pb-2">Affected Vendors & Products</h6>
-                <div class="d-flex flex-wrap gap-2">
-                    ${vendors.map(v => `<span class="badge bg-secondary fw-normal">${this.escapeHtml(v)}</span>`).join('')}
-                </div>
+                <h6 class="fw-bold border-bottom pb-2">Fabricantes &amp; Produtos Afetados</h6>
+                ${hasVendors ? `
+                <div class="mb-2">
+                    <small class="text-muted fw-medium d-block mb-1">Fabricantes</small>
+                    <div class="d-flex flex-wrap gap-1">
+                        ${vendors.map(v => `<span class="badge bg-secondary fw-normal">${this.escapeHtml(v)}</span>`).join('')}
+                    </div>
+                </div>` : ''}
+                ${hasProducts ? `
+                <div>
+                    <small class="text-muted fw-medium d-block mb-1">Produtos</small>
+                    <div class="d-flex flex-wrap gap-1">
+                        ${products.slice(0, MAX_PRODUCTS).map(p => `<span class="badge bg-light text-secondary border fw-normal">${this.escapeHtml(p)}</span>`).join('')}
+                        ${products.length > MAX_PRODUCTS ? `<span class="badge bg-light text-muted border fw-normal">+${products.length - MAX_PRODUCTS} a mais</span>` : ''}
+                    </div>
+                </div>` : ''}
             </div>
         `;
     }
-    
+
     renderWeaknessesSection(weaknesses) {
         if (!weaknesses || weaknesses.length === 0) return '';
-        
+
+        // Accepts both plain strings and objects with {cwe_id, name}
         return `
             <h6 class="fw-bold border-bottom pb-2">Weaknesses (CWE)</h6>
-            <div class="d-flex flex-wrap gap-2">
-                ${weaknesses.map(w => `
-                    <a href="https://cwe.mitre.org/data/definitions/${w.replace('CWE-', '')}.html" 
-                        target="_blank" 
+            <div class="d-flex flex-wrap gap-1">
+                ${weaknesses.map(w => {
+                    const id = (typeof w === 'string') ? w : (w.cwe_id || '');
+                    const name = (typeof w === 'object' && w.name) ? w.name : '';
+                    const num = id.replace('CWE-', '');
+                    const title = name ? `title="${this.escapeHtml(name)}"` : '';
+                    return `<a href="https://cwe.mitre.org/data/definitions/${num}.html"
+                        target="_blank" ${title}
                         class="badge bg-light text-primary border text-decoration-none">
-                        ${this.escapeHtml(w)}
-                    </a>
-                `).join('')}
+                        ${this.escapeHtml(id)}
+                    </a>`;
+                }).join('')}
             </div>
         `;
     }
@@ -905,9 +944,9 @@ class NVDModule {
     }
 
     formatDate(dateStr) {
-        if (!dateStr) return 'N/A';
+        if (!dateStr) return '—';
         const date = new Date(dateStr);
-        return date.toLocaleDateString('en-US', {
+        return date.toLocaleDateString('pt-BR', {
             year: 'numeric',
             month: 'short',
             day: 'numeric'

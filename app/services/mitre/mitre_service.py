@@ -51,8 +51,8 @@ class MitreService(BaseSyncService):
         Iniciar tarefa de enriquecimento em background.
         Retorna True se iniciou, False se já estiver rodando.
         """
-        current_status = SyncMetadata.get('mitre_sync_status')
-        if current_status == 'running':
+        current_status = SyncMetadata.get(self._get_key('status'))
+        if current_status == SyncStatus.RUNNING.value:
             logger.warning("MITRE enrichment already running.")
             return False
 
@@ -77,17 +77,11 @@ class MitreService(BaseSyncService):
                 # Status update is handled inside enrich_existing_vulnerabilities
 
     def _update_status(self, status: str, message: str, stats: Optional[Dict] = None):
-        """Helper to update status and message in sync metadata."""
-        data = {
-            f'{self.prefix}_sync_status': status,
-            f'{self.prefix}_sync_message': message,
-            f'{self.prefix}_sync_last_updated': datetime.now(timezone.utc).isoformat()
-        }
+        """Helper to update status and message using base class progress keys."""
+        payload = {'status': status, 'message': message}
         if stats:
-            # Map stats keys to prefixed metadata keys
-            for k, v in stats.items():
-                data[f'{self.prefix}_sync_progress_{k}'] = v
-        SyncMetadata.set_multi(data)
+            payload.update(stats)
+        self._update_progress(**payload)
 
     def enrich_existing_vulnerabilities(self, limit: int = 0, force: bool = False):
         """
@@ -119,49 +113,47 @@ class MitreService(BaseSyncService):
             
             processed_count = 0
             page_size = 100
-            
+            failed_ids: set = set()
+
             while processed_count < total_to_process:
-                # Calcular limite do lote atual
                 remaining = total_to_process - processed_count
                 current_batch_size = min(page_size, remaining)
-                
-                # Fetch batch
+
                 if not force:
-                    # Com filtro ativo (fila dinâmica), pegamos sempre os primeiros
-                    batch = query.order_by(Vulnerability.published_date.desc()).limit(current_batch_size).all()
+                    # Fila dinâmica: exclui CVEs que já falharam para evitar loop infinito
+                    base_q = query
+                    if failed_ids:
+                        base_q = base_q.filter(~Vulnerability.cve_id.in_(failed_ids))
+                    batch = base_q.order_by(Vulnerability.published_date.desc()).limit(current_batch_size).all()
                 else:
-                    # Sem filtro (lista estática), usamos offset
                     batch = query.order_by(Vulnerability.published_date.desc()).offset(processed_count).limit(current_batch_size).all()
-                    
+
                 if not batch:
                     break
-                    
+
                 for vuln in batch:
                     try:
                         self.sync_cve(vuln.cve_id, force)
                     except Exception as e:
                         self.stats['errors'] += 1
+                        failed_ids.add(vuln.cve_id)
                         logger.error(f"Failed to enrich {vuln.cve_id}: {e}")
-                    
+
                     processed_count += 1
-                    if processed_count % 5 == 0: # Update mais frequente
+                    if processed_count % 5 == 0:
                         self._update_status(
-                            'running', 
-                            f'Processed {processed_count}/{total_to_process}...', 
+                            'running',
+                            f'Processed {processed_count}/{total_to_process}...',
                             self.stats
                         )
-                
-                # Commit a cada lote para liberar memória e salvar progresso
-                # Nota: sync_cve já faz commit individualmente, mas aqui garantimos limpar a sessão se necessário
-                # db.session.commit() 
             
-            SyncMetadata.set('mitre_last_sync_date', datetime.now(timezone.utc).isoformat())
-            self._update_status('completed', 'Enrichment completed', self.stats)
+            SyncMetadata.set(f'{self.prefix}_last_sync_date', datetime.now(timezone.utc).isoformat())
+            self._update_status(SyncStatus.COMPLETED.value, 'Enrichment completed', self.stats)
             return self.stats
-            
+
         except Exception as e:
             logger.error(f"Error enriching vulnerabilities: {e}")
-            self._update_status('failed', str(e))
+            self._update_status(SyncStatus.FAILED.value, str(e))
             # No need to raise in thread, just log
 
     def _process_mitre_data(self, data: Dict, force: bool = False):
@@ -173,28 +165,23 @@ class MitreService(BaseSyncService):
 
         vuln = Vulnerability.query.filter_by(cve_id=cve_id).first()
         if not vuln:
-            # Se não existe no NVD, podemos criar? 
-            # Sim, mas com cuidado. Por enquanto vamos focar em enriquecimento.
-            # Se quisermos criar, precisamos instanciar Vulnerability(cve_id=cve_id)
             vuln = Vulnerability(cve_id=cve_id)
             db.session.add(vuln)
 
-        # Extrair dados do container 'cna' (Authority)
         containers = data.get('containers', {})
         cna = containers.get('cna', {})
-        
+
         updated = False
 
         # Descrição
         descriptions = cna.get('descriptions', [])
         desc_en = next((d['value'] for d in descriptions if d.get('lang') == 'en'), None)
-        
-        # Só atualiza se o NVD não tiver, se quisermos forçar (force=True), ou se status for 'Awaiting Analysis'
+
         if desc_en and (force or not vuln.description or vuln.vuln_status == 'Awaiting Analysis'):
             vuln.description = desc_en
             updated = True
 
-        # Processar dados adicionais (Metrics, Weaknesses, References)
+        # Processar container CNA (Authority)
         self._save_cvss_metrics(cve_id, cna)
         self._save_weaknesses(cve_id, cna)
         self._save_references(cve_id, cna)
@@ -202,14 +189,17 @@ class MitreService(BaseSyncService):
         self._save_credits(cve_id, cna)
         self._save_affected_products(cve_id, cna)
 
+        # Processar containers ADP (Authorized Data Publishers — ex: CISA, NVD)
+        for adp in containers.get('adp', []):
+            self._save_cvss_metrics(cve_id, adp)
+            self._save_weaknesses(cve_id, adp)
+            self._save_references(cve_id, adp)
+
         if updated:
             self.stats['updated'] += 1
-            
-        # Trigger alert processing for this vulnerability
-        # Note: Mitre usually enriches existing NVD data, but can also create new entries.
-        # We should check alerts if important fields changed or if it's new.
-        if updated or not vuln.description: 
-             AlertService.process_new_vulnerability(vuln)
+
+        if updated:
+            AlertService.process_new_vulnerability(vuln)
 
     def _save_mitigations(self, cve_id: str, cna: Dict):
         """Processar e salvar mitigações/workarounds."""
@@ -371,23 +361,23 @@ class MitreService(BaseSyncService):
     def _save_weaknesses(self, cve_id: str, cna: Dict):
         """Processar e salvar CWEs da MITRE."""
         problem_types = cna.get('problemTypes', [])
-        
+
         for pt in problem_types:
             for desc in pt.get('descriptions', []):
                 cwe_id = desc.get('cweId')
                 if not cwe_id or not cwe_id.startswith('CWE-'):
                     continue
-                    
+
                 weakness_data = {
-                'cve_id': cve_id,
-                'cwe_id': cwe_id,
-                'source': 'mitre',
-                'type': 'Secondary',
-                'description': desc.get('description'),
-                'name': Weakness.COMMON_CWES.get(cwe_id, desc.get('description')),
-                'updated_at': datetime.utcnow()
-            }
-                
+                    'cve_id': cve_id,
+                    'cwe_id': cwe_id,
+                    'source': 'mitre',
+                    'type': 'Secondary',
+                    'description': desc.get('description'),
+                    'name': Weakness.COMMON_CWES.get(cwe_id, desc.get('description')),
+                    'updated_at': datetime.utcnow()
+                }
+
                 try:
                     stmt = insert(Weakness).values(weakness_data)
                     stmt = stmt.on_conflict_do_nothing(

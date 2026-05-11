@@ -1,5 +1,5 @@
 """
-Open-Monitor Auth Schemas
+SOC360 Auth Schemas
 Schemas for authentication validation and responses.
 """
 from marshmallow import Schema, fields, validate

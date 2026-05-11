@@ -1,5 +1,5 @@
 """
-Open-Monitor NVD Client
+SOC360 NVD Client
 HTTP client for NVD API with retry logic and rate limiting.
 """
 import logging
@@ -48,7 +48,7 @@ class NVDFetcher(BaseFetcher):
         Args:
             api_key: API key do NVD (opcional, mas recomendado)
         """
-        super().__init__(timeout=60, user_agent='Open-Monitor/3.0 (Vulnerability Scanner)')
+        super().__init__(timeout=60, user_agent='SOC360/3.0 (Vulnerability Scanner)')
         
         self.api_key = api_key or current_app.config.get('NVD_API_KEY')
         

@@ -1,339 +1,382 @@
-/**
- * Settings Page Scripts
- * Handles password visibility toggle, clipboard copying, form validation, and interactions.
- * Enhanced UX with real-time validation and visual feedback.
- */
+'use strict';
 
-// ============================================================================
-// PASSWORD VALIDATION UTILITIES
-// ============================================================================
+// ────────────────────────────────────────────────────────────────────────────
+// TAB ACTIVATION FROM URL
+// ────────────────────────────────────────────────────────────────────────────
 
-/**
- * Valida força da senha
- * @param {string} password - Senha para validar
- * @returns {object} Objeto com informações de força
- */
-function validatePasswordStrength(password) {
-    const strength = {
-        score: 0,
-        feedback: [],
-        isValid: false,
-        level: 'weak'
-    };
+function activateTabFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (!tab) return;
 
-    if (!password) return strength;
-
-    // Comprimento
-    if (password.length >= 12) strength.score += 2;
-    else if (password.length >= 8) strength.score += 1;
-    else strength.feedback.push('Mínimo 12 caracteres recomendado');
-
-    // Maiúsculas
-    if (/[A-Z]/.test(password)) strength.score += 1;
-    else strength.feedback.push('Adicione letras maiúsculas');
-
-    // Minúsculas
-    if (/[a-z]/.test(password)) strength.score += 1;
-    else strength.feedback.push('Adicione letras minúsculas');
-
-    // Números
-    if (/[0-9]/.test(password)) strength.score += 1;
-    else strength.feedback.push('Adicione números');
-
-    // Símbolos
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) strength.score += 2;
-    else strength.feedback.push('Adicione símbolos especiais');
-
-    // Nivel final
-    if (strength.score >= 6) strength.level = 'strong';
-    else if (strength.score >= 4) strength.level = 'medium';
-    else strength.level = 'weak';
-
-    strength.isValid = strength.score >= 5;
-
-    return strength;
-}
-
-// ============================================================================
-// TOGGLE PASSWORD VISIBILITY
-// ============================================================================
-
-/**
- * Alternancia visibilidade da senha
- * @param {string} fieldId - ID do campo de input
- */
-function togglePassword(fieldId) {
-    const input = document.getElementById(fieldId);
-    const btn = document.querySelector(`button[data-target="${fieldId}"]`);
-    const icon = btn ? btn.querySelector('i') : null;
-    
-    if (input) {
-        const isPassword = input.type === 'password';
-        
-        input.type = isPassword ? 'text' : 'password';
-        
-        if (icon) {
-            icon.classList.remove(isPassword ? 'fa-eye' : 'fa-eye-slash');
-            icon.classList.add(isPassword ? 'fa-eye-slash' : 'fa-eye');
-        }
-
-        // Acessibilidade
-        if (btn) {
-            btn.setAttribute('aria-pressed', isPassword ? 'true' : 'false');
-            btn.setAttribute('aria-label', isPassword ? 'Ocultar Senha' : 'Mostrar Senha');
-        }
-    }
-}
-
-// ============================================================================
-// COPY TO CLIPBOARD
-// ============================================================================
-
-/**
- * Copia para área de transferência
- * @param {string} elementId - ID do elemento para copiar
- */
-function copyToClipboard(elementId) {
-    const element = document.getElementById(elementId);
-    if (!element) return;
-
-    // Seleciona o texto
-    element.select();
-    element.setSelectionRange(0, 99999);
-
-    // Copia usando Clipboard API (com fallback)
-    try {
-        navigator.clipboard.writeText(element.value).then(() => {
-            showCopyFeedback(elementId, 'success');
-            if (window.OpenMonitor?.showToast) {
-                window.OpenMonitor.showToast('✓ Copiado para área de transferência!', 'success');
-            }
-        }).catch(err => {
-            console.error('Clipboard API failed:', err);
-            fallbackCopy(elementId);
-        });
-    } catch (err) {
-        console.error('Copy failed:', err);
-        fallbackCopy(elementId);
-    }
-}
-
-/**
- * Fallback para cópia (browsers antigos)
- * @param {string} elementId - ID do elemento
- */
-function fallbackCopy(elementId) {
-    const element = document.getElementById(elementId);
-    document.execCommand('copy');
-    showCopyFeedback(elementId, 'success');
-    if (window.OpenMonitor?.showToast) {
-        window.OpenMonitor.showToast('✓ Copiado para área de transferência!', 'success');
-    }
-}
-
-/**
- * Mostra feedback visual de cópia
- * @param {string} elementId - ID do elemento
- * @param {string} status - Status (success, error)
- */
-function showCopyFeedback(elementId, status = 'success') {
-    const btn = document.querySelector(`button[data-target="${elementId}"]`);
+    // Find the button for this tab
+    const btn = document.querySelector(`button[data-bs-target="#tab-${tab}"]`);
     if (!btn) return;
 
-    // Remove classe anterior
+    // If Bootstrap 5 tab is available, trigger it
+    if (window.bootstrap && window.bootstrap.Tab) {
+        const bsTab = new window.bootstrap.Tab(btn);
+        bsTab.show();
+        return;
+    }
+
+    // Fallback: manual activation
+    // Deactivate all
+    document.querySelectorAll('.sidebar-nav__item').forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+    });
+    document.querySelectorAll('.tab-pane').forEach(p => {
+        p.classList.remove('show', 'active');
+    });
+
+    // Activate target
+    btn.classList.add('active');
+    btn.setAttribute('aria-selected', 'true');
+    const paneId = btn.getAttribute('data-bs-target');
+    const pane = document.querySelector(paneId);
+    if (pane) {
+        pane.classList.add('show', 'active');
+    }
+}
+
+// Update URL when tab changes (without page reload)
+function setupTabUrlSync() {
+    document.querySelectorAll('.sidebar-nav__item').forEach(btn => {
+        btn.addEventListener('shown.bs.tab', function () {
+            const target = this.getAttribute('data-bs-target') || '';
+            const tabName = target.replace('#tab-', '');
+            if (tabName) {
+                const url = new URL(window.location);
+                url.searchParams.set('tab', tabName);
+                window.history.replaceState({}, '', url.toString());
+            }
+        });
+
+        // Fallback for non-Bootstrap Tab event
+        btn.addEventListener('click', function () {
+            const target = this.getAttribute('data-bs-target') || '';
+            const tabName = target.replace('#tab-', '');
+            if (tabName) {
+                const url = new URL(window.location);
+                url.searchParams.set('tab', tabName);
+                window.history.replaceState({}, '', url.toString());
+            }
+
+            // Manual tab activation if Bootstrap JS not loaded
+            if (!window.bootstrap) {
+                document.querySelectorAll('.sidebar-nav__item').forEach(b => {
+                    b.classList.remove('active');
+                    b.setAttribute('aria-selected', 'false');
+                });
+                document.querySelectorAll('.tab-pane').forEach(p => {
+                    p.classList.remove('show', 'active');
+                });
+                this.classList.add('active');
+                this.setAttribute('aria-selected', 'true');
+                const pane = document.querySelector(target);
+                if (pane) pane.classList.add('show', 'active');
+            }
+        });
+    });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// PASSWORD STRENGTH
+// ────────────────────────────────────────────────────────────────────────────
+
+function validatePasswordStrength(password) {
+    const result = {
+        score: 0,
+        level: 'weak',
+        isValid: false,
+        checks: {
+            length: password.length >= 12,
+            upper:  /[A-Z]/.test(password),
+            lower:  /[a-z]/.test(password),
+            number: /[0-9]/.test(password),
+            symbol: /[!@#$%^&*()\-_=+\[\]{};':"\\|,.<>/?]/.test(password)
+        }
+    };
+
+    if (result.checks.length) result.score += 2;
+    else if (password.length >= 8) result.score += 1;
+    if (result.checks.upper)  result.score += 1;
+    if (result.checks.lower)  result.score += 1;
+    if (result.checks.number) result.score += 1;
+    if (result.checks.symbol) result.score += 2;
+
+    if (result.score >= 6) result.level = 'strong';
+    else if (result.score >= 4) result.level = 'medium';
+    else result.level = 'weak';
+
+    result.isValid = result.score >= 5;
+    return result;
+}
+
+function updateStrengthBar(password) {
+    const wrap  = document.getElementById('pwStrengthWrap');
+    const fill  = document.getElementById('pwStrengthFill');
+    const label = document.getElementById('pwStrengthLabel');
+    const reqs  = document.getElementById('pwReqs');
+
+    if (!wrap) return;
+
+    if (!password) {
+        wrap.hidden = true;
+        if (reqs) reqs.hidden = true;
+        return;
+    }
+
+    wrap.hidden = false;
+    if (reqs) reqs.hidden = false;
+
+    const result = validatePasswordStrength(password);
+    const widths = { weak: '33%', medium: '66%', strong: '100%' };
+    const labels = { weak: 'Fraca', medium: 'Moderada', strong: 'Forte' };
+
+    if (fill) {
+        fill.style.width = widths[result.level];
+        fill.className = `pw-strength-fill ${result.level}`;
+    }
+    if (label) label.textContent = labels[result.level];
+
+    if (reqs) {
+        Object.entries(result.checks).forEach(([key, met]) => {
+            const chip = reqs.querySelector(`[data-req="${key}"]`);
+            if (chip) chip.classList.toggle('met', met);
+        });
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// TOGGLE PASSWORD VISIBILITY
+// ────────────────────────────────────────────────────────────────────────────
+
+function togglePassword(fieldId) {
+    const input = document.getElementById(fieldId);
+    if (!input) return;
+
+    const btn  = document.querySelector(`button[data-target="${fieldId}"]`);
+    const icon = btn?.querySelector('i');
+    const show = input.type === 'password';
+
+    input.type = show ? 'text' : 'password';
+
+    if (icon) {
+        icon.classList.toggle('fa-eye',       !show);
+        icon.classList.toggle('fa-eye-slash',  show);
+    }
+    if (btn) {
+        btn.setAttribute('aria-pressed', String(show));
+        btn.setAttribute('aria-label', show ? 'Ocultar' : 'Mostrar');
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// COPY TO CLIPBOARD
+// ────────────────────────────────────────────────────────────────────────────
+
+function copyToClipboard(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const wasPassword = el.type === 'password';
+    if (wasPassword) el.type = 'text';
+    el.select();
+    el.setSelectionRange(0, 99999);
+    const val = el.value;
+    if (wasPassword) el.type = 'password';
+
+    navigator.clipboard.writeText(val).then(() => {
+        showCopyFeedback(elementId, 'success');
+        window.OpenMonitor?.showToast('Chave copiada!', 'success');
+    }).catch(() => {
+        try {
+            document.execCommand('copy');
+            showCopyFeedback(elementId, 'success');
+            window.OpenMonitor?.showToast('Chave copiada!', 'success');
+        } catch {
+            window.OpenMonitor?.showToast('Falha ao copiar', 'error');
+        }
+    });
+}
+
+function showCopyFeedback(elementId, status) {
+    const btn = document.querySelector(`.copy-btn[data-target="${elementId}"]`);
+    if (!btn) return;
     btn.classList.remove('copied', 'failed');
-    
-    // Força reflow
     void btn.offsetWidth;
-    
-    // Adiciona classe apropriada
     btn.classList.add(status === 'success' ? 'copied' : 'failed');
-
-    // Remove após animação
-    setTimeout(() => {
-        btn.classList.remove(status === 'success' ? 'copied' : 'failed');
-    }, 1500);
+    setTimeout(() => btn.classList.remove('copied', 'failed'), 1500);
 }
 
-// ============================================================================
-// FORM VALIDATION & HANDLERS
-// ============================================================================
+// ────────────────────────────────────────────────────────────────────────────
+// FORM VALIDATION
+// ────────────────────────────────────────────────────────────────────────────
 
-/**
- * Valida correspondência de senhas
- * @param {string} fieldId1 - Primeiro campo
- * @param {string} fieldId2 - Segundo campo
- * @returns {boolean} True se correspondem
- */
-function validatePasswordMatch(fieldId1, fieldId2) {
-    const field1 = document.getElementById(fieldId1);
-    const field2 = document.getElementById(fieldId2);
-    
-    if (!field1 || !field2) return true;
-    
-    return field1.value === field2.value;
-}
-
-/**
- * Valida email
- * @param {string} email - Email para validar
- * @returns {boolean} True se email válido
- */
-function validateEmail(email) {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-}
-
-/**
- * Adiciona validações em tempo real ao formulário
- */
 function setupFormValidation() {
-    const passwordForm = document.getElementById('passwordForm');
-    if (!passwordForm) return;
-
-    const newPasswordField = document.querySelector('[name="new_password"]');
+    const newPasswordInput     = document.getElementById('newPasswordInput');
     const confirmPasswordField = document.querySelector('[name="confirm_new_password"]');
 
-    // Validação de força de senha em tempo real
-    if (newPasswordField) {
-        newPasswordField.addEventListener('input', function() {
-            const strength = validatePasswordStrength(this.value);
-            
-            // Atualiza border color baseado em força
-            if (this.value) {
-                this.classList.remove('is-invalid');
-                // Aqui pode adicionar visual de força (ex: barra de progresso)
-            }
+    if (newPasswordInput) {
+        newPasswordInput.addEventListener('input', function () {
+            updateStrengthBar(this.value);
+            if (this.value) this.classList.remove('is-invalid');
         });
     }
 
-    // Validação de correspondência de senhas
-    if (confirmPasswordField) {
-        confirmPasswordField.addEventListener('blur', function() {
-            if (newPasswordField && this.value && newPasswordField.value !== this.value) {
-                this.classList.add('is-invalid');
-                let feedback = this.parentElement.querySelector('.invalid-feedback');
+    if (confirmPasswordField && newPasswordInput) {
+        confirmPasswordField.addEventListener('blur', function () {
+            if (!this.value) return;
+            const match = this.value === newPasswordInput.value;
+            this.classList.toggle('is-invalid', !match);
+
+            let feedback = this.closest('.input-group')?.nextElementSibling;
+            if (!feedback || !feedback.classList.contains('invalid-feedback')) {
+                feedback = this.parentElement.parentElement.querySelector('.invalid-feedback');
+            }
+            if (!match) {
                 if (!feedback) {
                     feedback = document.createElement('div');
                     feedback.className = 'invalid-feedback';
-                    this.parentElement.appendChild(feedback);
+                    this.closest('.form-group')?.appendChild(feedback);
                 }
-                feedback.textContent = '✗ Senhas não correspondem';
-                feedback.innerHTML = '<i class="fas fa-info-circle"></i> Senhas não correspondem';
-            } else {
-                this.classList.remove('is-invalid');
+                feedback.innerHTML = '<i class="fas fa-info-circle"></i> As senhas não correspondem';
+            } else if (feedback) {
+                feedback.remove();
             }
         });
     }
 }
 
-/**
- * Configurar handler para confirmação de ações perigosas
- */
+// ────────────────────────────────────────────────────────────────────────────
+// DANGEROUS ACTION HANDLER
+// ────────────────────────────────────────────────────────────────────────────
+
+async function confirmDangerous(message, opts) {
+    const confirmFn = window.OpenMonitor?.confirm;
+    if (typeof confirmFn === 'function') {
+        return await confirmFn(message, opts);
+    }
+    return window.confirm(`${opts?.title || 'Confirmar'}\n\n${message}`);
+}
+
 function setupDangerousActionHandlers() {
-    const revokeBtn = document.querySelector('button[name="api_key_revoke"]');
+    const revokeBtn = document.getElementById('revokeKeyBtn');
     if (revokeBtn) {
-        revokeBtn.addEventListener('click', function(e) {
-            if (!confirm('⚠️ Tem certeza? Todas as aplicações usando essa chave deixarão de funcionar.')) {
-                e.preventDefault();
+        revokeBtn.addEventListener('click', async function (e) {
+            e.preventDefault();
+            const ok = await confirmDangerous(
+                'Todas as aplicações usando essa chave deixarão de funcionar imediatamente.',
+                { title: 'Revogar Chave de API', confirmText: 'Revogar', cancelText: 'Cancelar' }
+            );
+            if (ok) {
+                const form = this.closest('form');
+                if (form) {
+                    const hidden = document.createElement('input');
+                    hidden.type  = 'hidden';
+                    hidden.name  = 'api_key_revoke';
+                    hidden.value = '1';
+                    form.appendChild(hidden);
+                    form.submit();
+                }
             }
         });
     }
+
+    document.querySelectorAll('button[name="api_key_regenerate"]').forEach(btn => {
+        btn.addEventListener('click', async function (e) {
+            e.preventDefault();
+            const ok = await confirmDangerous(
+                'A chave atual será invalidada imediatamente. Integrações existentes precisarão ser atualizadas.',
+                { title: 'Regenerar Chave de API', confirmText: 'Regenerar', cancelText: 'Cancelar' }
+            );
+            if (ok) {
+                const form = this.closest('form');
+                if (form) {
+                    const hidden = document.createElement('input');
+                    hidden.type  = 'hidden';
+                    hidden.name  = this.name;
+                    hidden.value = this.value || '1';
+                    form.appendChild(hidden);
+                    form.submit();
+                }
+            }
+        });
+    });
 }
 
-/**
- * Adiciona feedback visual nos botões
- */
+// ────────────────────────────────────────────────────────────────────────────
+// BUTTON FEEDBACK
+// ────────────────────────────────────────────────────────────────────────────
+
 function setupButtonFeedback() {
-    const buttons = document.querySelectorAll('button[data-action]');
-    
-    buttons.forEach(btn => {
-        btn.addEventListener('click', function() {
-            const action = this.getAttribute('data-action');
-            
-            // Feedback visual
+    document.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', function () {
             this.style.pointerEvents = 'none';
-            this.style.opacity = '0.6';
-            
-            // Restaura após envio do form (assumindo que página recarrega)
+            this.style.opacity = '0.65';
             setTimeout(() => {
-                this.style.pointerEvents = 'auto';
-                this.style.opacity = '1';
-            }, 2000);
+                this.style.pointerEvents = '';
+                this.style.opacity = '';
+            }, 2500);
         });
     });
 }
 
-/**
- * Animações ao carregar página
- */
-function setupPageAnimations() {
-    const cards = document.querySelectorAll('.card');
-    
-    cards.forEach((card, index) => {
-        card.style.animation = `slideInDown 0.3s ease-out ${index * 0.1}s backwards`;
-    });
+// ────────────────────────────────────────────────────────────────────────────
+// AUTO-DISMISS FLASH MESSAGES
+// ────────────────────────────────────────────────────────────────────────────
+
+function setupFlashAutoDismiss() {
+    const container = document.getElementById('flashMessages');
+    if (!container) return;
+    setTimeout(() => {
+        container.querySelectorAll('.alert').forEach(alert => {
+            alert.style.transition = 'opacity 0.5s ease, max-height 0.5s ease';
+            alert.style.opacity = '0';
+            alert.style.maxHeight = '0';
+            alert.style.overflow = 'hidden';
+            setTimeout(() => alert.remove(), 500);
+        });
+    }, 6000);
 }
 
-// ============================================================================
-// INICIALIZAÇÃO
-// ============================================================================
+// ────────────────────────────────────────────────────────────────────────────
+// INIT
+// ────────────────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('⚙️ Settings Page Initialized');
+document.addEventListener('DOMContentLoaded', () => {
+    // Activate correct tab from URL param
+    activateTabFromUrl();
 
-    // Setup Password Toggle Buttons
+    // Sync URL when tabs change
+    setupTabUrlSync();
+
+    // Password toggle buttons
     document.querySelectorAll('.toggle-password-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
+        btn.addEventListener('click', e => {
             e.preventDefault();
-            const targetId = this.getAttribute('data-target');
-            togglePassword(targetId);
+            togglePassword(btn.getAttribute('data-target'));
         });
-    });
-
-    // Setup Copy Buttons
-    document.querySelectorAll('.copy-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const targetId = this.getAttribute('data-target');
-            copyToClipboard(targetId);
-        });
-    });
-
-    // Setup Form Validations
-    setupFormValidation();
-
-    // Setup Dangerous Action Handlers
-    setupDangerousActionHandlers();
-
-    // Setup Button Feedback
-    setupButtonFeedback();
-
-    // Setup Page Animations
-    setupPageAnimations();
-
-    // Keyboard Accessibility
-    document.querySelectorAll('.toggle-password-btn').forEach(btn => {
-        btn.addEventListener('keydown', function(e) {
+        btn.addEventListener('keydown', e => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                this.click();
+                btn.click();
             }
         });
     });
 
-    // Log para debugging
-    console.log('✓ All handlers attached successfully');
+    // Copy buttons
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.preventDefault();
+            copyToClipboard(btn.getAttribute('data-target'));
+        });
+    });
+
+    setupFormValidation();
+    setupDangerousActionHandlers();
+    setupButtonFeedback();
+    setupFlashAutoDismiss();
 });
-
-// ============================================================================
-// UTILITY: Show Toast (se OpenMonitor global não existir)
-// ============================================================================
-
-if (!window.OpenMonitor) {
-    window.OpenMonitor = {
-        showToast: function(message, type = 'info') {
-            console.log(`[${type.toUpperCase()}] ${message}`);
-        }
-    };
-}

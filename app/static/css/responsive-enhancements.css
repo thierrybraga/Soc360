@@ -1,0 +1,560 @@
+/* ==========================================================================
+   SOC360 - Melhorias de Responsividade
+   v1.0 - Otimizações para Dashboards, Tabelas e Grids
+   ========================================================================== */
+
+/* ==========================================================================
+   1. DASHBOARD - GRID RESPONSIVO
+   ========================================================================== */
+
+/* Container do Dashboard */
+.dashboard-container {
+  padding: var(--space-6);
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+}
+
+/* Grid de KPI Cards - Responsivo */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary-500), var(--primary-400));
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-color-hover);
+}
+
+.kpi-card:hover::before {
+  opacity: 1;
+}
+
+.kpi-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-xl);
+  margin-bottom: var(--space-4);
+  background: var(--bg-tertiary);
+  color: var(--primary-400);
+}
+
+.kpi-card-value {
+  font-size: var(--font-2xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  line-height: 1;
+  margin-bottom: var(--space-2);
+}
+
+.kpi-card-label {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.kpi-card-change {
+  font-size: var(--font-xs);
+  font-weight: var(--font-medium);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.kpi-card-change.positive { color: var(--success); }
+.kpi-card-change.negative { color: var(--danger); }
+
+/* ── KPI card severity modifiers ────────────────────────────────────────────*/
+/* Available globally for all pages using KPI cards with severity indicators */
+.kpi-card--critical .kpi-card-icon  { background: var(--critical-bg); color: var(--critical); }
+.kpi-card--critical .kpi-card-value,
+.kpi-card--critical .kpi-card-label { color: var(--critical); }
+
+.kpi-card--high .kpi-card-icon  { background: var(--high-bg); color: var(--high); }
+.kpi-card--high .kpi-card-value,
+.kpi-card--high .kpi-card-label { color: var(--high); }
+
+.kpi-card--medium .kpi-card-icon  { background: var(--medium-bg); color: var(--medium); }
+.kpi-card--medium .kpi-card-value,
+.kpi-card--medium .kpi-card-label { color: var(--medium); }
+
+.kpi-card--low .kpi-card-icon  { background: var(--low-bg); color: var(--low); }
+.kpi-card--low .kpi-card-value,
+.kpi-card--low .kpi-card-label { color: var(--low); }
+
+.kpi-card--warning .kpi-card-icon  { background: var(--warning-bg, rgba(245,158,11,.15)); color: var(--warning); }
+.kpi-card--warning .kpi-card-value,
+.kpi-card--warning .kpi-card-label { color: var(--warning); }
+
+/* Grid de Charts */
+.charts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  min-height: 350px;
+}
+
+.chart-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.chart-card-title {
+  font-size: var(--font-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+
+/* Split Row - Duas colunas */
+.split-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.split-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+/* ==========================================================================
+   2. TABELAS - RESPONSIVIDADE MELHORADA
+   ========================================================================== */
+
+/* Container com scroll horizontal */
+.table-responsive-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+}
+
+/* Tabela dentro do wrapper */
+.table-responsive-wrapper .table {
+  margin: 0;
+  min-width: 600px; /* Garante scroll em telas pequenas */
+}
+
+/* Colunas que devem ser ocultas em mobile */
+@media (max-width: 768px) {
+  .hide-mobile-col { display: none !important; }
+  .table-responsive-wrapper .table { min-width: 500px; }
+}
+
+@media (max-width: 576px) {
+  .hide-mobile-sm-col { display: none !important; }
+  .table-responsive-wrapper .table { min-width: 400px; }
+}
+
+/* Células de tabela otimizadas */
+.table th,
+.table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+/* Descrição truncada */
+.table td.description-cell {
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   3. CARDS - RESPONSIVIDADE
+   ========================================================================== */
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-5);
+}
+
+.card-grid-compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: var(--space-4);
+}
+
+@media (max-width: 768px) {
+  .card-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+  
+  .card-grid-compact {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+}
+
+@media (max-width: 480px) {
+  .card-grid-compact {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   4. FORMULÁRIOS - RESPONSIVOS
+   ========================================================================== */
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-4);
+}
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+.form-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 768px) {
+  .form-row,
+  .form-row-2,
+  .form-row-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   5. BOTÕES - GRUPOS RESPONSIVOS
+   ========================================================================== */
+
+.btn-group-responsive {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+@media (max-width: 576px) {
+  .btn-group-responsive {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .btn-group-responsive .btn {
+    width: 100%;
+  }
+}
+
+/* ==========================================================================
+   6. FILTROS - RESPONSIVOS
+   ========================================================================== */
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-end;
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-5);
+}
+
+.filter-group {
+  flex: 1;
+  min-width: 180px;
+  max-width: 300px;
+}
+
+.filter-group label {
+  display: block;
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filter-group {
+    max-width: 100%;
+  }
+}
+
+/* ==========================================================================
+   7. MODAL - RESPONSIVO
+   ========================================================================== */
+
+.modal-responsive {
+  max-width: 600px;
+  width: 90%;
+  margin: var(--space-4) auto;
+}
+
+.modal-responsive-lg {
+  max-width: 900px;
+  width: 95%;
+  margin: var(--space-4) auto;
+}
+
+@media (max-width: 576px) {
+  .modal-responsive,
+  .modal-responsive-lg {
+    width: 100%;
+    margin: 0;
+    border-radius: 0;
+    min-height: 100vh;
+  }
+}
+
+/* ==========================================================================
+   8. PAGINAÇÃO - RESPONSIVA
+   ========================================================================== */
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  margin-top: var(--space-4);
+}
+
+.pagination-info {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+}
+
+.pagination-controls {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.pagination-btn {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  transition: all var(--transition-fast);
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-color-hover);
+}
+
+.pagination-btn.active {
+  background: var(--primary-500);
+  color: white;
+  border-color: var(--primary-500);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 576px) {
+  .pagination-wrapper {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .pagination-controls {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+/* ==========================================================================
+   9. STATUS BADGES - RESPONSIVOS
+   ========================================================================== */
+
+.status-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-xs);
+  font-weight: var(--font-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-badge::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* ==========================================================================
+   10. UTILITÁRIOS RESPONSIVOS
+   ========================================================================== */
+
+/* Container fluido com max-width */
+.container-fluid-max {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+/* Espaçamento consistente */
+.section-spacing { margin-bottom: var(--space-6); }
+.section-spacing-sm { margin-bottom: var(--space-4); }
+.section-spacing-lg { margin-bottom: var(--space-8); }
+
+/* Flexbox utilities */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+/* Stack em mobile */
+@media (max-width: 768px) {
+  .stack-md {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  
+  .gap-md-2 { gap: var(--space-2) !important; }
+  .gap-md-3 { gap: var(--space-3) !important; }
+  .gap-md-4 { gap: var(--space-4) !important; }
+}
+
+/* ==========================================================================
+   11. ANIMAÇÕES - OTIMIZADAS
+   ========================================================================== */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.4s ease forwards;
+}
+
+/* Stagger animation para grids */
+.stagger-children > * {
+  opacity: 0;
+  animation: fadeInUp 0.4s ease forwards;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+
+/* ==========================================================================
+   12. PRINT - OTIMIZAÇÕES
+   ========================================================================== */
+
+@media print {
+  .dashboard-container {
+    padding: 0;
+  }
+  
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+  
+  .kpi-card {
+    break-inside: avoid;
+    box-shadow: none;
+    border: 1px solid #ccc;
+  }
+  
+  .charts-row,
+  .split-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .table-responsive-wrapper {
+    overflow: visible;
+    border: 1px solid #ccc;
+  }
+}

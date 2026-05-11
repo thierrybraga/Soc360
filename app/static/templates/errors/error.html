@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ error_code }} - {{ error_title }} | Open-Monitor{% endblock %}
+{% block title %}{{ error_code }} - {{ error_title }} | SOC360{% endblock %}
 
 {% block content %}
 <div class="error-page">
@@ -58,7 +58,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce() }}">
 .error-page {
     display: flex;
     align-items: center;

@@ -1,5 +1,5 @@
 """
-Open-Monitor Audit Logging Service
+SOC360 Audit Logging Service
 Comprehensive audit trail for security events and user actions.
 """
 import json

@@ -1,5 +1,5 @@
 """
-Open-Monitor Bulk Database Service
+SOC360 Bulk Database Service
 Operações de inserção em lote para CVEs do NVD.
 """
 import logging

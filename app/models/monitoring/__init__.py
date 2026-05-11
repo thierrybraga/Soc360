@@ -1,5 +1,5 @@
 """
-Open-Monitor Monitoring Models
+SOC360 Monitoring Models
 Models de monitoramento, relatórios e auditoria.
 """
 from app.models.monitoring.monitoring_rule import MonitoringRule

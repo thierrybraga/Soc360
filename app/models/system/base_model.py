@@ -1,5 +1,5 @@
 """
-Open-Monitor Base Model
+SOC360 Base Model
 Model base com campos e métodos comuns a todos os models.
 """
 from datetime import datetime
@@ -56,7 +56,7 @@ class BaseModel(db.Model):
     @classmethod
     def get_by_id(cls, id):
         """Busca registro por ID."""
-        return cls.query.get(id)
+        return db.session.get(cls, id)
     
     @classmethod
     def get_all(cls):

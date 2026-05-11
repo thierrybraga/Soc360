@@ -1,0 +1,88 @@
+/* =============================================================================
+   Monitoring Module Styles — Open-Monitor / SOC360
+   Used by: monitoring/rule_form.html · monitoring/index.html · monitoring/alerts.html
+   ============================================================================= */
+
+/* ── Rule type selector card ─────────────────────────────────────────────────*/
+.type-option {
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid var(--gray-700);
+}
+.type-option:hover { border-color: var(--primary-400); }
+.type-option.active {
+    border-color: var(--primary-500);
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+}
+
+.type-option .type-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+}
+
+/* Small description text inside type-option cards */
+.type-option-desc { font-size: .7rem; }
+
+/* ── Channel selector ────────────────────────────────────────────────────────*/
+.channel-option {
+    cursor: pointer;
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--gray-700);
+    border-radius: 8px;
+    transition: all 0.2s;
+    text-align: center;
+}
+.channel-option:hover { border-color: var(--primary-400); }
+.channel-option.active {
+    border-color: var(--primary-500);
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+}
+
+/* ── Config sections ─────────────────────────────────────────────────────────*/
+.config-section {
+    border-left: 3px solid var(--primary-500);
+    padding-left: 1.25rem;
+}
+
+/* ── Step indicator ──────────────────────────────────────────────────────────*/
+.step-number {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--primary-500);
+    color: white;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.step-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--gray-400);
+}
+
+/* ── Alerts page (monitoring/alerts.html) ────────────────────────────────────*/
+[data-page="monitoring-alerts"] #filter-status,
+[data-page="monitoring-alerts"] #filter-severity { width: 150px; }
+
+[data-page="monitoring-alerts"] #alerts-table th.col-sev    { width: 100px; }
+[data-page="monitoring-alerts"] #alerts-table th.col-status { width: 120px; }
+[data-page="monitoring-alerts"] #alerts-table th.col-cve    { width: 150px; }
+[data-page="monitoring-alerts"] #alerts-table th.col-rule   { width: 140px; }
+[data-page="monitoring-alerts"] #alerts-table th.col-date   { width: 150px; }
+[data-page="monitoring-alerts"] #alerts-table th.col-actions{ width: 160px; }
+
+/* === Monitoring search input group width === */
+.mon-search-group { width: 250px; }
+

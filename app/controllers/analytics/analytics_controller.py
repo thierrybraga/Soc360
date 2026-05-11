@@ -1,5 +1,5 @@
 """
-Open-Monitor Analytics Controller
+SOC360 Analytics Controller
 Rotas para dashboards e análises avançadas.
 """
 import logging
@@ -90,6 +90,7 @@ def dashboard_data():
     critical_recent = Vulnerability.query.filter(
         Vulnerability.base_severity == 'CRITICAL'
     ).order_by(Vulnerability.published_date.desc()).limit(10).all()
+
     
     # === Ativos ===
     asset_query = Asset.query
@@ -131,7 +132,7 @@ def dashboard_data():
                     'cve_id': v.cve_id,
                     'cvss_score': v.cvss_score,
                     'published': v.published_date.isoformat() if v.published_date else None,
-                    'description': v.description[:150] + '...' if len(v.description) > 150 else v.description
+                    'description': (v.description[:150] + '...') if v.description and len(v.description) > 150 else (v.description or '')
                 }
                 for v in critical_recent
             ]
@@ -313,27 +314,32 @@ def remediation_status():
         func.count(AssetVulnerability.id)
     ).group_by(AssetVulnerability.status).all()
     
+    # Inicializa todos os status definidos no enum VulnerabilityStatus
     by_status = {
         'OPEN': 0,
+        'IN_PROGRESS': 0,
         'MITIGATED': 0,
+        'RESOLVED': 0,
+        'ACCEPTED': 0,
         'FALSE_POSITIVE': 0,
-        'RISK_ACCEPTED': 0
     }
-    
+
     for status, count in status_counts:
-        if status:
+        if status and status in by_status:
             by_status[status] = count
     
-    # Overdue (OPEN and due_date < now)
+    # Overdue: OPEN com due_date preenchido e já vencido
     now = datetime.utcnow()
     overdue = AssetVulnerability.query.filter(
         AssetVulnerability.status == VulnerabilityStatus.OPEN.value,
+        AssetVulnerability.due_date.isnot(None),
         AssetVulnerability.due_date < now
     ).count()
-    
-    # Upcoming due (OPEN and due_date < now + 7 days)
+
+    # Upcoming due: OPEN com due_date preenchido e vencendo nos próximos 7 dias
     upcoming = AssetVulnerability.query.filter(
         AssetVulnerability.status == VulnerabilityStatus.OPEN.value,
+        AssetVulnerability.due_date.isnot(None),
         AssetVulnerability.due_date >= now,
         AssetVulnerability.due_date < now + timedelta(days=7)
     ).count()
@@ -378,7 +384,7 @@ def asset_risk_matrix():
     
     # Processar em memória para montar objetos
     assets_risk = {}
-    
+
     for row in results:
         asset_id = row[0]
         if asset_id not in assets_risk:
@@ -387,14 +393,14 @@ def asset_risk_matrix():
                 'name': row[1],
                 'type': row[2],
                 'criticality': row[3],
-                'vulnerabilities': {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0},
+                'vulnerabilities': {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0, 'UNKNOWN': 0},
                 'risk_score': 0
             }
-        
-        severity = row[4]
+
+        # base_severity pode ser None — mapeia para 'UNKNOWN'
+        severity = row[4] if row[4] in ('CRITICAL', 'HIGH', 'MEDIUM', 'LOW') else 'UNKNOWN'
         count = row[5]
-        if severity in assets_risk[asset_id]['vulnerabilities']:
-            assets_risk[asset_id]['vulnerabilities'][severity] += count
+        assets_risk[asset_id]['vulnerabilities'][severity] += count
             
     # Calcular Risk Score
     # Base: Criticality do Asset (Low=1, Medium=2, High=3, Critical=4)

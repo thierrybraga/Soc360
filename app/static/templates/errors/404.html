@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}404 - Not Found | Open-Monitor{% endblock %}
+{% block title %}404 - Not Found | SOC360{% endblock %}
 
 {% block content %}
 <div class="error-page">
@@ -30,7 +30,7 @@
     </div>
 </div>
 
-<style>
+<style nonce="{{ csp_nonce() }}">
 .error-page {
     display: flex;
     align-items: center;

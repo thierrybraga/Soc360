@@ -1,5 +1,5 @@
 """
-Open-Monitor CSRF Extension
+SOC360 CSRF Extension
 Proteção contra Cross-Site Request Forgery.
 """
 from flask_wtf.csrf import CSRFProtect, CSRFError
@@ -23,20 +23,29 @@ def init_csrf(app):
             message = e.description
         else:
             message = 'Token CSRF inválido ou expirado.'
-            
+
         # Se for na página de login, redirecionar para recarregar o token
         if request.endpoint == 'auth.login':
             flash('Sessão expirada. Por favor, tente novamente.', 'warning')
             return redirect(url_for('auth.login'))
-        
-        # Se for uma requisição AJAX/API
-        if request.is_json or request.path.startswith('/api/'):
+
+        # Detecta requisições AJAX/API (qualquer endpoint "/api/" dentro de um
+        # blueprint, XHR, JSON ou Accept explícito). Inclui /reports/api/...,
+        # /vulnerabilities/api/..., /monitoring/api/..., etc.
+        is_api_like = (
+            request.is_json
+            or '/api/' in request.path
+            or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or 'application/json' in (request.headers.get('Accept') or '')
+        )
+        if is_api_like:
             return jsonify({
                 'status': 'error',
+                'error': message,
                 'message': message,
                 'code': 'CSRF_ERROR'
             }), 400
-        
+
         # Renderizar página de erro para requisições normais
         return render_template('errors/error.html', error_code=400, error_title='CSRF Error', error_message=message), 400
     

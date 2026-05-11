@@ -1,5 +1,5 @@
 """
-Open-Monitor MITRE ATT&CK Sync Service
+SOC360 MITRE ATT&CK Sync Service
 Serviço para processamento de dados STIX 2.1 do MITRE ATT&CK.
 """
 import logging

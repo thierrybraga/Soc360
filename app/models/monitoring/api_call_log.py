@@ -1,5 +1,5 @@
 """
-Open-Monitor ApiCallLog Model
+SOC360 ApiCallLog Model
 Model para log de chamadas de API (auditoria).
 """
 from datetime import datetime

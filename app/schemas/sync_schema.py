@@ -1,5 +1,5 @@
 """
-Open-Monitor Sync Schemas
+SOC360 Sync Schemas
 Common schemas for synchronization metadata and API call logs.
 """
 from marshmallow import Schema, fields

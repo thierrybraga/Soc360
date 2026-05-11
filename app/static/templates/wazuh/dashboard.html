@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Wazuh SIEM — SOC360{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wazuh.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-shell page-shell--wide" data-page="wazuh-dashboard">
+    <div class="page-header">
+        <div class="page-header__content">
+            <h1 class="page-header__title"><i class="fas fa-shield-virus me-2"></i>Wazuh SIEM — SOC Dashboard</h1>
+            <p class="page-header__subtitle">Triagem centralizada de alertas ingeridos do Wazuh Indexer. Fluxo de SOC com atribuição, classificação, análise por IA e relatórios.</p>
+        </div>
+        <div class="page-header__actions d-flex flex-wrap gap-2">
+            {% if current_user.is_admin %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('wazuh.config_page') }}">
+                <i class="fas fa-cog"></i> Configuração
+            </a>
+            {% endif %}
+            <button class="btn btn-outline-primary btn-sm" id="btn-sync" type="button">
+                <i class="fas fa-cloud-download-alt"></i> Sincronizar
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" id="btn-refresh" type="button">
+                <i class="fas fa-sync-alt"></i> Atualizar
+            </button>
+            <div class="btn-group">
+                <button class="btn btn-outline-success btn-sm dropdown-toggle" data-bs-toggle="dropdown" type="button">
+                    <i class="fas fa-file-export"></i> Exportar
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" id="btn-export-csv" href="#"><i class="fas fa-file-csv me-1"></i> CSV (filtros atuais)</a></li>
+                    <li><a class="dropdown-item" id="btn-export-pdf" href="#"><i class="fas fa-file-pdf me-1"></i> PDF (relatório)</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync status strip -->
+    <div id="sync-status-strip" class="alert alert-secondary py-2 small d-none justify-content-between align-items-center">
+        <span id="sync-status-message">—</span>
+        <span id="sync-status-time" class="text-muted"></span>
+    </div>
+
+    <!-- KPI cards -->
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="card h-100"><div class="card-body py-3">
+                <div class="text-muted small text-uppercase">Total (janela)</div>
+                <div class="h3 mb-0" id="kpi-window">–</div>
+                <div class="small text-muted"><span id="kpi-window-label">Últimas 24h</span></div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100"><div class="card-body py-3">
+                <div class="text-muted small text-uppercase">Abertos</div>
+                <div class="h3 mb-0 text-danger" id="kpi-open">–</div>
+                <div class="small text-muted">NEW · TRIAGED · IN_PROGRESS</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100"><div class="card-body py-3">
+                <div class="text-muted small text-uppercase">Atribuídos a mim</div>
+                <div class="h3 mb-0 text-warning" id="kpi-mine">–</div>
+                <div class="small text-muted">Em aberto</div>
+            </div></div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100"><div class="card-body py-3">
+                <div class="text-muted small text-uppercase">Total geral</div>
+                <div class="h3 mb-0 text-secondary" id="kpi-total">–</div>
+                <div class="small text-muted">Toda a base</div>
+            </div></div>
+        </div>
+    </div>
+
+    <!-- Severity quick-filter pills (drive the table filter) -->
+    <div class="d-flex flex-wrap gap-2 mb-3" id="severity-pills">
+        <button class="btn btn-sm btn-outline-secondary active" data-sev="">Todas severidades <span class="badge bg-dark text-light ms-1" id="pill-count-all">0</span></button>
+        <button class="btn btn-sm btn-outline-danger" data-sev="CRITICAL">Crítico <span class="badge bg-danger ms-1" id="pill-count-critical">0</span></button>
+        <button class="btn btn-sm btn-outline-warning" data-sev="HIGH">Alto <span class="badge bg-warning text-dark ms-1" id="pill-count-high">0</span></button>
+        <button class="btn btn-sm btn-outline-info" data-sev="MEDIUM">Médio <span class="badge bg-info text-dark ms-1" id="pill-count-medium">0</span></button>
+        <button class="btn btn-sm btn-outline-success" data-sev="LOW">Baixo <span class="badge bg-success ms-1" id="pill-count-low">0</span></button>
+    </div>
+
+    <!-- Charts row -->
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-lg-5">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title mb-0"><i class="fas fa-chart-pie me-1"></i> Severidade</h3>
+                    <select id="window-select" class="form-select form-select-sm">
+                        <option value="1">1h</option>
+                        <option value="6">6h</option>
+                        <option value="24" selected>24h</option>
+                        <option value="168">7d</option>
+                        <option value="720">30d</option>
+                    </select>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container-sm"><canvas id="chart-severity"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-7">
+            <div class="card h-100">
+                <div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-chart-line me-1"></i> Alertas ao longo do tempo</h3></div>
+                <div class="card-body"><div class="chart-container-sm"><canvas id="chart-timeline"></canvas></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-lg-6">
+            <div class="card h-100">
+                <div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-list-ol me-1"></i> Top regras</h3></div>
+                <div class="card-body"><div class="chart-container-md"><canvas id="chart-rules"></canvas></div></div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-6">
+            <div class="card h-100">
+                <div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-server me-1"></i> Top agentes</h3></div>
+                <div class="card-body"><div class="chart-container-md"><canvas id="chart-agents"></canvas></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters + Table -->
+    <div class="card">
+        <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <h3 class="card-title mb-0"><i class="fas fa-table me-1"></i> Alertas</h3>
+            <div class="d-flex flex-wrap gap-2">
+                <select id="filter-status" class="form-select form-select-sm">
+                    <option value="">Status (todos)</option>
+                    <option value="NEW">Novo</option>
+                    <option value="TRIAGED">Triado</option>
+                    <option value="IN_PROGRESS">Em andamento</option>
+                    <option value="ESCALATED">Escalado</option>
+                    <option value="RESOLVED">Resolvido</option>
+                    <option value="FALSE_POSITIVE">Falso positivo</option>
+                    <option value="DISMISSED">Descartado</option>
+                </select>
+                <select id="filter-bucket" class="form-select form-select-sm">
+                    <option value="">Abertura (todos)</option>
+                    <option value="open" selected>Em aberto</option>
+                    <option value="closed">Fechados</option>
+                </select>
+                <select id="filter-agent" class="form-select form-select-sm">
+                    <option value="">Agente (todos)</option>
+                </select>
+                <input id="filter-q" class="form-control form-control-sm" placeholder="Buscar no log, descrição, IP...">
+            </div>
+        </div>
+        <div class="table-container">
+            <div id="loading-state" class="table-loading"><div class="spinner"></div><span>Carregando alertas...</span></div>
+            <table class="table table-hover" id="alerts-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th class="col-sev">Severidade</th>
+                        <th class="col-status">Status</th>
+                        <th>Regra</th>
+                        <th class="col-agent">Agente</th>
+                        <th class="col-assignee">Atribuído</th>
+                        <th class="col-when">Quando</th>
+                        <th class="col-actions text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="alerts-tbody"></tbody>
+            </table>
+            <div id="empty-state" class="empty-state" style="display:none;">
+                <div class="empty-state-icon"><i class="fas fa-check-circle text-success"></i></div>
+                <h5 class="empty-state-title">Nenhum alerta encontrado</h5>
+                <p class="empty-state-text">Ajuste os filtros ou acione <strong>Sincronizar</strong>.</p>
+            </div>
+        </div>
+        <div class="card-footer d-none justify-content-between align-items-center" id="pagination-container">
+            <div class="pagination-info" id="pagination-info"></div>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal fade" id="alertModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-bug me-1"></i> Alerta Wazuh <span id="modal-rule-id" class="text-muted small ms-2"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap gap-2 mb-3" id="modal-badges"></div>
+                <h4 class="h5" id="modal-title">—</h4>
+                <dl class="row small mb-3" id="modal-meta"></dl>
+
+                <!-- SOC workflow actions -->
+                <div class="row g-2 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1">Status</label>
+                        <select id="modal-status-select" class="form-select form-select-sm">
+                            <option value="NEW">Novo</option>
+                            <option value="TRIAGED">Triado</option>
+                            <option value="IN_PROGRESS">Em andamento</option>
+                            <option value="ESCALATED">Escalado</option>
+                            <option value="RESOLVED">Resolvido</option>
+                            <option value="FALSE_POSITIVE">Falso positivo</option>
+                            <option value="DISMISSED">Descartado</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small text-muted mb-1">Atribuir</label>
+                        <select id="modal-assignee" class="form-select form-select-sm">
+                            <option value="">— Não atribuído —</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button id="btn-ai-analyze" class="btn btn-outline-primary btn-sm w-100">
+                            <i class="fas fa-robot me-1"></i> Analisar com IA
+                        </button>
+                    </div>
+                </div>
+
+                <div id="ai-block" class="alert alert-info small" style="display:none;">
+                    <div class="fw-bold mb-1"><i class="fas fa-robot me-1"></i> Análise de IA</div>
+                    <div id="ai-summary" class="mb-2"></div>
+                    <ul id="ai-recommendations" class="mb-0 ps-3"></ul>
+                </div>
+
+                <ul class="nav nav-tabs mb-2" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-timeline">Histórico</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-rawlog">Log bruto</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-raw">Documento Wazuh</button></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="tab-timeline">
+                        <div id="modal-timeline" class="small"></div>
+                        <hr class="my-2">
+                        <div class="input-group input-group-sm">
+                            <input id="modal-note" class="form-control" placeholder="Adicionar comentário de triagem...">
+                            <button id="btn-add-note" class="btn btn-primary" type="button">Registrar</button>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="tab-rawlog">
+                        <pre class="bg-dark text-light rounded p-3 small" id="modal-full-log"></pre>
+                    </div>
+                    <div class="tab-pane fade" id="tab-raw">
+                        <pre class="bg-dark text-light rounded p-3 small" id="modal-raw"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div class="small text-muted" id="modal-footer-info"></div>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+<script defer>
+  // Ensure Chart is available globally - fallback for UMD issues
+  window.addEventListener('load', () => {
+    if (typeof window.Chart === 'undefined' && window.hasOwnProperty('Chart')) {
+      console.log('Chart module exists, exposing globally');
+    }
+    if (typeof window.Chart === 'undefined') {
+      console.warn('Chart.js failed to load as window.Chart, trying alternative approaches');
+      // Try to get Chart from different possible locations
+      if (typeof Chart !== 'undefined') window.Chart = Chart;
+    }
+  });
+</script>
+<script src="{{ url_for('static', filename='js/pages/wazuh/dashboard.js') }}" defer></script>
+{% endblock %}

@@ -1,5 +1,5 @@
 """
-Open-Monitor Chat Models
+SOC360 Chat Models
 Models para sessoes de chat do chatbot.
 """
 from datetime import datetime

@@ -31,15 +31,7 @@
 /* ========================================\
    2. FONTES E ÍCONES COM FALLBACKS
    ======================================== */
-/* Fontes locais como fallback antes de carregar webfonts */
-@font-face {
-  font-family: 'Inter';
-  font-style: normal;
-  font-weight: 400 700; /* Range de pesos */
-  src: local('Inter Regular'), local('Inter-Regular'),
-       url('/fonts/inter-var.woff2') format('woff2'); /* Caminho otimizado */
-  font-display: swap; /* Carrega a fonte em background e troca quando pronta */
-}
+/* Inter carregada via CDN no base.html — fallback local removido para evitar 404 */
 
 /* Exemplo de fallback para ícones se estiverem em fonte */
 /*

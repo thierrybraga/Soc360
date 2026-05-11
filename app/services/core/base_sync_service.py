@@ -1,5 +1,5 @@
 """
-Open-Monitor Base Sync Service
+SOC360 Base Sync Service
 Common logic for external data synchronization (NVD, EUVD, MITRE).
 """
 import logging
@@ -65,9 +65,13 @@ class BaseSyncService:
 
         # NVD Specific aliases (for compatibility with existing JS)
         if self.prefix == 'nvd':
+            first_sync_raw = SyncMetadata.get('nvd_first_sync_completed', 'false')
             progress.update({
                 'processed_cves': _int('processed_cves', progress['processed']),
                 'total_cves': _int('total_cves', progress['total']),
+                'mode': SyncMetadata.get(self._get_key('mode')),
+                'first_sync_completed': first_sync_raw == 'true',
+                'last_sync': SyncMetadata.get('nvd_last_successful_sync'),
             })
 
         return progress

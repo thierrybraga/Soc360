@@ -27,7 +27,7 @@ class MitreAttackFetcher(BaseFetcher):
     ]
     
     def __init__(self, timeout: int = 60):
-        super().__init__(timeout, user_agent='Open-Monitor/1.0 (Security Intelligence Tool)')
+        super().__init__(timeout, user_agent='SOC360/1.0 (Security Intelligence Tool)')
         # Additional headers if needed
         self.session.headers.update({
             'Accept': 'application/json'

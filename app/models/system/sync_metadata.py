@@ -1,5 +1,5 @@
 """
-Open-Monitor SyncMetadata Model
+SOC360 SyncMetadata Model
 Armazena metadados de sincronização com APIs externas.
 """
 from datetime import datetime
@@ -58,45 +58,72 @@ class SyncMetadata(db.Model):
     @classmethod
     def get(cls, key, default=None):
         """Obtém valor de uma chave."""
-        metadata = cls.query.get(key)
+        metadata = db.session.get(cls, key)
         if metadata:
             return metadata.value
         return default
-    
-    @classmethod
-    def set(cls, key, value):
-        """Define valor de uma chave (cria ou atualiza)."""
-        metadata = cls.query.get(key)
-        if metadata:
-            metadata.value = str(value) if value is not None else None
-            metadata.last_modified = datetime.utcnow()
-        else:
-            metadata = cls(key=key, value=str(value) if value is not None else None)
-            db.session.add(metadata)
-        db.session.commit()
-        return metadata
 
     @classmethod
-    def set_multi(cls, data: dict):
-        """Define múltiplos valores de uma vez."""
-        if not data:
-            return
-        
-        for key, value in data.items():
-            metadata = cls.query.get(key)
+    def set(cls, key, value):
+        """Define valor de uma chave (cria ou atualiza). Tolerante a falha."""
+        try:
+            metadata = db.session.get(cls, key)
             if metadata:
                 metadata.value = str(value) if value is not None else None
                 metadata.last_modified = datetime.utcnow()
             else:
                 metadata = cls(key=key, value=str(value) if value is not None else None)
                 db.session.add(metadata)
-        
-        db.session.commit()
-    
+            db.session.commit()
+            return metadata
+        except Exception as e:
+            # Rollback to unstick the session so subsequent writes don't
+            # fail with PendingRollbackError. This is vital for sync jobs
+            # running on SQLite where transient locks can occur.
+            import logging
+            logging.getLogger(__name__).warning(
+                "SyncMetadata.set failed for key=%s: %s", key, e
+            )
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            return None
+
+    @classmethod
+    def set_multi(cls, data: dict):
+        """Define múltiplos valores de uma vez. Tolerante a falha."""
+        if not data:
+            return
+
+        try:
+            for key, value in data.items():
+                metadata = db.session.get(cls, key)
+                if metadata:
+                    metadata.value = str(value) if value is not None else None
+                    metadata.last_modified = datetime.utcnow()
+                else:
+                    metadata = cls(key=key, value=str(value) if value is not None else None)
+                    db.session.add(metadata)
+
+            db.session.commit()
+        except Exception as e:
+            # Rollback to keep the session usable even if the commit failed
+            # (e.g. SQLite "database is locked" races). Progress updates are
+            # best-effort — losing one should never break the sync.
+            import logging
+            logging.getLogger(__name__).warning(
+                "SyncMetadata.set_multi failed (%d keys): %s", len(data), e
+            )
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
     @classmethod
     def delete(cls, key):
         """Remove uma chave."""
-        metadata = cls.query.get(key)
+        metadata = db.session.get(cls, key)
         if metadata:
             db.session.delete(metadata)
             db.session.commit()

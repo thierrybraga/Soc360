@@ -3,55 +3,7 @@
 {% block title %}Administração de Usuários - Open Monitor{% endblock %}
 
 {% block extra_css %}
-<style>
-.avatar-circle {
-    width: 35px;
-    height: 35px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-    font-size: 14px;
-}
-
-.user-row:hover {
-    background-color: #f8f9fa;
-}
-
-.bulk-actions {
-    background: #e9ecef;
-    padding: 10px 15px;
-    border-radius: 5px;
-    margin-bottom: 15px;
-    display: none;
-}
-
-.form-check-inline {
-    margin-right: 15px;
-}
-
-.event-setting-card .card-header {
-    background: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(255, 255, 255, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    display: none;
-}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -130,7 +82,7 @@
 
                     <div class="table-responsive">
                         <table class="table table-hover" id="users-table">
-                            <thead class="table-light">
+                            <thead class="table-dark">
                                 <tr>
                                     <th width="40">
                                         <input type="checkbox" class="form-check-input" id="select-all-users">

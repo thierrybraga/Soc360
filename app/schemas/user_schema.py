@@ -1,5 +1,5 @@
 """
-Open-Monitor User Schemas
+SOC360 User Schemas
 Schemas for user data serialization and validation.
 """
 from marshmallow import Schema, fields, validate, ValidationError, validates

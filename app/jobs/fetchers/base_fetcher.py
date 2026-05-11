@@ -1,5 +1,5 @@
 """
-Open-Monitor Base Fetcher
+SOC360 Base Fetcher
 Base class for HTTP fetchers with common retry and session setup.
 """
 import logging
@@ -19,7 +19,7 @@ class BaseFetcher:
     Provides common session setup with retry logic.
     """
     
-    def __init__(self, timeout: int = 30, user_agent: str = 'Open-Monitor/1.0'):
+    def __init__(self, timeout: int = 30, user_agent: str = 'SOC360/1.0'):
         self.timeout = timeout
         self.session = self._create_session(user_agent)
     

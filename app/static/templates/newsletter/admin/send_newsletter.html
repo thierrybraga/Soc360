@@ -2,8 +2,12 @@
 
 {% block title %}Newsletter Admin - Enviar Newsletter{% endblock %}
 
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/newsletter.css') }}">
+{% endblock %}
 {% block content %}
-<div class="container-fluid py-4">
+<div class="container-fluid py-4" data-page="newsletter-send">
     <!-- Page Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
@@ -240,7 +244,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="border rounded p-3" style="background-color: #f8f9fa;">
+                <div class="border rounded p-3 newsletter-preview-body">
                     <div class="mb-3">
                         <strong>Assunto:</strong> <span id="previewSubject"></span>
                     </div>
@@ -287,40 +291,8 @@
 {% endif %}
 {% endwith %}
 
-<style>
-.form-control:focus {
-    border-color: #0d6efd;
-    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-}
 
-.form-check-input:checked {
-    background-color: #0d6efd;
-    border-color: #0d6efd;
-}
-
-.card {
-    transition: all 0.3s ease;
-}
-
-.btn {
-    transition: all 0.2s ease;
-}
-
-.btn:hover {
-    transform: translateY(-1px);
-}
-
-#previewContent {
-    min-height: 200px;
-    line-height: 1.6;
-}
-
-.toast {
-    min-width: 300px;
-}
-</style>
-
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Toggle test email field
 document.getElementById('send_test').addEventListener('change', function() {
     const testEmailDiv = document.getElementById('testEmailDiv');

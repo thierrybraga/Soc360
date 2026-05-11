@@ -1,5 +1,5 @@
 """
-Open-Monitor NVD Controller
+SOC360 NVD Controller
 Rotas para gerenciamento de vulnerabilidades.
 """
 from app.controllers.nvd.nvd_controller import nvd_bp

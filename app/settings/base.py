@@ -1,28 +1,39 @@
 """
-Open-Monitor Base Settings
+SOC360 Base Settings
 Shared configurations across all environments.
 """
 import os
 from datetime import timedelta
+from urllib.parse import quote as _urlquote
 
 
 class BaseConfig:
-    """Base configurations for Open-Monitor."""
+    """Base configurations for SOC360."""
     
     # Application
-    APP_NAME = "Open-Monitor"
+    APP_NAME = "SOC360"
     APP_VERSION = "3.0.0"
     
     # Security
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     WTF_CSRF_ENABLED = True
-    WTF_CSRF_TIME_LIMIT = 3600  # 1 hour
+    # Token is tied to the Flask session — no separate time-based expiry
+    # (session lifetime controls the token lifetime). Prevents false-positive
+    # "CSRF token expired" errors when the user leaves a tab/modal open.
+    WTF_CSRF_TIME_LIMIT = None
+    # Headers accepted by Flask-WTF for token lookup (first match wins)
+    WTF_CSRF_HEADERS = ['X-CSRFToken', 'X-CSRF-Token', 'X-XSRF-TOKEN']
     
     # Session
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'True').lower() == 'true'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
-    PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
+    # 8h sliding session — long enough to cover a normal workday of reports
+    # without the CSRF token silently dying while a modal is open.
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+    # Refresh the cookie expiry on every request so idle time inside the app
+    # does not expire the session mid-workflow.
+    SESSION_REFRESH_EACH_REQUEST = True
     
     # SQLAlchemy
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -35,14 +46,14 @@ class BaseConfig:
     # Database URLs
     DB_CORE_HOST = os.environ.get('DB_CORE_HOST', 'postgres_core')
     DB_CORE_PORT = os.environ.get('DB_CORE_PORT', '5432')
-    DB_CORE_NAME = os.environ.get('DB_CORE_NAME', 'open_monitor_core')
-    DB_CORE_USER = os.environ.get('DB_CORE_USER', 'open_monitor')
+    DB_CORE_NAME = os.environ.get('DB_CORE_NAME', 'soc360_core')
+    DB_CORE_USER = os.environ.get('DB_CORE_USER', 'soc360')
     DB_CORE_PASSWORD = os.environ.get('DB_CORE_PASSWORD', 'change_me')
     
     DB_PUBLIC_HOST = os.environ.get('DB_PUBLIC_HOST', 'postgres_public')
     DB_PUBLIC_PORT = os.environ.get('DB_PUBLIC_PORT', '5432')
-    DB_PUBLIC_NAME = os.environ.get('DB_PUBLIC_NAME', 'open_monitor_public')
-    DB_PUBLIC_USER = os.environ.get('DB_PUBLIC_USER', 'open_monitor')
+    DB_PUBLIC_NAME = os.environ.get('DB_PUBLIC_NAME', 'soc360_public')
+    DB_PUBLIC_USER = os.environ.get('DB_PUBLIC_USER', 'soc360')
     DB_PUBLIC_PASSWORD = os.environ.get('DB_PUBLIC_PASSWORD', 'change_me')
     
     SQLALCHEMY_DATABASE_URI = f"postgresql://{DB_CORE_USER}:{DB_CORE_PASSWORD}@{DB_CORE_HOST}:{DB_CORE_PORT}/{DB_CORE_NAME}"
@@ -57,12 +68,15 @@ class BaseConfig:
     REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
     REDIS_DB = int(os.environ.get('REDIS_DB', 0))
     REDIS_PASSWORD = os.environ.get('REDIS_PASSWORD', None)
-    REDIS_URL = os.environ.get('REDIS_URL', f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
+    # URL-encode the password so special chars like # $ @ don't break URL parsing
+    _redis_pw_encoded = _urlquote(REDIS_PASSWORD, safe='') if REDIS_PASSWORD else None
+    _redis_auth = f":{_redis_pw_encoded}@" if _redis_pw_encoded else ""
+    REDIS_URL = os.environ.get('REDIS_URL', f"redis://{_redis_auth}{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}")
     CACHE_DEFAULT_TTL = 900  # 15 minutes
-    
+
     # Celery
-    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', f"redis://{REDIS_HOST}:{REDIS_PORT}/1")
-    CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', f"redis://{REDIS_HOST}:{REDIS_PORT}/1")
+    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', f"redis://{_redis_auth}{REDIS_HOST}:{REDIS_PORT}/1")
+    CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', f"redis://{_redis_auth}{REDIS_HOST}:{REDIS_PORT}/2")
     CELERY_ACCEPT_CONTENT = ['json']
     CELERY_TASK_SERIALIZER = 'json'
     CELERY_RESULT_SERIALIZER = 'json'
@@ -90,12 +104,12 @@ class BaseConfig:
     NVD_RESULTS_PER_PAGE = 2000
     
     # ── AI Provider ────────────────────────────────────────────────────────
-    # AI_PROVIDER: 'ollama' (local, padrão) | 'openai'
-    AI_PROVIDER = os.environ.get('AI_PROVIDER', 'ollama')
+    # AI_PROVIDER: 'openai' (padrão, demo mode sem chave) | 'ollama' (local)
+    AI_PROVIDER = os.environ.get('AI_PROVIDER', 'openai')
 
     # Ollama (local)
     OLLAMA_BASE_URL   = os.environ.get('OLLAMA_BASE_URL',  'http://localhost:11434/v1')
-    OLLAMA_MODEL      = os.environ.get('OLLAMA_MODEL',     'llama3.2:latest')
+    OLLAMA_MODEL      = os.environ.get('OLLAMA_MODEL',     'gemma4:e4b')
     OLLAMA_MAX_TOKENS = int(os.environ.get('OLLAMA_MAX_TOKENS', 2048))
     OLLAMA_TEMPERATURE = float(os.environ.get('OLLAMA_TEMPERATURE', 0.7))
 
@@ -111,7 +125,7 @@ class BaseConfig:
     MAIL_USE_TLS = os.environ.get('MAIL_USE_TLS', 'True').lower() == 'true'
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME', None)
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', None)
-    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@open-monitor.local')
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@soc360.local')
     
     # Rate Limiting
     RATE_LIMIT_LOGIN_ATTEMPTS = 5
@@ -139,6 +153,12 @@ class BaseConfig:
     
     # Reports
     REPORTS_DIR = os.environ.get('REPORTS_DIR', '/app/reports')
+
+    # Cisco Umbrella
+    UMBRELLA_USE_MOCK = os.environ.get('UMBRELLA_USE_MOCK', 'true').lower() == 'true'
+    UMBRELLA_API_KEY = os.environ.get('UMBRELLA_API_KEY', None)
+    UMBRELLA_API_SECRET = os.environ.get('UMBRELLA_API_SECRET', None)
+    UMBRELLA_REPORTS_DIR = os.environ.get('UMBRELLA_REPORTS_DIR', os.path.join(REPORTS_DIR, 'umbrella'))
     
     # Logging
     LOG_LEVEL = os.environ.get('LOG_LEVEL', 'INFO')
@@ -147,7 +167,7 @@ class BaseConfig:
     # Auto Root User
     AUTO_CREATE_ROOT = os.environ.get('AUTO_CREATE_ROOT', 'false').lower() == 'true'
     AUTO_ROOT_USERNAME = os.environ.get('AUTO_ROOT_USERNAME', 'admin')
-    AUTO_ROOT_EMAIL = os.environ.get('AUTO_ROOT_EMAIL', 'admin@open-monitor.local')
+    AUTO_ROOT_EMAIL = os.environ.get('AUTO_ROOT_EMAIL', 'admin@soc360.local')
     AUTO_ROOT_PASSWORD = os.environ.get('AUTO_ROOT_PASSWORD', None)
 
     @staticmethod
@@ -174,13 +194,22 @@ class BaseConfig:
                 'core': 'sqlite:///' + db_path,
                 'public': 'sqlite:///' + db_path
             }
-            # StaticPool: compartilha uma única conexão entre threads de forma segura
-            from sqlalchemy.pool import StaticPool
+            # NullPool: cada thread obtém sua própria conexão SQLite independente.
+            # timeout=30: threads aguardam até 30s pelo lock ao invés de falhar imediatamente.
+            # WAL mode via creator: permite leituras concorrentes durante escritas.
+            from sqlalchemy.pool import NullPool
+            import sqlite3
+
+            def _sqlite_creator():
+                conn = sqlite3.connect(db_path, timeout=30, check_same_thread=False)
+                conn.execute('PRAGMA journal_mode=WAL')
+                conn.execute('PRAGMA synchronous=NORMAL')
+                conn.execute('PRAGMA busy_timeout=30000')
+                return conn
+
             app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-                'connect_args': {'check_same_thread': False},
-                'poolclass': StaticPool,
+                'creator': _sqlite_creator,
+                'poolclass': NullPool,
             }
-            app.config['REDIS_URL'] = None
-            app.config['REDIS_HOST'] = 'localhost'
             app.config['DB_CORE_HOST'] = 'localhost'
             app.config['DB_PUBLIC_HOST'] = 'localhost'

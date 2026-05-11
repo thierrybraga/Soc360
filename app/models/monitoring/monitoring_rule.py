@@ -1,5 +1,5 @@
 """
-Open-Monitor MonitoringRule Model
+SOC360 MonitoringRule Model
 Model para regras de monitoramento e alertas.
 """
 from datetime import datetime

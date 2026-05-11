@@ -1,5 +1,5 @@
 """
-Open-Monitor Fortinet Matching Service
+SOC360 Fortinet Matching Service
 Serviço de matching otimizado para CVEs de produtos Fortinet.
 """
 import logging
@@ -111,7 +111,7 @@ class FortinetMatchingService:
             query = query.filter(Vulnerability.is_in_cisa_kev == True)  # noqa: E712
 
         query = query.order_by(
-            Vulnerability.cvss_score.desc().nullslast(),
+            Vulnerability.cvss_score.desc().nulls_last(),
             Vulnerability.published_date.desc()
         )
 
@@ -168,7 +168,7 @@ class FortinetMatchingService:
             query = query.filter(Vulnerability.base_severity.in_(severity_filter))
 
         query = query.order_by(
-            Vulnerability.cvss_score.desc().nullslast(),
+            Vulnerability.cvss_score.desc().nulls_last(),
             Vulnerability.published_date.desc()
         )
 

@@ -131,7 +131,6 @@ p {
   color: var(--content-strong);
   margin-bottom: var(--space-md);
   text-wrap: pretty; /* Melhor quebra de linha para parágrafos */
-  max-width: 65ch; /* Largura ideal para leitura */
 }
 
 /* Parágrafo de destaque */
@@ -141,7 +140,6 @@ p.lead {
   line-height: 1.6;
   color: var(--content-strong);
   margin-bottom: var(--space-lg);
-  max-width: 60ch;
 }
 
 /* Texto pequeno */

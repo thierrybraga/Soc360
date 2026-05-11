@@ -1,5 +1,5 @@
 """
-Open-Monitor Account Controller Package
+SOC360 Account Controller Package
 """
 from app.controllers.account.account_controller import account_bp
 

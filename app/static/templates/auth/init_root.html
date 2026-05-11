@@ -6,6 +6,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/auth-enhanced.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -129,7 +130,7 @@
             <div class="row">
                 <div class="col-12 col-lg-6">
                     <div class="form-section h-100">
-                        <h3><i class="fas fa-key"></i> API do NVD <span class="badge badge-secondary ml-2" style="font-size: 0.7em;">Opcional</span></h3>
+                        <h3><i class="fas fa-key"></i> API do NVD <span class="badge badge-secondary ml-2 badge-sm-text">Opcional</span></h3>
                         <p class="section-desc">
                             Aumenta o limite de requisições para 50/30s.
                             <a href="https://nvd.nist.gov/developers/request-an-api-key" target="_blank" class="text-primary">

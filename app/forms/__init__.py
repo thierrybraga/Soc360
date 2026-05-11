@@ -1,5 +1,5 @@
 """
-Open-Monitor Forms Package
+SOC360 Forms Package
 Flask-WTF form classes.
 """
 

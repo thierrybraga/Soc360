@@ -1,5 +1,5 @@
 """
-Open-Monitor Inventory Models
+SOC360 Inventory Models
 Models de gestão de ativos.
 """
 from app.models.inventory.asset import Asset

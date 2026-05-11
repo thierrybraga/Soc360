@@ -1,5 +1,5 @@
 """
-Open-Monitor Auth Controller Package
+SOC360 Auth Controller Package
 """
 from app.controllers.auth.auth_controller import auth_bp
 

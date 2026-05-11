@@ -1,5 +1,5 @@
 """
-Open-Monitor Fortinet Presets
+SOC360 Fortinet Presets
 Configurações e CPEs pré-definidos para produtos Fortinet.
 """
 from typing import Dict, List, Optional

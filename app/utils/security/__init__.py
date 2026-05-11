@@ -1,5 +1,5 @@
 """
-Open-Monitor Security Utils Package
+SOC360 Security Utils Package
 Security utilities: headers, encryption, audit logging, rate limiting, validation.
 """
 

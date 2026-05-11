@@ -156,24 +156,11 @@
    Loading Overlays
    ========================================================================== */
 
-/* Overlay de loading */
-.loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--loading-overlay);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(2px);
-    animation: fadeIn 0.3s ease-out;
-}
+/* Loading overlay — defined in components.css with position:fixed and correct z-index.
+   Do not redefine here to avoid cascade conflicts. */
 
 .loading-overlay.dark {
-    background: var(--loading-overlay-dark);
+    background: rgba(0, 0, 0, 0.85);
     color: white;
 }
 

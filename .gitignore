@@ -129,12 +129,27 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Docker secrets — NUNCA commitar arquivos de secret reais
+secrets/*.txt
+secrets/*.pem
+secrets/*.key
+
+# Runtime artifacts
+logs/
+uploads/
+reports/
+instance/
+data/
+backups/
 
 # Spyder project settings
 .spyderproject

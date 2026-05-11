@@ -1,0 +1,14 @@
+/* === Newsletter Admin pages === */
+.nl-avatar-sm { width: 32px; height: 32px; object-fit: cover; border-radius: 50%; }
+[data-page="newsletter-dashboard"] .card { transition: transform .2s ease-in-out; }
+[data-page="newsletter-dashboard"] .card:hover { transform: translateY(-2px); }
+[data-page="newsletter-subscribers"] .table th { font-weight: 600; color: var(--text-secondary); border-bottom: 2px solid var(--border-color); }
+[data-page="newsletter-subscribers"] .table td { vertical-align: middle; }
+[data-page="newsletter-send"] .form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 .2rem rgba(13,110,253,.25); }
+[data-page="newsletter-send"] #previewContent { min-height: 200px; line-height: 1.6; }
+[data-page="newsletter-send"] .toast { min-width: 300px; }
+[data-page="newsletter-unsubscribe"] .card { border: none; border-radius: 15px; }
+[data-page="newsletter-unsubscribe"] .card-header { border-bottom: 2px solid #ffc107; }
+[data-page="newsletter-unsubscribe"] .btn { border-radius: 8px; font-weight: 500; }
+/* Preview modal content area */
+.newsletter-preview-body { background: var(--bg-secondary); }

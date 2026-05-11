@@ -1,8 +1,8 @@
 """
-Open-Monitor Alert Model
+SOC360 Alert Model
 Model para alertas gerados por regras de monitoramento.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Integer, Text, ForeignKey, DateTime, Boolean
 from app.extensions.db_types import JSONB
 from sqlalchemy.orm import relationship
@@ -64,16 +64,16 @@ class Alert(CoreModel):
 
     def mark_as_acknowledged(self, user_id):
         self.status = AlertStatus.ACKNOWLEDGED.value
-        self.acknowledged_at = datetime.utcnow()
+        self.acknowledged_at = datetime.now(timezone.utc)
         self.acknowledged_by_id = user_id
 
     def mark_as_resolved(self, user_id):
         self.status = AlertStatus.RESOLVED.value
-        self.resolved_at = datetime.utcnow()
+        self.resolved_at = datetime.now(timezone.utc)
         self.resolved_by_id = user_id
 
     def mark_as_dismissed(self, user_id):
         self.status = AlertStatus.DISMISSED.value
         # Dismissed is effectively resolved but ignored
-        self.resolved_at = datetime.utcnow()
+        self.resolved_at = datetime.now(timezone.utc)
         self.resolved_by_id = user_id

@@ -1,10 +1,12 @@
 """
-Open-Monitor Database Types
+SOC360 Database Types
 Database type definitions and utilities.
 """
+import json
 import os
 from sqlalchemy import JSON, String, Text
 from sqlalchemy.dialects.postgresql import JSONB as PG_JSONB, INET as PG_INET, ARRAY as PG_ARRAY
+from sqlalchemy.types import TypeDecorator
 
 # Determine SQLite usage from environment and known fallback path
 basedir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -21,18 +23,38 @@ JSONB = JSON if USE_SQLITE else PG_JSONB
 # INET type - use String for SQLite
 INET = String(43) if USE_SQLITE else PG_INET
 
-# ARRAY type - use Text for SQLite (store as JSON)
-# Note: For SQLite, we need a wrapper class that returns Text() when instantiated
+# ARRAY type - proper TypeDecorator for SQLite, stores arrays as JSON text
 if USE_SQLITE:
-    class SQLiteARRAY:
-        """Wrapper for ARRAY type in SQLite - returns Text() regardless of item_type."""
-        def __init__(self, item_type=None):
-            # Ignore the item_type parameter for SQLite, use Text
-            self._type = Text()
-        
-        def __getattr__(self, name):
-            return getattr(self._type, name)
-    
-    ARRAY = SQLiteARRAY
+    class JSONEncodedArray(TypeDecorator):
+        """Stores a Python list as a JSON-encoded TEXT string for SQLite compatibility.
+
+        Accepts an optional ``item_type`` argument (like PostgreSQL ARRAY) so it can
+        be used as a drop-in replacement: ``ARRAY(String(255))``.
+        """
+        impl = Text
+        cache_ok = True
+
+        def __init__(self, item_type=None, **kwargs):
+            # item_type is ignored; all values serialised as JSON text
+            super().__init__()
+
+        def process_bind_param(self, value, dialect):
+            if value is None:
+                return None
+            if isinstance(value, list):
+                return json.dumps(value)
+            return value  # pass-through if already a string (e.g. during migrations)
+
+        def process_result_value(self, value, dialect):
+            if value is None:
+                return None
+            if isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except (TypeError, ValueError):
+                    return value
+            return value  # already a list (shouldn't happen in SQLite, but safe)
+
+    ARRAY = JSONEncodedArray
 else:
     ARRAY = PG_ARRAY

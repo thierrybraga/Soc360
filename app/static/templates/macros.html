@@ -104,7 +104,7 @@
       </div>
     </nav>
     
-    <script>
+    <script nonce="{{ csp_nonce() }}">
       function changePerPage(perPage) {
         const url = new URL(window.location);
         url.searchParams.set('per_page', perPage);

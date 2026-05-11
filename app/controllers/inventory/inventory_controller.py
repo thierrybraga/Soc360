@@ -1,5 +1,5 @@
 """
-Open-Monitor Inventory Controller
+SOC360 Inventory Controller
 Rotas para gerenciamento de ativos e inventário.
 """
 import logging
@@ -655,56 +655,89 @@ def stats():
 def detail(asset_id):
     """Detalhes de um ativo."""
     asset = Asset.query.get_or_404(asset_id)
-    
+
     if not current_user.is_admin and asset.owner_id != current_user.id:
         abort(403)
-    from sqlalchemy import func
-    from app.models.inventory.asset_vulnerability import AssetVulnerability
-    from app.models.nvd.vulnerability import Vulnerability
-    status_counts = AssetVulnerability.count_by_status(asset_id=asset_id)
-    associations = AssetVulnerability.query.filter_by(asset_id=asset_id).all()
+
+    # ------------------------------------------------------------------
+    # Pre-fetch all associations and batch-load vulnerabilities from the
+    # public DB in one query — avoids N+1 and broken attribute access in
+    # the template (AssetVulnerability has no .severity attribute).
+    # ------------------------------------------------------------------
+    associations = (
+        AssetVulnerability.query
+        .filter_by(asset_id=asset_id)
+        .order_by(
+            AssetVulnerability.contextual_risk_score.desc(),
+            AssetVulnerability.discovered_at.desc()
+        )
+        .all()
+    )
+
     cve_ids = [a.cve_id for a in associations]
-    severity_counts = {}
+
+    # Batch-load from public DB
+    vuln_map = {}
     if cve_ids:
-        vulns = Vulnerability.query.filter(Vulnerability.cve_id.in_(cve_ids)).all()
-        for v in vulns:
-            key = v.base_severity or 'UNKNOWN'
-            severity_counts[key] = severity_counts.get(key, 0) + 1
+        from app.models.nvd.vulnerability import Vulnerability as _Vuln
+        vulns_batch = _Vuln.query.filter(_Vuln.cve_id.in_(cve_ids)).all()
+        vuln_map = {v.cve_id: v for v in vulns_batch}
+
+    # Build enriched rows — everything the template needs in one dict per row
+    open_statuses = {VulnerabilityStatus.OPEN.value, VulnerabilityStatus.IN_PROGRESS.value}
+    vuln_rows = []
+    severity_counts = {}
+    for assoc in associations:
+        vuln = vuln_map.get(assoc.cve_id)
+        severity = (vuln.base_severity or 'UNKNOWN') if vuln else 'UNKNOWN'
+        severity_counts[severity] = severity_counts.get(severity, 0) + 1
+        vuln_rows.append({
+            'cve_id':               assoc.cve_id,
+            'status':               assoc.status,
+            'severity':             severity,
+            'cvss_score':           float(vuln.cvss_score) if vuln and vuln.cvss_score else None,
+            'contextual_risk':      assoc.contextual_risk_score,
+            'discovered_at':        assoc.discovered_at,
+            'days_open':            assoc.days_open,
+            'is_overdue':           assoc.is_overdue,
+            'is_open':              assoc.status in open_statuses,
+            'notes':                assoc.notes,
+            'description':          (vuln.description[:160] if vuln and vuln.description else None),
+            'cisa_kev':             bool(getattr(vuln, 'cisa_kev', False)) if vuln else False,
+        })
+
+    status_counts = AssetVulnerability.count_by_status(asset_id=asset_id)
     total_associations = len(associations)
-    
-    # Calculate overall asset risk radar data if possible
+
+    # ------------------------------------------------------------------
+    # Radar chart — all values on a 0-10 scale
+    # ------------------------------------------------------------------
     radar_chart = None
-    if associations:
-        # Average metrics from open vulnerabilities
-        open_vulns = [a for a in associations if a.status in [VulnerabilityStatus.OPEN.value, VulnerabilityStatus.IN_PROGRESS.value]]
-        if open_vulns:
-            avg_cvss = sum(float(v.vulnerability.cvss_score or 0) for v in open_vulns if v.vulnerability) / len(open_vulns)
+    open_rows = [r for r in vuln_rows if r['is_open']]
+    if open_rows:
+        scores = [r['cvss_score'] for r in open_rows if r['cvss_score'] is not None]
+        avg_cvss = round(sum(scores) / len(scores), 1) if scores else 0.0
 
-            criticality_map = {'LOW': 2, 'MEDIUM': 5, 'HIGH': 8, 'CRITICAL': 10}
-            env_map = {'PRODUCTION': 10, 'STAGING': 7, 'DEV': 4, 'DMZ': 9}
-            exp_map = {'INTERNAL': 4, 'CLOUD': 7, 'EXTERNAL': 10}
+        criticality_map = {'LOW': 2, 'MEDIUM': 5, 'HIGH': 8, 'CRITICAL': 10}
+        env_map    = {'PRODUCTION': 10, 'STAGING': 7,  'DEV': 4,  'DMZ': 9}
+        exp_map    = {'INTERNAL':    4, 'CLOUD':   7,  'EXTERNAL': 10}
 
-            bia = float(asset.bia_score or 0)
-            crit_val = int(criticality_map.get((asset.criticality or '').upper(), 5))
-            exp_val = int(exp_map.get((asset.exposure or '').upper(), 5))
-            env_val = int(env_map.get((asset.environment or '').upper(), 5))
+        bia      = round(float(asset.bia_score or 0) / 10, 1)
+        crit_val = criticality_map.get((asset.criticality or '').upper(), 5)
+        env_val  = env_map.get((asset.environment or '').upper(), 5)
+        exp_val  = exp_map.get((asset.exposure   or '').upper(), 5)
 
-            radar_chart = {
-                'labels': ['Avg CVSS', 'BIA Score', 'Criticality', 'Exposure', 'Environment'],
-                'data': [
-                    round(avg_cvss, 1),
-                    round(bia / 10, 1),
-                    crit_val,
-                    exp_val,
-                    env_val
-                ]
-            }
+        radar_chart = {
+            'labels': ['Avg CVSS', 'BIA Score', 'Criticidade', 'Exposição', 'Ambiente'],
+            'values': [avg_cvss, bia, crit_val, exp_val, env_val],
+        }
 
     return render_template(
         'inventory/detail.html',
         asset=asset,
+        vuln_rows=vuln_rows,
         status_counts=status_counts,
         severity_counts=severity_counts,
         total_associations=total_associations,
-        radar_chart=radar_chart
+        radar_chart=radar_chart,
     )

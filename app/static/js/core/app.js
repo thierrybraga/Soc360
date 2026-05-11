@@ -1,5 +1,5 @@
 /**
- * Open-Monitor v3.0 - Main Application JavaScript
+ * SOC360 v3.0 - Main Application JavaScript
  * Global utilities, API client, and UI components
  */
 
@@ -9,13 +9,14 @@
 // APPLICATION NAMESPACE
 // =============================================================================
 
-window.OpenMonitor = window.OpenMonitor || {};
+window.SOC360 = window.SOC360 || {};
+window.OpenMonitor = window.SOC360; // backward compat
 
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
 
-OpenMonitor.config = {
+SOC360.config = {
     apiBaseUrl: '',
     csrfToken: document.querySelector('meta[name="csrf-token"]')?.content,
     defaultTimeout: 30000,
@@ -28,33 +29,84 @@ OpenMonitor.config = {
 // API CLIENT
 // =============================================================================
 
-OpenMonitor.api = {
+SOC360.api = {
+    /**
+     * Fetch a fresh CSRF token from the server and update the cached value
+     * and the <meta name="csrf-token"> tag. Returns the new token (or null on failure).
+     */
+    async refreshCsrfToken() {
+        try {
+            const res = await fetch('/api/v1/csrf-token', {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!res.ok) return null;
+            const body = await res.json().catch(() => ({}));
+            const token = body.csrf_token;
+            if (token) {
+                OpenMonitor.config.csrfToken = token;
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta) meta.setAttribute('content', token);
+                return token;
+            }
+        } catch (e) {
+            /* fallthrough — return null */
+        }
+        return null;
+    },
+
     /**
      * Generic request method
      */
     async request(endpoint, options = {}) {
         const url = `${OpenMonitor.config.apiBaseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
-        
-        const defaultHeaders = {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': OpenMonitor.config.csrfToken
+
+        const method = (options.method || 'GET').toUpperCase();
+        const needsCsrf = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+
+        const buildConfig = () => {
+            const defaultHeaders = { 'Content-Type': 'application/json' };
+            if (needsCsrf) {
+                defaultHeaders['X-CSRFToken'] = OpenMonitor.config.csrfToken || '';
+            }
+            return {
+                credentials: 'same-origin',
+                ...options,
+                headers: {
+                    ...defaultHeaders,
+                    ...options.headers
+                }
+            };
         };
 
-        const config = {
-            ...options,
-            headers: {
-                ...defaultHeaders,
-                ...options.headers
-            }
-        };
+        const doFetch = async () => fetch(url, buildConfig());
 
         try {
-            const response = await fetch(url, config);
-            
+            let response = await doFetch();
+
             // Handle 401 Unauthorized (redirect to login)
             if (response.status === 401) {
                 window.location.href = '/auth/login';
                 return;
+            }
+
+            // On CSRF failure (typically 400 with code CSRF_ERROR) — refresh
+            // token once and retry before surfacing the error to the user.
+            if (needsCsrf && response.status === 400 && !options._csrfRetry) {
+                const cloned = response.clone();
+                let payload = null;
+                try { payload = await cloned.json(); } catch (_) { /* not json */ }
+                const looksLikeCsrf = payload && (
+                    payload.code === 'CSRF_ERROR' ||
+                    /csrf/i.test(payload.message || payload.error || '')
+                );
+                if (looksLikeCsrf) {
+                    const newToken = await this.refreshCsrfToken();
+                    if (newToken) {
+                        return this.request(endpoint, { ...options, _csrfRetry: true });
+                    }
+                }
             }
 
             // Handle different response types
@@ -62,7 +114,7 @@ OpenMonitor.api = {
                 if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
                 return await response.blob();
             }
-            
+
             if (options.responseType === 'text') {
                 if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
                 return await response.text();
@@ -380,43 +432,61 @@ OpenMonitor.ui = {
      */
     async confirm(message, options = {}) {
         return new Promise((resolve) => {
+            // Create modal with proper Bootstrap 5 structure
             const modal = document.createElement('div');
-            modal.className = 'modal show';
+            modal.className = 'modal fade show';
+            modal.style.display = 'block';
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            
             modal.innerHTML = `
-                <div class="modal-header">
-                    <h3 class="modal-title">
-                        <i class="fas ${options.icon || 'fa-question-circle'}"></i>
-                        ${options.title || 'Confirm'}
-                    </h3>
-                </div>
-                <div class="modal-body">
-                    <p>${OpenMonitor.utils.escapeHtml(message)}</p>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" data-action="cancel">
-                        ${options.cancelText || 'Cancel'}
-                    </button>
-                    <button class="btn ${options.confirmClass || 'btn-primary'}" data-action="confirm">
-                        ${options.confirmText || 'Confirm'}
-                    </button>
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas ${options.icon || 'fa-question-circle'} me-2"></i>
+                                ${options.title || 'Confirmar'}
+                            </h5>
+                            <button type="button" class="btn-close" data-action="cancel" aria-label="Fechar"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="mb-0">${OpenMonitor.utils.escapeHtml(message)}</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-action="cancel">
+                                ${options.cancelText || 'Cancelar'}
+                            </button>
+                            <button type="button" class="btn ${options.confirmClass || 'btn-primary'}" data-action="confirm">
+                                ${options.confirmText || 'Confirmar'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             `;
 
+            // Create backdrop
             const backdrop = document.createElement('div');
-            backdrop.className = 'modal-backdrop show';
+            backdrop.className = 'modal-backdrop fade show';
 
+            // Prevent body scroll
+            document.body.classList.add('modal-open');
+            document.body.style.overflow = 'hidden';
+            
             document.body.appendChild(backdrop);
             document.body.appendChild(modal);
 
             const cleanup = () => {
                 modal.classList.remove('show');
                 backdrop.classList.remove('show');
+                document.body.classList.remove('modal-open');
+                document.body.style.overflow = '';
                 setTimeout(() => {
                     modal.remove();
                     backdrop.remove();
-                }, 200);
+                }, 150);
             };
 
+            // Bind events
             modal.querySelector('[data-action="cancel"]').addEventListener('click', () => {
                 cleanup();
                 resolve(false);
@@ -431,6 +501,16 @@ OpenMonitor.ui = {
                 cleanup();
                 resolve(false);
             });
+
+            // Handle Escape key
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                    resolve(false);
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
         });
     },
 
@@ -990,7 +1070,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    console.log('Open-Monitor v3.0 initialized');
+    console.log('SOC360 v3.0 initialized');
 });
 
 // Export for module usage

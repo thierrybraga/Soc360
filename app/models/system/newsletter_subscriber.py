@@ -1,5 +1,5 @@
 """
-Open-Monitor Newsletter Subscriber Model
+SOC360 Newsletter Subscriber Model
 Model para assinaturas de newsletter.
 """
 from datetime import datetime

@@ -1,5 +1,5 @@
 """
-Open-Monitor NVD Models
+SOC360 NVD Models
 Models relacionados ao NVD (National Vulnerability Database).
 """
 from app.models.nvd.vulnerability import Vulnerability

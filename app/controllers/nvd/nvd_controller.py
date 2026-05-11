@@ -1,5 +1,5 @@
 """
-Open-Monitor NVD Controller
+SOC360 NVD Controller
 Rotas para visualização e gerenciamento de vulnerabilidades.
 """
 import logging
@@ -9,7 +9,7 @@ from statistics import mean
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import func
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from app.extensions import db
 from app.models.nvd import Vulnerability, CvssMetric, Weakness, Reference, Mitigation, Credit, AffectedProduct
@@ -242,9 +242,9 @@ def list_vulnerabilities():
         Vulnerability, sort_field, Vulnerability.published_date
     )
     if sort_order == 'desc':
-        query = query.order_by(sort_column.desc().nullslast())
+        query = query.order_by(sort_column.desc().nulls_last())
     else:
-        query = query.order_by(sort_column.asc().nullsfirst())
+        query = query.order_by(sort_column.asc().nulls_first())
 
     # Paginação
     pagination = query.paginate(
@@ -336,7 +336,11 @@ def list_vulnerabilities():
 @login_required
 def detail(cve_id):
     """Detalhes de uma vulnerabilidade."""
-    vuln = Vulnerability.query.filter_by(cve_id=cve_id.upper()).first_or_404()
+    from app.models.mitre import Technique
+    vuln = Vulnerability.query.options(
+        selectinload(Vulnerability.mitre_techniques).selectinload(Technique.tactics),
+        selectinload(Vulnerability.mitre_techniques).selectinload(Technique.mitigations),
+    ).filter_by(cve_id=cve_id.upper()).first_or_404()
 
     # Carregar relacionamentos explicitamente
     cvss_metrics = CvssMetric.query.filter_by(cve_id=vuln.cve_id).all()
@@ -344,7 +348,17 @@ def detail(cve_id):
     references = Reference.query.filter_by(cve_id=vuln.cve_id).all()
 
     mitigations = Mitigation.query.filter_by(cve_id=vuln.cve_id).all()
-    credits = Credit.query.filter_by(cve_id=vuln.cve_id).all()
+    credits_raw = Credit.query.filter_by(cve_id=vuln.cve_id).all()
+    # Deduplicate credits by normalized (value, type) — NVD feeds often return
+    # the same researcher under multiple credit types or with trivial case/whitespace diffs.
+    _seen_credit_keys = set()
+    credits = []
+    for _c in credits_raw:
+        _key = ((_c.value or '').strip().lower(), (_c.type or '').strip().lower())
+        if not _key[0] or _key in _seen_credit_keys:
+            continue
+        _seen_credit_keys.add(_key)
+        credits.append(_c)
     affected_products = AffectedProduct.query.filter_by(cve_id=vuln.cve_id).all()
 
     # Importar models de inventory (cross-db)
@@ -359,7 +373,7 @@ def detail(cve_id):
     )
 
     affected_assets = affected_assets_query.order_by(
-        Asset.name.asc().nullslast(),
+        Asset.name.asc().nulls_last(),
         AssetVulnerability.discovered_at.desc()
     ).all()
 
@@ -389,7 +403,14 @@ def detail(cve_id):
         reverse=True
     )[:3]
 
-    primary_metric = cvss_metrics[0] if cvss_metrics else None
+    # Escolher a métrica primária (prefere CVSS v3.x > v2.0)
+    primary_metric = None
+    if cvss_metrics:
+        v3_metrics = [m for m in cvss_metrics if (m.version or '').startswith('3')]
+        v4_metrics = [m for m in cvss_metrics if (m.version or '').startswith('4')]
+        primary_metric = (v4_metrics or v3_metrics or cvss_metrics)[0]
+
+    # Threat Intel score (0–10)
     threat_intel_score = 0
     if vuln.exploit_available:
         threat_intel_score += 4
@@ -398,21 +419,34 @@ def detail(cve_id):
     if not vuln.patch_available:
         threat_intel_score += 2
     threat_intel_score = min(threat_intel_score, 10)
-    exposure_score = min(len(affected_assets) * 2, 10)
-    open_risk_score = None
-    if avg_contextual_risk is not None:
-        open_scores = [av.contextual_risk_score for av in affected_assets if av.status in open_statuses and av.contextual_risk_score is not None]
-        open_risk_score = round(mean(open_scores), 2) if open_scores else avg_contextual_risk
 
+    # Exposure score baseado em número de ativos + severidade agregada
+    exposure_score = min(len(affected_assets) * 2, 10) if affected_assets else 0.0
+
+    # Open Risk score — média de risco contextual dos ativos OPEN/IN_PROGRESS
+    if avg_contextual_risk is not None:
+        open_scores = [av.contextual_risk_score for av in affected_assets
+                       if av.status in open_statuses and av.contextual_risk_score is not None]
+        open_risk_score = round(mean(open_scores), 2) if open_scores else avg_contextual_risk
+    else:
+        open_risk_score = 0.0
+
+    # Derivar exploitability/impact se a métrica não tiver (fallback usando o próprio CVSS)
+    base_score = round(float(vuln.cvss_score or 0), 2)
+    if primary_metric and primary_metric.exploitability_score is not None:
+        exploitability_val = round(float(primary_metric.exploitability_score), 2)
+    else:
+        # heurística: ~40% do base score se indisponível
+        exploitability_val = round(base_score * 0.4, 2)
+    if primary_metric and primary_metric.impact_score is not None:
+        impact_val = round(float(primary_metric.impact_score), 2)
+    else:
+        impact_val = round(base_score * 0.6, 2)
+
+    # Radar chart — sempre renderiza quando houver ao menos o CVSS base;
+    # dimensões de inventário podem ser 0 quando não há ativos associados.
     radar_chart = None
-    if (
-        vuln.cvss_score is not None
-        and primary_metric
-        and primary_metric.exploitability_score is not None
-        and primary_metric.impact_score is not None
-        and open_risk_score is not None
-        and len(affected_assets) > 0
-    ):
+    if vuln.cvss_score is not None or primary_metric:
         radar_chart = {
             'labels': [
                 'CVSS Base',
@@ -420,16 +454,16 @@ def detail(cve_id):
                 'Impact',
                 'Asset Exposure',
                 'Open Risk',
-                'Threat Intel'
+                'Threat Intel',
             ],
             'values': [
-                round(vuln.cvss_score, 2),
-                round(primary_metric.exploitability_score, 2),
-                round(primary_metric.impact_score, 2),
-                round(exposure_score, 2),
-                round(open_risk_score, 2),
+                base_score,
+                exploitability_val,
+                impact_val,
+                round(float(exposure_score), 2),
+                round(float(open_risk_score), 2),
                 round(float(threat_intel_score), 2),
-            ]
+            ],
         }
 
     # Separar referências por tipo
@@ -825,9 +859,14 @@ def sync_page():
     """Página de gerenciamento de sincronização."""
     from app.models.system import SyncMetadata
     from datetime import datetime, timezone
-    import os
+    from flask import current_app
 
-    api_key = SyncMetadata.get_value('nvd_api_key') or os.environ.get('NVD_API_KEY')
+    # Prioriza SyncMetadata, depois config do Flask, depois env
+    api_key = (
+        SyncMetadata.get_value('nvd_api_key') or 
+        current_app.config.get('NVD_API_KEY') or 
+        current_app.config.get('nvd_api_key')
+    )
     api_key_configured = bool(api_key)
 
     return render_template(

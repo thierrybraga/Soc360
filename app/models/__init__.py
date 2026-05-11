@@ -1,5 +1,5 @@
 """
-Open-Monitor Models
+SOC360 Models
 Exportação centralizada de todos os models.
 """
 # System Models
@@ -69,6 +69,22 @@ from app.models.monitoring import (
     ApiCallLog
 )
 
+# Wazuh SIEM Models
+from app.models.wazuh import (
+    WazuhAlert,
+    WazuhTreatmentNote,
+)
+
+# Cisco Umbrella Models
+from app.models.umbrella import (
+    UmbrellaOrganization,
+    UmbrellaNetwork,
+    UmbrellaRoamingComputer,
+    UmbrellaVirtualAppliance,
+    UmbrellaReportData,
+    UmbrellaGeneratedReport,
+)
+
 
 __all__ = [
     # System
@@ -127,5 +143,17 @@ __all__ = [
     'Alert',
     'Report',
     'RiskAssessment',
-    'ApiCallLog'
+    'ApiCallLog',
+
+    # Wazuh SIEM
+    'WazuhAlert',
+    'WazuhTreatmentNote',
+
+    # Cisco Umbrella
+    'UmbrellaOrganization',
+    'UmbrellaNetwork',
+    'UmbrellaRoamingComputer',
+    'UmbrellaVirtualAppliance',
+    'UmbrellaReportData',
+    'UmbrellaGeneratedReport',
 ]

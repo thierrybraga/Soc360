@@ -1,5 +1,5 @@
 """
-Open-Monitor Credit Model
+SOC360 Credit Model
 Model para créditos de descoberta/contribuição de CVEs.
 """
 from sqlalchemy import Column, String, ForeignKey

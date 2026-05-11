@@ -10,7 +10,7 @@
 
 {# Additional CSS Links - main.css is already imported in base.html #}
 {% block extra_css %}
-  <style nonce="{{ csp_nonce }}">
+  <style nonce="{{ csp_nonce() }}">
     .notification-card {
       background: var(--card-bg, #ffffff);
       border: 1px solid var(--border-color, #e9ecef);
@@ -785,11 +785,11 @@
 {# Additional JavaScript scripts #}
 {% block extra_js %}
   {# Third-party scripts (IMask, SweetAlert2) #}
-  <script src="https://cdn.jsdelivr.net/npm/imask@7.6.1/dist/imask.min.js" defer nonce="{{ nonce }}"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.12.4/dist/sweetalert2.all.min.js" defer nonce="{{ nonce }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/imask@7.6.1/dist/imask.min.js" defer nonce="{{ csp_nonce() }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.12.4/dist/sweetalert2.all.min.js" defer nonce="{{ csp_nonce() }}"></script>
 
   {# Inline scripts (copyToClipboard, tooltips) - Can be moved to a utility JS file #}
-  <script nonce="{{ nonce }}">
+  <script nonce="{{ csp_nonce() }}">
     // Simple copy to clipboard function
     function copyToClipboard(elementId) {
       const element = document.getElementById(elementId);
@@ -825,7 +825,7 @@
   </script>
 
   {# Newsletter form validation and interaction script #}
-  <script nonce="{{ nonce }}">
+  <script nonce="{{ csp_nonce() }}">
     document.addEventListener('DOMContentLoaded', function() {
       const form = document.getElementById('notification-form');
       const submitBtn = document.getElementById('submit-btn');
@@ -927,48 +927,7 @@
         }, 2000);
       });
 
-      // Toast notification function
-      function showToast(message, type = 'info') {
-        // Remove existing toasts
-        document.querySelectorAll('.toast-notification').forEach(toast => {
-          toast.remove();
-        });
-        
-        const toast = document.createElement('div');
-        toast.className = `toast-notification toast-${type}`;
-        
-        const icon = {
-          success: 'bi-check-circle-fill',
-          error: 'bi-x-circle-fill',
-          warning: 'bi-exclamation-triangle-fill',
-          info: 'bi-info-circle-fill'
-        }[type] || 'bi-info-circle-fill';
-        
-        toast.innerHTML = `
-          <div class="d-flex align-items-center">
-            <i class="bi ${icon} me-2"></i>
-            <span>${message}</span>
-            <button type="button" class="btn-close ms-auto" aria-label="Close"></button>
-          </div>
-        `;
-        
-        document.body.appendChild(toast);
-        
-        // Show toast
-        setTimeout(() => toast.classList.add('show'), 100);
-        
-        // Auto hide after 5 seconds
-        setTimeout(() => {
-          toast.classList.remove('show');
-          setTimeout(() => toast.remove(), 300);
-        }, 5000);
-        
-        // Close button functionality
-        toast.querySelector('.btn-close').addEventListener('click', () => {
-          toast.classList.remove('show');
-          setTimeout(() => toast.remove(), 300);
-        });
-      }
+      // showToast — delegates to global window.showToast (js/core/utils.js)
 
       // Initialize form state
       if (emailToggle.checked) {

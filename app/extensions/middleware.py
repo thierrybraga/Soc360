@@ -1,8 +1,9 @@
 """
-Open-Monitor Middleware
+SOC360 Middleware
 Middlewares para logging e processamento de requests.
 """
-from flask import request, g, current_app
+from flask import request, g, current_app, session
+from flask_login import current_user
 import time
 import uuid
 
@@ -16,6 +17,11 @@ def init_middleware(app):
         # Request ID para rastreamento
         g.request_id = request.headers.get('X-Request-ID', str(uuid.uuid4()))
         g.request_start_time = time.time()
+
+        # Mark session as permanent so Flask applies PERMANENT_SESSION_LIFETIME
+        # (with SESSION_REFRESH_EACH_REQUEST=True this gives us a sliding
+        # expiry and keeps the CSRF token valid while the user is active).
+        session.permanent = True
 
         # Log do request
         if current_app.config.get('DEBUG'):

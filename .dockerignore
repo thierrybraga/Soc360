@@ -23,3 +23,14 @@ htmlcov
 .pytest_cache
 .coverage
 .DS_Store
+.claude/
+.kilo/
+secrets/
+*.md
+!.dockerignore
+Dockerfile
+docker-compose*.yml
+nginx/
+airflow/
+ollama/
+postgresql/

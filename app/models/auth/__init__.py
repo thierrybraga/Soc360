@@ -1,5 +1,5 @@
 """
-Open-Monitor Auth Models
+SOC360 Auth Models
 Models de autenticação e autorização.
 """
 from app.models.auth.user import User

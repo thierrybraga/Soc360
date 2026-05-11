@@ -1,5 +1,5 @@
 """
-Open-Monitor Report Model
+SOC360 Report Model
 Model para relatórios gerados pelo sistema.
 """
 from datetime import datetime
@@ -104,6 +104,7 @@ class Report(CoreModel):
     # Sharing
     is_public = Column(db.Boolean, default=False)
     share_token = Column(String(64), nullable=True, unique=True)
+    share_expires_at = Column(DateTime, nullable=True)  # None = sem expiração
     
     # Relationships
     user = relationship('User', back_populates='reports')
@@ -168,11 +169,20 @@ class Report(CoreModel):
         self.ai_model_used = model_used
         db.session.commit()
     
-    def generate_share_token(self):
-        """Gera token para compartilhamento."""
+    def generate_share_token(self, expires_hours: int = None):
+        """Gera token para compartilhamento.
+
+        Args:
+            expires_hours: Horas até o link expirar. None = sem expiração.
+        """
         import secrets
+        from datetime import timedelta
         self.share_token = secrets.token_urlsafe(48)
         self.is_public = True
+        if expires_hours:
+            self.share_expires_at = datetime.utcnow() + timedelta(hours=expires_hours)
+        else:
+            self.share_expires_at = None
         db.session.commit()
         return self.share_token
     
@@ -197,6 +207,7 @@ class Report(CoreModel):
             'file_size': self.file_size,
             'generation_time_seconds': self.generation_time_seconds,
             'is_public': self.is_public,
+            'share_expires_at': self.share_expires_at.isoformat() if self.share_expires_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'generation_completed_at': self.generation_completed_at.isoformat() if self.generation_completed_at else None
         }

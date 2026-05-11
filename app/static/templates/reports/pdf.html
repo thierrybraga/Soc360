@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>{{ report.title }}</title>
+<style>
+    /* ── Page Setup (WeasyPrint) ── */
+    @page {
+        size: A4;
+        margin: 1.8cm 1.6cm 2.4cm 1.6cm;
+        @bottom-center {
+            content: "SOC360  ·  " string(report-title) "  ·  Gerado em " string(gen-date) "  ·  Página " counter(page) " de " counter(pages);
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 7.5pt;
+            color: #94a3b8;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 3pt;
+            text-align: center;
+        }
+    }
+
+    /* Named strings for footer */
+    .report-title-anchor { string-set: report-title content(); }
+    .report-date-anchor  { string-set: gen-date content(); }
+
+    /* ── Base Typography ── */
+    body {
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 10pt;
+        color: #1f2937;
+        line-height: 1.5;
+    }
+    h1, h2, h3, h4 { font-weight: bold; margin-top: 0; }
+    h2 {
+        font-size: 13pt; margin-top: 16pt; margin-bottom: 6pt;
+        color: #1e3a8a; border-bottom: 2px solid #1e40af;
+        padding-bottom: 3pt;
+    }
+    h3 {
+        font-size: 11pt; margin-top: 11pt; margin-bottom: 3pt;
+        color: #1e40af;
+    }
+    h4 {
+        font-size: 10pt; margin-top: 8pt; margin-bottom: 2pt;
+        color: #1e3a8a;
+    }
+    p  { margin: 4pt 0; }
+    ul, ol { margin: 4pt 0 4pt 18pt; padding: 0; }
+    li { margin: 3pt 0; }
+    code {
+        font-family: Courier, monospace;
+        background: #f1f5f9; padding: 1pt 3pt; font-size: 9pt;
+    }
+    pre {
+        background: #f8fafc; border: 1px solid #e2e8f0;
+        padding: 6pt; font-family: Courier, monospace;
+        font-size: 9pt; white-space: pre-wrap;
+    }
+    blockquote {
+        border-left: 3px solid #94a3b8; margin: 6pt 0;
+        padding: 2pt 8pt; color: #334155; background: #f8fafc;
+    }
+    strong { font-weight: bold; }
+
+    /* ── Tables ── */
+    table { border-collapse: collapse; width: 100%; margin: 6pt 0; }
+    th, td {
+        border: 1px solid #cbd5e1; padding: 5pt 7pt;
+        text-align: left; vertical-align: top; font-size: 9pt;
+    }
+    th { background: #1e40af; color: #ffffff; font-weight: bold; }
+    tr:nth-child(even) td { background: #f8fafc; }
+
+    /* ── Cover Page ── */
+    .cover-page { break-after: page; }
+    .cover-top {
+        background: #0b1120; color: #f8fafc;
+        padding: 28pt 22pt 22pt;
+    }
+    .cover-eyebrow {
+        font-size: 7.5pt; color: #64748b;
+        letter-spacing: 0.14em; text-transform: uppercase;
+        margin-bottom: 10pt;
+    }
+    .cover-title {
+        font-size: 22pt; font-weight: bold; color: #f8fafc;
+        line-height: 1.2; margin: 10pt 0 6pt;
+    }
+    .cover-description { font-size: 10.5pt; color: #94a3b8; margin-bottom: 0; }
+    .cover-meta-table { width: 100%; border-collapse: collapse; margin-top: 18pt; }
+    .cover-meta-table td {
+        border: 0; padding: 4pt 0; font-size: 9pt;
+        color: #e2e8f0; vertical-align: top; background: transparent;
+    }
+    .cover-meta-table td:first-child { color: #64748b; width: 38%; }
+    .cover-divider {
+        border: 0; border-top: 1px solid #1e293b; margin: 0;
+    }
+    .cover-bottom {
+        background: #111827; padding: 12pt 22pt;
+    }
+    .cover-bottom p { color: #6b7280; font-size: 8.5pt; margin: 2pt 0; }
+    .cover-bottom strong { color: #9ca3af; }
+
+    /* ── Type Badge (cover) ── */
+    .type-badge {
+        display: inline-block; padding: 3pt 10pt;
+        font-size: 8pt; font-weight: bold;
+        border-radius: 4pt; letter-spacing: 0.06em; text-transform: uppercase;
+        color: #ffffff;
+    }
+    .type-badge--executive   { background: #7c3aed; }
+    .type-badge--risk-assessment { background: #dc2626; }
+    .type-badge--technical   { background: #0891b2; }
+    .type-badge--compliance  { background: #15803d; }
+    .type-badge--trend       { background: #b45309; }
+    .type-badge--incident    { background: #9f1239; }
+    .type-badge--default     { background: #1e40af; }
+
+    /* ── KPI Grid ── */
+    .kpi-table { width: 100%; border-collapse: collapse; margin: 8pt 0 14pt; }
+    .kpi-table td {
+        border: 1px solid #e2e8f0; padding: 8pt 10pt;
+        text-align: center; background: #f8fafc;
+        vertical-align: middle;
+    }
+    .kpi-value {
+        font-size: 19pt; font-weight: bold;
+        color: #1e40af; display: block; line-height: 1.1;
+    }
+    .kpi-label {
+        font-size: 7.5pt; color: #64748b; display: block;
+        margin-top: 3pt; text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .kpi-critical .kpi-value { color: #dc2626; }
+    .kpi-high     .kpi-value { color: #c2410c; }
+    .kpi-warning  .kpi-value { color: #b45309; }
+    .kpi-success  .kpi-value { color: #15803d; }
+    .kpi-info     .kpi-value { color: #0891b2; }
+    .kpi-purple   .kpi-value { color: #7c3aed; }
+
+    /* ── Severity Coloring ── */
+    .sev-critical { color: #dc2626; font-weight: bold; }
+    .sev-high     { color: #c2410c; font-weight: bold; }
+    .sev-medium   { color: #92400e; }
+    .sev-low      { color: #15803d; }
+    .sev-badge-critical {
+        background: #fee2e2; color: #dc2626;
+        padding: 1pt 5pt; font-weight: bold; font-size: 8.5pt;
+    }
+    .sev-badge-high {
+        background: #ffedd5; color: #c2410c;
+        padding: 1pt 5pt; font-weight: bold; font-size: 8.5pt;
+    }
+    .sev-badge-medium {
+        background: #fef3c7; color: #92400e;
+        padding: 1pt 5pt; font-size: 8.5pt;
+    }
+    .sev-badge-low {
+        background: #dcfce7; color: #166534;
+        padding: 1pt 5pt; font-size: 8.5pt;
+    }
+
+    /* ── Row coloring for severity ── */
+    tr.row-critical td { background: #fff5f5 !important; }
+    tr.row-high td     { background: #fff8f0 !important; }
+
+    /* ── Recommendations ── */
+    .rec-block {
+        border-left: 4px solid #cbd5e1;
+        padding: 5pt 8pt; margin-bottom: 6pt;
+        background: #f8fafc;
+    }
+    .rec-block--high   { border-left-color: #dc2626; background: #fff5f5; }
+    .rec-block--medium { border-left-color: #f59e0b; background: #fffbeb; }
+    .rec-block--low    { border-left-color: #22c55e; background: #f0fdf4; }
+    .rec-priority-label {
+        font-size: 7.5pt; font-weight: bold;
+        text-transform: uppercase; letter-spacing: 0.07em;
+    }
+    .rec-priority-label--high   { color: #dc2626; }
+    .rec-priority-label--medium { color: #b45309; }
+    .rec-priority-label--low    { color: #15803d; }
+    .rec-title-text { font-weight: bold; font-size: 9.5pt; color: #0b1120; }
+    .rec-desc-text  { font-size: 9pt;   color: #475569; margin-top: 2pt; }
+
+    /* ── Narrative ── */
+    .narrative { font-size: 10pt; line-height: 1.6; color: #1f2937; }
+    .narrative h2 {
+        font-size: 12pt; margin-top: 12pt; margin-bottom: 3pt;
+        color: #1e3a8a; border-bottom: 1px solid #e2e8f0; padding-bottom: 2pt;
+    }
+    .narrative h3 { font-size: 10.5pt; margin-top: 8pt; margin-bottom: 2pt; color: #1e40af; }
+    .narrative table th { background: #e2e8f0; color: #0b1120; }
+
+    /* ── Misc ── */
+    .section   { margin-top: 14pt; }
+    .muted     { color: #64748b; font-size: 9pt; }
+
+    /* Hidden anchors for WeasyPrint named strings */
+    .report-title-anchor,
+    .report-date-anchor { display: none; }
+</style>
+</head>
+<body>
+
+{# Hidden elements used by WeasyPrint named strings for the footer #}
+<span class="report-title-anchor">{{ report.title }}</span>
+<span class="report-date-anchor">{{ generated_at.strftime('%d/%m/%Y %H:%M') if generated_at else '' }}</span>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     CAPA
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="cover-page">
+
+    <div class="cover-top">
+        <div class="cover-eyebrow">SOC360 &middot; Security Intelligence Platform</div>
+
+        {% if report.report_type == 'EXECUTIVE' %}
+            <span class="type-badge type-badge--executive">Relatório Executivo</span>
+        {% elif report.report_type == 'RISK_ASSESSMENT' %}
+            <span class="type-badge type-badge--risk-assessment">Avaliação de Risco</span>
+        {% elif report.report_type == 'TECHNICAL' %}
+            <span class="type-badge type-badge--technical">Relatório Técnico</span>
+        {% elif report.report_type == 'COMPLIANCE' %}
+            <span class="type-badge type-badge--compliance">Conformidade</span>
+        {% elif report.report_type == 'TREND' %}
+            <span class="type-badge type-badge--trend">Análise de Tendências</span>
+        {% elif report.report_type == 'INCIDENT' %}
+            <span class="type-badge type-badge--incident">Relatório de Incidente</span>
+        {% else %}
+            <span class="type-badge type-badge--default">{{ report.report_type }}</span>
+        {% endif %}
+
+        <div class="cover-title">{{ report.title }}</div>
+        {% if report.description %}
+        <div class="cover-description">{{ report.description }}</div>
+        {% endif %}
+
+        <table class="cover-meta-table">
+            <tr>
+                <td>Gerado em</td>
+                <td>{{ generated_at.strftime('%d/%m/%Y às %H:%M') if generated_at else '—' }}</td>
+            </tr>
+            <tr>
+                <td>Janela Temporal</td>
+                <td>Últimos {{ period_days }} dias</td>
+            </tr>
+            <tr>
+                <td>Ativos no Escopo</td>
+                <td>
+                    {{ total_assets }} ativos cadastrados
+                    &middot; {{ assets_with_vulns }} com vulnerabilidades
+                </td>
+            </tr>
+            {% if report.ai_model_used %}
+            <tr>
+                <td>Modelo IA</td>
+                <td>{{ report.ai_model_used }}</td>
+            </tr>
+            {% endif %}
+            <tr>
+                <td>Classificação</td>
+                <td>Confidencial — Uso Interno</td>
+            </tr>
+        </table>
+    </div>
+
+    <hr class="cover-divider">
+
+    <div class="cover-bottom">
+        <p>
+            <strong>Confidencial</strong> — Este documento contém informações sensíveis de segurança da informação.
+        </p>
+        <p>Distribuição restrita a pessoas autorizadas. Não reproduza nem compartilhe externamente.</p>
+    </div>
+
+</div>
+<!-- /CAPA -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     ESCOPO DO INVENTÁRIO
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="section">
+    <h2>Escopo do Inventário</h2>
+
+    <table class="kpi-table">
+        <tr>
+            <td>
+                <span class="kpi-value">{{ total_assets }}</span>
+                <span class="kpi-label">Ativos Cadastrados</span>
+            </td>
+            <td class="kpi-warning">
+                <span class="kpi-value">{{ assets_with_vulns }}</span>
+                <span class="kpi-label">Com Vulnerabilidades</span>
+            </td>
+            {% if data.total_cves is defined %}
+            <td class="kpi-critical">
+                <span class="kpi-value">{{ data.total_cves }}</span>
+                <span class="kpi-label">CVEs no Inventário</span>
+            </td>
+            {% endif %}
+            {% if data.cisa_kev is defined %}
+            <td class="kpi-info">
+                <span class="kpi-value">{{ data.cisa_kev }}</span>
+                <span class="kpi-label">CISA KEV</span>
+            </td>
+            {% endif %}
+        </tr>
+    </table>
+
+    {% if assets_overview %}
+    <h3>Amostra do Inventário</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Ativo</th>
+                <th>Criticidade</th>
+                <th>Ambiente</th>
+                <th>Exposição</th>
+                <th>Vulns.</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for a in assets_overview[:20] %}
+            <tr>
+                <td>{{ a.name }}</td>
+                <td>
+                    {% if a.criticality == 'CRITICAL' %}
+                        <span class="sev-badge-critical">CRÍTICO</span>
+                    {% elif a.criticality == 'HIGH' %}
+                        <span class="sev-badge-high">ALTO</span>
+                    {% elif a.criticality == 'MEDIUM' %}
+                        <span class="sev-badge-medium">MÉDIO</span>
+                    {% elif a.criticality == 'LOW' %}
+                        <span class="sev-badge-low">BAIXO</span>
+                    {% else %}
+                        {{ a.criticality or '—' }}
+                    {% endif %}
+                </td>
+                <td>{{ a.environment or '—' }}</td>
+                <td>{{ a.exposure or '—' }}</td>
+                <td>{{ a.vulnerabilities }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% if assets_overview | length > 20 %}
+    <p class="muted">+ {{ assets_overview | length - 20 }} ativos adicionais não exibidos.</p>
+    {% endif %}
+    {% else %}
+    <p class="muted"><em>Inventário vazio — cadastre ativos para enriquecer os relatórios.</em></p>
+    {% endif %}
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     RELATÓRIO ANALÍTICO (IA)
+     ═══════════════════════════════════════════════════════════════════ -->
+<div class="section">
+    <h2>Relatório Analítico</h2>
+    {% if narrative_html %}
+        <div class="narrative">{{ narrative_html | safe }}</div>
+    {% else %}
+        <p class="muted"><em>Conteúdo analítico não disponível para este relatório.</em></p>
+    {% endif %}
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     DADOS ESPECÍFICOS POR TIPO
+     ═══════════════════════════════════════════════════════════════════ -->
+
+{# ── EXECUTIVE — Distribuição de Severidade ── #}
+{% if report.report_type == 'EXECUTIVE' and data.by_severity %}
+<div class="section">
+    <h2>Distribuição por Severidade</h2>
+    <table class="kpi-table">
+        <tr>
+            <td class="kpi-critical">
+                <span class="kpi-value">{{ data.by_severity.CRITICAL or 0 }}</span>
+                <span class="kpi-label">Crítico</span>
+            </td>
+            <td class="kpi-high">
+                <span class="kpi-value">{{ data.by_severity.HIGH or 0 }}</span>
+                <span class="kpi-label">Alto</span>
+            </td>
+            <td class="kpi-warning">
+                <span class="kpi-value">{{ data.by_severity.MEDIUM or 0 }}</span>
+                <span class="kpi-label">Médio</span>
+            </td>
+            <td class="kpi-success">
+                <span class="kpi-value">{{ data.by_severity.LOW or 0 }}</span>
+                <span class="kpi-label">Baixo</span>
+            </td>
+        </tr>
+    </table>
+</div>
+{% endif %}
+
+{# ── RISK ASSESSMENT — Ranking de Ativos ── #}
+{% if report.report_type == 'RISK_ASSESSMENT' and data.scored_assets %}
+<div class="section">
+    <h2>Ranking de Ativos por Risco</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Ativo</th>
+                <th>Score de Risco</th>
+                <th>CVSS Máx.</th>
+                <th>Vulns.</th>
+                <th>Criticidade</th>
+                <th>Ambiente</th>
+                <th>Exposição</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for a in data.scored_assets %}
+            <tr{% if a.risk_score >= 9 %} class="row-critical"{% elif a.risk_score >= 7 %} class="row-high"{% endif %}>
+                <td>{{ a.name }}</td>
+                <td>
+                    <strong class="
+                        {%- if a.risk_score >= 9 %}sev-critical
+                        {%- elif a.risk_score >= 7 %}sev-high
+                        {%- elif a.risk_score >= 4 %}sev-medium
+                        {%- else %}sev-low{% endif %}">
+                        {{ a.risk_score }}
+                    </strong>
+                </td>
+                <td>{{ a.max_cvss or '—' }}</td>
+                <td>{{ a.vulnerabilities }}</td>
+                <td>{{ a.criticality or '—' }}</td>
+                <td>{{ a.environment or '—' }}</td>
+                <td>{{ a.exposure or '—' }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{# ── TECHNICAL — CVEs Exploráveis ── #}
+{% if report.report_type == 'TECHNICAL' and data.exploitable_top %}
+<div class="section">
+    <h2>CVEs Exploráveis Priorizadas</h2>
+    {% if data.with_exploit or data.with_patch or data.period_cves %}
+    <table class="kpi-table">
+        <tr>
+            <td>
+                <span class="kpi-value">{{ data.period_cves or 0 }}</span>
+                <span class="kpi-label">CVEs no Período</span>
+            </td>
+            <td class="kpi-critical">
+                <span class="kpi-value">{{ data.with_exploit or 0 }}</span>
+                <span class="kpi-label">Com Exploit</span>
+            </td>
+            <td class="kpi-success">
+                <span class="kpi-value">{{ data.with_patch or 0 }}</span>
+                <span class="kpi-label">Com Patch</span>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+    <table>
+        <thead>
+            <tr>
+                <th>CVE ID</th>
+                <th>CVSS</th>
+                <th>Severidade</th>
+                <th>Patch</th>
+                <th>CISA KEV</th>
+                <th>Ativos Afetados</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for c in data.exploitable_top %}
+            <tr{% if c.base_severity == 'CRITICAL' %} class="row-critical"{% elif c.base_severity == 'HIGH' %} class="row-high"{% endif %}>
+                <td><strong>{{ c.cve_id }}</strong></td>
+                <td>
+                    {% if c.base_severity == 'CRITICAL' %}
+                        <span class="sev-badge-critical">{{ c.cvss_score or '—' }}</span>
+                    {% elif c.base_severity == 'HIGH' %}
+                        <span class="sev-badge-high">{{ c.cvss_score or '—' }}</span>
+                    {% elif c.base_severity == 'MEDIUM' %}
+                        <span class="sev-badge-medium">{{ c.cvss_score or '—' }}</span>
+                    {% else %}
+                        <span class="sev-badge-low">{{ c.cvss_score or '—' }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if c.base_severity == 'CRITICAL' %}<span class="sev-critical">CRÍTICO</span>
+                    {% elif c.base_severity == 'HIGH' %}<span class="sev-high">ALTO</span>
+                    {% elif c.base_severity == 'MEDIUM' %}<span class="sev-medium">MÉDIO</span>
+                    {% else %}<span class="sev-low">{{ c.base_severity or '—' }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ 'Sim' if c.patch_available else 'Não' }}</td>
+                <td>{{ 'Sim' if c.is_in_cisa_kev else 'Não' }}</td>
+                <td>
+                    {% if c.affected_assets %}
+                        {{ c.affected_assets | map(attribute='asset_name') | join(', ') }}
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{# ── COMPLIANCE — Indicadores de Remediação ── #}
+{% if report.report_type == 'COMPLIANCE' %}
+<div class="section">
+    <h2>Indicadores de Remediação</h2>
+    <table class="kpi-table">
+        <tr>
+            <td class="kpi-critical">
+                <span class="kpi-value">{{ data.total_open or 0 }}</span>
+                <span class="kpi-label">Em Aberto</span>
+            </td>
+            <td class="kpi-info">
+                <span class="kpi-value">{{ data.total_in_progress or 0 }}</span>
+                <span class="kpi-label">Em Andamento</span>
+            </td>
+            <td class="kpi-success">
+                <span class="kpi-value">{{ data.total_mitigated or 0 }}</span>
+                <span class="kpi-label">Mitigados</span>
+            </td>
+            <td class="kpi-purple">
+                <span class="kpi-value">{{ data.remediation_rate_pct or 0 }}%</span>
+                <span class="kpi-label">Taxa de Remediação</span>
+            </td>
+        </tr>
+    </table>
+
+    <h3>Resumo por Status</h3>
+    <table>
+        <thead>
+            <tr><th>Status</th><th>Quantidade</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Em aberto (OPEN)</td><td>{{ data.total_open or 0 }}</td></tr>
+            <tr><td>Em andamento (IN_PROGRESS)</td><td>{{ data.total_in_progress or 0 }}</td></tr>
+            <tr><td>Mitigadas (MITIGATED)</td><td>{{ data.total_mitigated or 0 }}</td></tr>
+            <tr><td>Aceitas (ACCEPTED)</td><td>{{ data.total_accepted or 0 }}</td></tr>
+            <tr><td>Resolvidas (RESOLVED)</td><td>{{ data.total_resolved or 0 }}</td></tr>
+            <tr><td><strong>Taxa de remediação</strong></td><td><strong>{{ data.remediation_rate_pct or 0 }}%</strong></td></tr>
+        </tbody>
+    </table>
+
+    {% if data.open_cves_sample %}
+    <h3>Principais Pendências em Aberto</h3>
+    <table>
+        <thead>
+            <tr><th>CVE</th><th>CVSS</th><th>Severidade</th><th>Ativos Afetados</th></tr>
+        </thead>
+        <tbody>
+        {% for c in data.open_cves_sample %}
+            <tr{% if c.base_severity == 'CRITICAL' %} class="row-critical"{% elif c.base_severity == 'HIGH' %} class="row-high"{% endif %}>
+                <td><strong>{{ c.cve_id }}</strong></td>
+                <td>{{ c.cvss_score or '—' }}</td>
+                <td>
+                    {% if c.base_severity == 'CRITICAL' %}<span class="sev-critical">CRÍTICO</span>
+                    {% elif c.base_severity == 'HIGH' %}<span class="sev-high">ALTO</span>
+                    {% elif c.base_severity == 'MEDIUM' %}<span class="sev-medium">MÉDIO</span>
+                    {% else %}<span class="sev-low">{{ c.base_severity or '—' }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if c.affected_assets %}
+                        {{ c.affected_assets | map(attribute='asset_name') | join(', ') }}
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endif %}
+
+{# ── TREND — Linha do Tempo ── #}
+{% if report.report_type == 'TREND' and data.timeline %}
+<div class="section">
+    <h2>Linha do Tempo — Evolução por Mês</h2>
+    {% if data.total_period %}
+    <p><strong>Total no período:</strong> {{ data.total_period }} CVEs identificadas.</p>
+    {% endif %}
+    {% if data.by_severity %}
+    <table class="kpi-table">
+        <tr>
+            <td class="kpi-critical">
+                <span class="kpi-value">{{ data.by_severity.CRITICAL or 0 }}</span>
+                <span class="kpi-label">Crítico</span>
+            </td>
+            <td class="kpi-high">
+                <span class="kpi-value">{{ data.by_severity.HIGH or 0 }}</span>
+                <span class="kpi-label">Alto</span>
+            </td>
+            <td class="kpi-warning">
+                <span class="kpi-value">{{ data.by_severity.MEDIUM or 0 }}</span>
+                <span class="kpi-label">Médio</span>
+            </td>
+            <td class="kpi-success">
+                <span class="kpi-value">{{ data.by_severity.LOW or 0 }}</span>
+                <span class="kpi-label">Baixo</span>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+    <table>
+        <thead>
+            <tr>
+                <th>Mês</th>
+                <th>Crítico</th>
+                <th>Alto</th>
+                <th>Médio</th>
+                <th>Baixo</th>
+                <th>Total</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for month, sevs in data.timeline | dictsort %}
+            {% set total = (sevs.CRITICAL or 0) + (sevs.HIGH or 0) + (sevs.MEDIUM or 0) + (sevs.LOW or 0) %}
+            <tr>
+                <td><strong>{{ month }}</strong></td>
+                <td>{% if sevs.CRITICAL > 0 %}<span class="sev-critical">{{ sevs.CRITICAL }}</span>{% else %}0{% endif %}</td>
+                <td>{% if sevs.HIGH > 0 %}<span class="sev-high">{{ sevs.HIGH }}</span>{% else %}0{% endif %}</td>
+                <td>{% if sevs.MEDIUM > 0 %}<span class="sev-medium">{{ sevs.MEDIUM }}</span>{% else %}0{% endif %}</td>
+                <td>{% if sevs.LOW > 0 %}<span class="sev-low">{{ sevs.LOW }}</span>{% else %}0{% endif %}</td>
+                <td><strong>{{ total }}</strong></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{# ── INCIDENT — CVEs para Resposta ── #}
+{% if report.report_type == 'INCIDENT' and data.incident_cves %}
+<div class="section">
+    <h2>CVEs Priorizadas para Resposta ao Incidente</h2>
+    {% if data.critical_count or data.high_count %}
+    <table class="kpi-table">
+        <tr>
+            <td class="kpi-critical">
+                <span class="kpi-value">{{ data.critical_count or 0 }}</span>
+                <span class="kpi-label">Crítico</span>
+            </td>
+            <td class="kpi-high">
+                <span class="kpi-value">{{ data.high_count or 0 }}</span>
+                <span class="kpi-label">Alto</span>
+            </td>
+            <td>
+                <span class="kpi-value">{{ data.total_incident_cves or 0 }}</span>
+                <span class="kpi-label">Total Listadas</span>
+            </td>
+        </tr>
+    </table>
+    {% endif %}
+    <table>
+        <thead>
+            <tr>
+                <th>CVE ID</th>
+                <th>CVSS</th>
+                <th>Severidade</th>
+                <th>CISA KEV</th>
+                <th>Exploit</th>
+                <th>Ativos Afetados</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for c in data.incident_cves %}
+            <tr{% if c.base_severity == 'CRITICAL' %} class="row-critical"{% elif c.base_severity == 'HIGH' %} class="row-high"{% endif %}>
+                <td><strong>{{ c.cve_id }}</strong></td>
+                <td>
+                    {% if c.base_severity == 'CRITICAL' %}
+                        <span class="sev-badge-critical">{{ c.cvss_score or '—' }}</span>
+                    {% elif c.base_severity == 'HIGH' %}
+                        <span class="sev-badge-high">{{ c.cvss_score or '—' }}</span>
+                    {% else %}
+                        {{ c.cvss_score or '—' }}
+                    {% endif %}
+                </td>
+                <td>
+                    {% if c.base_severity == 'CRITICAL' %}<span class="sev-critical">CRÍTICO</span>
+                    {% elif c.base_severity == 'HIGH' %}<span class="sev-high">ALTO</span>
+                    {% elif c.base_severity == 'MEDIUM' %}<span class="sev-medium">MÉDIO</span>
+                    {% else %}<span class="sev-low">{{ c.base_severity or '—' }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ 'Sim' if c.is_in_cisa_kev else 'Não' }}</td>
+                <td>{{ 'Sim' if c.exploit_available else 'Não' }}</td>
+                <td>
+                    {% if c.affected_assets %}
+                        {{ c.affected_assets | map(attribute='asset_name') | join(', ') }}
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     RECOMENDAÇÕES
+     ═══════════════════════════════════════════════════════════════════ -->
+{% if recommendations %}
+<div class="section">
+    <h2>Recomendações</h2>
+    {% for rec in recommendations %}
+    <div class="rec-block rec-block--{{ (rec.priority or 'medium') | lower }}">
+        <div>
+            <span class="rec-priority-label rec-priority-label--{{ (rec.priority or 'medium') | lower }}">
+                &#9658; {{ rec.priority or 'MEDIUM' }}
+            </span>
+            {% if rec.title %}
+            <span class="rec-title-text"> &mdash; {{ rec.title }}</span>
+            {% endif %}
+        </div>
+        {% if rec.description %}
+        <div class="rec-desc-text">{{ rec.description }}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+</body>
+</html>

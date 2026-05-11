@@ -1,5 +1,5 @@
 """
-Open-Monitor Dispatchers Package
+SOC360 Dispatchers Package
 Alert and notification dispatchers.
 """
 

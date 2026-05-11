@@ -1,0 +1,66 @@
+/* =============================================================================
+   Wazuh SIEM Module Styles — Open-Monitor / SOC360
+   Used by: wazuh/dashboard.html · wazuh/config.html
+   ============================================================================= */
+
+/* ── Scoped Bootstrap component overrides for dark theme ────────────────────*/
+[data-page="wazuh-dashboard"] .card,
+#alertModal .modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+#alertModal .modal-header,
+#alertModal .modal-footer { border-color: var(--border-color); }
+#alertModal dt { color: var(--text-secondary); font-weight: 600; }
+#alertModal dd { color: var(--text-primary); }
+#alertModal .nav-tabs .nav-link { color: var(--text-muted); }
+#alertModal .nav-tabs .nav-link.active {
+    color: var(--text-primary);
+    background: transparent;
+    border-color: var(--border-color) var(--border-color) transparent;
+}
+
+[data-page="wazuh-dashboard"] .form-select,
+[data-page="wazuh-dashboard"] .form-control,
+#alertModal .form-select,
+#alertModal .form-control,
+#alertModal .input-group-text {
+    background-color: var(--input-bg, var(--bg-secondary));
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+[data-page="wazuh-dashboard"] .form-select option {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+}
+
+[data-page="wazuh-dashboard"] .table { color: var(--text-primary); }
+[data-page="wazuh-dashboard"] .table > :not(caption) > * > * { background: transparent; }
+
+#alertModal pre { max-height: 340px; overflow: auto; }
+
+[data-page="wazuh-dashboard"] .text-muted {
+    color: var(--text-secondary) !important;
+}
+
+/* ── Filter control widths ───────────────────────────────────────────────────*/
+[data-page="wazuh-dashboard"] #window-select  { width: auto; }
+[data-page="wazuh-dashboard"] #filter-status  { width: 160px; }
+[data-page="wazuh-dashboard"] #filter-bucket  { width: 130px; }
+[data-page="wazuh-dashboard"] #filter-agent   { width: 180px; }
+[data-page="wazuh-dashboard"] #filter-q       { width: 240px; }
+
+/* ── Alerts table column widths ──────────────────────────────────────────────*/
+[data-page="wazuh-dashboard"] #alerts-table th.col-sev,
+[data-page="wazuh-dashboard"] #alerts-table th.col-status  { width: 110px; }
+[data-page="wazuh-dashboard"] #alerts-table th.col-agent,
+[data-page="wazuh-dashboard"] #alerts-table th.col-assignee { width: 160px; }
+[data-page="wazuh-dashboard"] #alerts-table th.col-when    { width: 150px; }
+[data-page="wazuh-dashboard"] #alerts-table th.col-actions { width: 90px; }
+
+/* ── Chart containers ────────────────────────────────────────────────────────*/
+.chart-container-sm { position: relative; height: 220px; }
+.chart-container-md { position: relative; height: 260px; }

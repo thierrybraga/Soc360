@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Alerta Wazuh #{{ alert_id }} — SOC360{% endblock %}
+
+{% block content %}
+<div class="page-shell" data-page="wazuh-alert-detail" data-alert-id="{{ alert_id }}">
+    <div class="page-header">
+        <div class="page-header__content">
+            <h1 class="page-header__title"><i class="fas fa-bug me-2"></i>Alerta Wazuh #{{ alert_id }}</h1>
+            <p class="page-header__subtitle">Visão dedicada. A triagem completa está no dashboard.</p>
+        </div>
+        <div class="page-header__actions">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('wazuh.dashboard') }}">
+                <i class="fas fa-arrow-left"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            <div id="detail-content">Carregando…</div>
+        </div>
+    </div>
+</div>
+
+<script nonce="{{ csp_nonce() }}">
+(async function() {
+    const id = {{ alert_id }};
+    const el = document.getElementById('detail-content');
+    try {
+        const r = await fetch(`/integrations/wazuh/api/alerts/${id}`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const d = await r.json();
+        const a = d.alert;
+        el.innerHTML = `
+            <h2 class="h4 mb-2">${a.rule_description || ''}</h2>
+            <div class="mb-3">
+                <span class="badge bg-secondary">${a.severity}</span>
+                <span class="badge bg-dark text-light border">${a.status}</span>
+                <span class="text-muted ms-2">Rule ${a.rule_id} · level ${a.rule_level}</span>
+            </div>
+            <dl class="row small">
+                <dt class="col-sm-3">Agente</dt><dd class="col-sm-9">${a.agent_name || '—'} (${a.agent_ip || '—'})</dd>
+                <dt class="col-sm-3">Manager</dt><dd class="col-sm-9">${a.manager_name || '—'}</dd>
+                <dt class="col-sm-3">Decoder</dt><dd class="col-sm-9">${a.decoder_name || '—'}</dd>
+                <dt class="col-sm-3">Location</dt><dd class="col-sm-9"><code>${a.location || '—'}</code></dd>
+                <dt class="col-sm-3">MITRE</dt><dd class="col-sm-9">${(a.rule_mitre_ids || []).join(', ') || '—'}</dd>
+                <dt class="col-sm-3">Timestamp</dt><dd class="col-sm-9">${a.timestamp || '—'}</dd>
+            </dl>
+            <h3 class="h6">Log bruto</h3>
+            <pre class="bg-dark text-light rounded p-3 small">${(a.full_log || '').replace(/</g, '&lt;')}</pre>
+        `;
+    } catch (err) {
+        el.innerHTML = `<div class="alert alert-danger">Falha ao carregar alerta: ${err.message}</div>`;
+    }
+})();
+</script>
+{% endblock %}

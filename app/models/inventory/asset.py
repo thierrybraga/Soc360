@@ -1,5 +1,5 @@
 """
-Open-Monitor Asset Model
+SOC360 Asset Model
 Model de ativos de TI da organização.
 """
 from datetime import datetime
@@ -200,9 +200,20 @@ class Asset(CoreModel):
         """Retorna contagem de vulnerabilidades abertas."""
         from app.models.system.enums import VulnerabilityStatus
         return len([
-            av for av in self.vulnerabilities 
+            av for av in self.vulnerabilities
             if av.status in [VulnerabilityStatus.OPEN.value, VulnerabilityStatus.IN_PROGRESS.value]
         ])
+
+    @property
+    def risk_score(self):
+        """Retorna o maior score de risco contextual entre as vulnerabilidades abertas."""
+        from app.models.system.enums import VulnerabilityStatus
+        scores = [
+            av.contextual_risk_score for av in self.vulnerabilities
+            if av.status in [VulnerabilityStatus.OPEN.value, VulnerabilityStatus.IN_PROGRESS.value]
+            and av.contextual_risk_score is not None
+        ]
+        return round(max(scores), 1) if scores else None
     
     @property
     def critical_vulnerability_count(self):
@@ -248,6 +259,7 @@ class Asset(CoreModel):
             'rpo_hours': self.rpo_hours,
             'operational_cost_per_hour': self.operational_cost_per_hour,
             'bia_score': self.bia_score,
+            'risk_score': self.risk_score,
             'installed_software': self.installed_software,
             'vulnerability_count': self.vulnerability_count,
             'critical_vulnerability_count': self.critical_vulnerability_count,

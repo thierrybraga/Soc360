@@ -1,5 +1,5 @@
 """
-Open-Monitor Reference Type Model
+SOC360 Reference Type Model
 Model de banco de dados para tipos de referencia.
 
 Nota: Este e um modelo de banco de dados, distinto do Enum ReferenceType

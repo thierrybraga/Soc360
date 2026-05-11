@@ -1,5 +1,5 @@
 """
-Open-Monitor Production Settings
+SOC360 Production Settings
 Configurations optimized for production environment.
 """
 import os
@@ -41,26 +41,30 @@ class ProductionConfig(BaseConfig):
         from logging.handlers import RotatingFileHandler
 
         if not app.debug:
-            # Ensure log directory exists or use a path that is guaranteed to exist
             log_file = os.environ.get('LOG_FILE', '/app/logs/app.log')
             log_dir = os.path.dirname(log_file)
+            handler = None
 
             if os.path.exists(log_dir):
-                handler = RotatingFileHandler(
-                    log_file,
-                    maxBytes=10485760,  # 10MB
-                    backupCount=10
-                )
-                handler.setLevel(logging.WARNING)
-                handler.setFormatter(logging.Formatter(
-                    '%(asctime)s %(levelname)s: %(message)s '
-                    '[in %(pathname)s:%(lineno)d]'
-                ))
-                app.logger.addHandler(handler)
-            else:
-                stream_handler = logging.StreamHandler()
-                stream_handler.setLevel(logging.WARNING)
-                app.logger.addHandler(stream_handler)
+                try:
+                    os.makedirs(log_dir, exist_ok=True)
+                    handler = RotatingFileHandler(
+                        log_file,
+                        maxBytes=10485760,  # 10MB
+                        backupCount=10
+                    )
+                except (PermissionError, OSError):
+                    pass  # fall through to StreamHandler below
+
+            if handler is None:
+                handler = logging.StreamHandler()
+
+            handler.setLevel(logging.WARNING)
+            handler.setFormatter(logging.Formatter(
+                '%(asctime)s %(levelname)s: %(message)s '
+                '[in %(pathname)s:%(lineno)d]'
+            ))
+            app.logger.addHandler(handler)
 
         # Strategy to fallback to SQLite if Postgres is unreachable
         db_uri = app.config.get('SQLALCHEMY_DATABASE_URI')

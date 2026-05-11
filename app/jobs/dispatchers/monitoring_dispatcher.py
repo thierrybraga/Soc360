@@ -1,5 +1,5 @@
 """
-Open-Monitor Monitoring Dispatcher Job
+SOC360 Monitoring Dispatcher Job
 Responsavel por encontrar vulnerabilidades correspondentes a regras
 de monitoramento ativas e despachar alertas.
 """

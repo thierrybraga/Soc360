@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Cisco Umbrella — SOC360{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/umbrella.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="page-shell page-shell--wide" data-page="umbrella-dashboard">
+    <div class="page-header">
+        <div class="page-header__content">
+            <h1 class="page-header__title"><i class="fas fa-umbrella me-2"></i>Cisco Umbrella</h1>
+            <p class="page-header__subtitle">Geração de relatórios de segurança DNS com dados da API Cisco Umbrella.</p>
+        </div>
+        <div class="page-header__actions d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-primary btn-sm" id="btn-refresh-data" type="button">
+                <i class="fas fa-cloud-download-alt"></i> Atualizar Dados
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" id="btn-reload" type="button">
+                <i class="fas fa-sync-alt"></i> Recarregar
+            </button>
+        </div>
+    </div>
+
+    <!-- Orgs grid -->
+    <div class="row g-3 mb-4" id="orgs-container">
+        <div class="col-12">
+            <div class="alert alert-secondary">
+                <i class="fas fa-info-circle me-2"></i>
+                Nenhuma organização carregada. Clique em <strong>Atualizar Dados</strong> para buscar da API (ou mock).
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports list -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="card-title mb-0"><i class="fas fa-file-alt me-1"></i> Relatórios Gerados</h3>
+        </div>
+        <div class="table-container">
+            <div id="reports-loading" class="table-loading"><div class="spinner"></div><span>Carregando relatórios...</span></div>
+            <table class="table table-hover" id="reports-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Organização</th>
+                        <th>Período</th>
+                        <th>Status</th>
+                        <th>Gerado em</th>
+                        <th class="text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="reports-tbody"></tbody>
+            </table>
+            <div id="reports-empty" class="empty-state" style="display:none;">
+                <div class="empty-state-icon"><i class="fas fa-file-alt text-muted"></i></div>
+                <h5 class="empty-state-title">Nenhum relatório gerado</h5>
+                <p class="empty-state-text">Selecione uma organização e clique em <strong>Gerar Relatório</strong>.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Download Success Modal -->
+<div class="modal fade" id="downloadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-check-circle me-2"></i> Relatório Gerado!</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <div class="mb-3">
+                    <i class="fas fa-check-circle text-success umbrella-success-icon"></i>
+                </div>
+                <h5 class="fw-bold mb-2">Sucesso!</h5>
+                <p id="downloadPeriod" class="text-muted small mb-4">Período: -</p>
+                <div class="d-grid gap-2">
+                    <a id="downloadPdf" href="#" class="btn btn-danger d-none">
+                        <i class="fas fa-file-pdf me-2"></i> PDF
+                    </a>
+                    <a id="downloadDocx" href="#" class="btn btn-primary">
+                        <i class="fas fa-file-word me-2"></i> DOCX
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Modal -->
+<div class="modal fade" id="reportModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-alt me-1"></i> Gerar Relatório</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="reportForm">
+                    <input type="hidden" id="report-org-id" name="organization_id">
+                    <div class="mb-3">
+                        <label class="form-label">Organização</label>
+                        <input type="text" class="form-control" id="report-org-name" readonly>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Início</label>
+                            <input type="date" class="form-control" id="report-start" name="period_start" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Fim</label>
+                            <input type="date" class="form-control" id="report-end" name="period_end" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button class="btn btn-primary" id="btn-submit-report" type="button">
+                    <i class="fas fa-cog me-1"></i> Gerar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/pages/umbrella/dashboard.js') }}" defer></script>
+{% endblock %}

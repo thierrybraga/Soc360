@@ -10,31 +10,6 @@
 <div class="chatbot-page page-shell" data-page="chatbot">
   <div class="chat-shell card">
 
-    <!-- Integrated slim header (inside the card, not a separate card) -->
-    <div class="chat-shell__header">
-      <div class="chat-shell__identity">
-        <div class="chat-shell__avatar">
-          <i class="fas fa-robot"></i>
-          <span class="chat-shell__pulse"></span>
-        </div>
-        <div>
-          <span class="chat-shell__name">SecuriBot</span>
-          <span class="chat-shell__sub">CVEs · Mitigação · Análise de risco</span>
-        </div>
-      </div>
-      <div class="chat-shell__controls">
-        <span class="chat-status" id="chatStatus">
-          <span class="chat-status__dot"></span>
-          <span class="chat-status__label">Pronto</span>
-        </span>
-        <button class="btn btn-sm btn-ghost" id="clearChatBtn" type="button"
-                title="Limpar conversa" aria-label="Limpar conversa">
-          <i class="fas fa-rotate-left"></i>
-          <span class="d-none d-md-inline">Limpar</span>
-        </button>
-      </div>
-    </div>
-
     <!-- Messages -->
     <div class="chat-messages" id="chatMessages"
          role="log" aria-live="polite" aria-label="Histórico de mensagens">
@@ -109,10 +84,20 @@
     </form>
 
     <div class="chat-input-meta">
+      <span class="chat-status" id="chatStatus">
+        <span class="chat-status__dot"></span>
+        <span class="chat-status__label">Pronto</span>
+      </span>
       <span class="chat-hint">
         <kbd>Enter</kbd> envia &middot; <kbd>Shift+Enter</kbd> nova linha
       </span>
-      <span class="chat-char" id="charCount"></span>
+      <span class="chat-meta-right">
+        <span class="chat-char" id="charCount"></span>
+        <button class="btn-clear-chat" id="clearChatBtn" type="button"
+                title="Limpar conversa" aria-label="Limpar conversa">
+          <i class="fas fa-rotate-left"></i> Limpar
+        </button>
+      </span>
     </div>
 
   </div><!-- /.chat-shell -->

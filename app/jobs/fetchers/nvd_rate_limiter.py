@@ -1,5 +1,5 @@
 """
-Open-Monitor NVD Rate Limiter
+SOC360 NVD Rate Limiter
 Rate limiting logic for NVD API.
 """
 import logging

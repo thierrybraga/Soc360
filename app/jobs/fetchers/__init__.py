@@ -1,5 +1,5 @@
 """
-Open-Monitor Fetchers Package
+SOC360 Fetchers Package
 HTTP clients for external vulnerability data sources.
 """
 

@@ -1,5 +1,5 @@
 """
-Open-Monitor Analytics Controller
+SOC360 Analytics Controller
 Rotas para dashboards e analytics.
 """
 from app.controllers.analytics.analytics_controller import analytics_bp

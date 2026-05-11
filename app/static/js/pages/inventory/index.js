@@ -5,6 +5,7 @@ const inventoryState = {
     perPage: 50,
     totalItems: 0,
     totalPages: 1,
+    sort: { column: null, direction: 'asc' },
     filters: {
         search: '',
         type: '',
@@ -72,6 +73,21 @@ function bindInventoryEvents() {
         }
     });
 
+    document.querySelectorAll('#assets-table thead .sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = th.dataset.sort;
+            if (!col) return;
+            if (inventoryState.sort.column === col) {
+                inventoryState.sort.direction = inventoryState.sort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                inventoryState.sort.column = col;
+                inventoryState.sort.direction = 'asc';
+            }
+            updateSortIcons();
+            loadAssets();
+        });
+    });
+
     document.getElementById('pagination')?.addEventListener('click', event => {
         const button = event.target.closest('[data-page-number]');
         if (!button) {
@@ -91,6 +107,45 @@ function syncInitialControls() {
     if (perPageSelect?.value) {
         inventoryState.perPage = Number(perPageSelect.value) || inventoryState.perPage;
     }
+}
+
+function updateSortIcons() {
+    document.querySelectorAll('#assets-table thead .sortable').forEach(th => {
+        const col = th.dataset.sort;
+        if (col === inventoryState.sort.column) {
+            th.setAttribute('data-sort-active', inventoryState.sort.direction);
+            th.setAttribute('aria-sort', inventoryState.sort.direction === 'asc' ? 'ascending' : 'descending');
+        } else {
+            th.removeAttribute('data-sort-active');
+            th.removeAttribute('aria-sort');
+        }
+    });
+}
+
+function sortItems(items, column, direction) {
+    const getValue = (item) => {
+        const map = {
+            name: item.name || '',
+            type: item.asset_type || item.type || '',
+            criticality: ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf((item.criticality || '').toUpperCase()),
+            vuln_count: item.vulnerability_count ?? item.vulnerabilities_count ?? 0,
+            risk_score: item.risk_score ?? -1,
+            status: item.status || ''
+        };
+        return map[column] ?? '';
+    };
+
+    return [...items].sort((a, b) => {
+        const va = getValue(a);
+        const vb = getValue(b);
+        let cmp = 0;
+        if (typeof va === 'number' && typeof vb === 'number') {
+            cmp = va - vb;
+        } else {
+            cmp = String(va).localeCompare(String(vb), 'pt-BR');
+        }
+        return direction === 'asc' ? cmp : -cmp;
+    });
 }
 
 async function loadAssets() {
@@ -117,8 +172,13 @@ async function loadAssets() {
         inventoryState.totalItems = data.total || 0;
         inventoryState.totalPages = data.pages || 1;
 
-        if (Array.isArray(data.items) && data.items.length > 0) {
-            tableBody.innerHTML = data.items.map(renderAssetRow).join('');
+        let items = Array.isArray(data.items) ? data.items : [];
+        if (inventoryState.sort.column) {
+            items = sortItems(items, inventoryState.sort.column, inventoryState.sort.direction);
+        }
+
+        if (items.length > 0) {
+            tableBody.innerHTML = items.map(renderAssetRow).join('');
             if (emptyState) {
                 emptyState.style.display = 'none';
             }
@@ -277,7 +337,7 @@ function renderAssetRow(asset) {
                 <div class="d-flex align-items-center gap-2">
                     <i class="fas fa-${getAssetIcon(asset.asset_type || asset.type)} text-muted"></i>
                     <div>
-                        <div class="fw-semibold">${OpenMonitor.utils.escapeHtml(asset.name || 'Unnamed')}</div>
+                        <div class="fw-semibold">${OpenMonitor.utils.escapeHtml(asset.name || 'Sem nome')}</div>
                         <small>${OpenMonitor.utils.escapeHtml(asset.hostname || asset.ip_address || '')}</small>
                     </div>
                 </div>

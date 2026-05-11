@@ -26,14 +26,38 @@ class EUVDService(BaseSyncService):
         return self.get_progress()
 
     def sync_latest(self):
-        """Sincronizar últimas vulnerabilidades."""
+        """Sincronizar últimas vulnerabilidades de todos os endpoints especializados."""
         try:
             self.start_sync('Fetching latest vulnerabilities...')
-            items = self.fetcher.fetch_latest()
-            
-            self._update_progress(message=f'Processing {len(items)} items...', total=len(items))
-            self._process_items(items)
-            
+
+            # Coletar de todos os endpoints especializados, deduplicando por ID
+            seen_ids = set()
+            all_items = []
+
+            for label, fetch_fn in [
+                ('latest', self.fetcher.fetch_latest),
+                ('exploited', self.fetcher.fetch_exploited),
+                ('eu_csirt', self.fetcher.fetch_eu_csirt),
+                ('critical', self.fetcher.fetch_critical),
+            ]:
+                try:
+                    items = fetch_fn()
+                    if not isinstance(items, list):
+                        items = items.get('items', []) if isinstance(items, dict) else []
+                    added = 0
+                    for item in items:
+                        item_id = item.get('id')
+                        if item_id and item_id not in seen_ids:
+                            seen_ids.add(item_id)
+                            all_items.append(item)
+                            added += 1
+                    logger.info(f'EUVD {label}: {len(items)} fetched, {added} new unique items')
+                except Exception as e:
+                    logger.warning(f'EUVD {label} fetch failed: {e}')
+
+            self._update_progress(message=f'Processing {len(all_items)} items...', total=len(all_items))
+            self._process_items(all_items)
+
             self.complete_sync()
             return self.stats
         except Exception as e:
@@ -42,26 +66,37 @@ class EUVDService(BaseSyncService):
 
     def sync_by_date(self, from_date: str, to_date: str):
         """Sincronizar por intervalo de datas."""
-        page = 0
-        while True:
-            response = self.fetcher.fetch_search(
-                page=page, 
-                size=100, 
-                from_date=from_date, 
-                to_date=to_date
-            )
-            items = response.get('items', [])
-            if not items:
-                break
-                
-            self._process_items(items)
-            
-            # Check if we reached the end
-            total = response.get('total', 0)
-            if (page + 1) * 100 >= total:
-                break
-                
-            page += 1
+        try:
+            self.start_sync(f'Fetching EUVD from {from_date} to {to_date}...')
+            page = 0
+            while True:
+                response = self.fetcher.fetch_search(
+                    page=page,
+                    size=100,
+                    from_date=from_date,
+                    to_date=to_date
+                )
+                items = response.get('items', [])
+                if not items:
+                    break
+
+                self._process_items(items)
+
+                total = response.get('total', 0)
+                self._update_progress(
+                    message=f'Page {page + 1}: processed {self.stats["processed"]}/{total}',
+                    **self.stats
+                )
+
+                if (page + 1) * 100 >= total:
+                    break
+
+                page += 1
+
+            self.complete_sync()
+        except Exception as e:
+            self.fail_sync(str(e))
+            raise
 
     def _process_items(self, items: List[Dict]):
         """Processar lista de itens da EUVD."""
@@ -70,24 +105,31 @@ class EUVDService(BaseSyncService):
         for i, item in enumerate(items):
             try:
                 self._process_single_item(item)
+                # Commit per-item so session never accumulates stale state
+                db.session.commit()
                 self.stats['processed'] += 1
             except Exception as e:
                 logger.error(f"Error processing item {item.get('id')}: {e}")
                 self.stats['errors'] += 1
-            
-            # Update status every 10 items
+                # Always reset session after any failure so subsequent items work
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+
+            # Update status every 10 items — guard against session issues
             if (i + 1) % 10 == 0:
-                self._update_progress(
-                    message=f'Processing item {i+1}/{total}...',
-                    **self.stats
-                )
-        
-        # Commit after batch
-        try:
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Commit error: {e}")
+                try:
+                    self._update_progress(
+                        message=f'Processing item {i+1}/{total}...',
+                        **self.stats
+                    )
+                except Exception as e:
+                    logger.warning(f"Progress update failed (non-fatal): {e}")
+                    try:
+                        db.session.rollback()
+                    except Exception:
+                        pass
 
     def _process_single_item(self, item: Dict):
         """
@@ -141,8 +183,9 @@ class EUVDService(BaseSyncService):
                 existing.enisa_last_changed = data['enisa_last_changed']
                 updated = True
 
-            if data.get('is_eu_csirt_coordinated'):
-                existing.is_eu_csirt_coordinated = data['is_eu_csirt_coordinated']
+            is_coordinated = bool(data.get('is_eu_csirt_coordinated'))
+            if existing.is_eu_csirt_coordinated != is_coordinated:
+                existing.is_eu_csirt_coordinated = is_coordinated
                 updated = True
             
             # Save EUVD specific CVSS Metric
@@ -212,25 +255,31 @@ class EUVDService(BaseSyncService):
         cvss_version = item.get('baseScoreVersion')
         cvss_vector = item.get('baseScoreVector')
         
-        # Vendors/Products (Simplificado)
+        # Vendors/Products
         vendors = []
         products = {}
-        
+
         for v_item in item.get('enisaIdVendor', []):
             v_name = v_item.get('vendor', {}).get('name')
-            if v_name:
+            if v_name and v_name not in vendors:
                 vendors.append(v_name)
-                
+
         for p_item in item.get('enisaIdProduct', []):
             p_name = p_item.get('product', {}).get('name')
-            # Tentar associar produto ao vendor (difícil sem estrutura clara, assumindo primeiro vendor)
-            # Na estrutura da EUVD, product e vendor são listas separadas no JSON de exemplo?
-            # O exemplo mostra enisaIdProduct contendo product info.
-            if p_name and vendors:
-                vendor = vendors[0] # Simplificação
+            if not p_name:
+                continue
+            # Tenta obter o vendor do produto diretamente (campo 'vendor' dentro do produto)
+            p_vendor = (
+                p_item.get('vendor', {}).get('name')
+                or (p_item.get('product', {}).get('vendor') or {}).get('name')
+            )
+            # Associa ao vendor do produto se disponível, caso contrário a todos os vendors
+            target_vendors = [p_vendor] if p_vendor else vendors
+            for vendor in target_vendors:
                 if vendor not in products:
                     products[vendor] = []
-                products[vendor].append(p_name)
+                if p_name not in products[vendor]:
+                    products[vendor].append(p_name)
 
         return {
             'cve_id': primary_id,
@@ -248,19 +297,18 @@ class EUVDService(BaseSyncService):
             'cvss_vector_string': cvss_vector,
             'nvd_vendors_data': vendors,
             'nvd_products_data': products,
-            'vuln_status': 'Analyzed' # Assumindo analisado se está na EUVD
         }
 
     def _parse_date(self, date_str: Optional[str]) -> Optional[datetime]:
-        """Parse da data da EUVD (Apr 15, 2025, 8:30:58 PM)."""
+        """Parse da data da EUVD. Tenta ISO 8601 primeiro, depois formato legado."""
         if not date_str:
             return None
         try:
-            # Tentar formato documentado
+            return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        except ValueError:
+            pass
+        try:
             return datetime.strptime(date_str, "%b %d, %Y, %I:%M:%S %p")
         except ValueError:
-            try:
-                # Fallback ISO
-                return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-            except:
-                return None
+            pass
+        return None

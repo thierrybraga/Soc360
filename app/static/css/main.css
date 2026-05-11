@@ -21,9 +21,6 @@
 /* Inter Font Family - Peso: 400, 500, 600, 700 */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap&font-display=swap');
 
-/* Bootstrap Icons - Carregado via CDN; bootstrap-icons.css local removido (redundante) */
-@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css');
-
 
 /* ==========================================================================
    2. Cascata base – Reset → Variáveis → Tipografia → Utilitários
@@ -80,6 +77,9 @@
 
 /* n. Estados de loading de botões e formulários */
 @import 'loading-states.css';
+
+/* o2. Sistema de design — grid, flex, responsive, spacing, animation utilities */
+@import 'design-system.css';
 
 
 /* ==========================================================================

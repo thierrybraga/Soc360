@@ -21,16 +21,55 @@ logger = logging.getLogger(__name__)
 # System prompt (compartilhado, define persona e padrão de saída)
 # ──────────────────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = """\
-Você é um analista sênior de segurança cibernética da Open-Monitor, especializado \
+Você é um analista sênior de segurança cibernética da SOC360, especializado \
 em geração de relatórios corporativos de vulnerabilidades. Produza sempre conteúdo:
 
 - Em **português brasileiro**, tom profissional, objetivo e técnico-executivo
 - Em **Markdown** bem formatado (títulos, listas, tabelas, blocos de código quando útil)
-- Baseado **exclusivamente** nos dados fornecidos — nunca invente CVEs, números ou fatos
+- Baseado **exclusivamente** nos dados fornecidos — nunca invente CVEs, ativos, números ou fatos
+- **Sempre relacione CVEs aos ativos afetados** quando essa informação for fornecida
 - Quando um dado estiver ausente, indique explicitamente: *Não informado* ou *Não aplicável*
+- Quando o inventário estiver vazio, diga claramente que não há ativos cadastrados e oriente o cadastro
 - Usando o formato oficial `CVE-AAAA-NNNNN` ao citar vulnerabilidades
 - Com foco em **ações acionáveis** e priorização baseada em risco
 """
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Helpers compartilhados entre prompts
+# ──────────────────────────────────────────────────────────────────────────
+
+def _format_assets_overview(data: Dict) -> str:
+    """Formata o resumo do inventário para injetar no prompt."""
+    total_assets = data.get('total_assets', 0)
+    assets_with_vulns = data.get('assets_with_vulns', 0)
+    if total_assets == 0:
+        return "**Inventario vazio** - nenhum ativo cadastrado para este usuario. Oriente o cadastro de ativos antes de relatorios acionaveis.\n"
+    overview = data.get('assets_overview') or []
+    lines = [
+        f"- Total de ativos cadastrados: **{total_assets}**",
+        f"- Ativos com vulnerabilidades associadas: **{assets_with_vulns}**",
+    ]
+    if overview:
+        lines.append("")
+        lines.append("**Amostra do inventario (ate 20 ativos):**")
+        for a in overview[:20]:
+            lines.append(
+                f"- `{a.get('name')}` (crit={a.get('criticality')}, "
+                f"env={a.get('environment')}, exp={a.get('exposure')}) "
+                f"- {a.get('vulnerabilities')} vulnerabilidades"
+            )
+    return "\n".join(lines) + "\n"
+
+
+def _format_affected_assets(cve_record: Dict, max_items: int = 5) -> str:
+    """Linha compacta listando ativos afetados por uma CVE."""
+    affected = cve_record.get('affected_assets') or []
+    if not affected:
+        return ""
+    names = [a.get('asset_name', '?') for a in affected[:max_items]]
+    suffix = f" (+{len(affected) - max_items})" if len(affected) > max_items else ""
+    return f" | Ativos afetados: {', '.join(names)}{suffix}"
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -39,22 +78,29 @@ em geração de relatórios corporativos de vulnerabilidades. Produza sempre con
 
 def _prompt_executive(data: Dict, period_days: int) -> str:
     critical_list = "\n".join(
-        f"- **{c.get('cve_id')}** (CVSS {c.get('cvss_score')}): {c.get('description','')[:180]}"
+        f"- **{c.get('cve_id')}** (CVSS {c.get('cvss_score')}): {c.get('description','')[:180]}{_format_affected_assets(c)}"
         for c in (data.get('critical_recent') or [])
-    ) or "*Nenhuma CVE crítica no período.*"
+    ) or "*Nenhuma CVE crítica no periodo que afete o inventario.*"
 
     by_sev = data.get('by_severity') or {}
     by_sev_period = data.get('by_severity_period') or {}
+    inventory_block = _format_assets_overview(data)
 
     return f"""\
 Gere um **Relatório Executivo de Vulnerabilidades** completo para a alta liderança \
 (C-level, diretoria de tecnologia e risco). A audiência **não é técnica** — priorize \
 impacto de negócio, tendências, risco reputacional e decisões de investimento.
 
+**Escopo:** o relatório cobre exclusivamente os **ativos cadastrados deste usuário** e \
+as CVEs associadas a eles via inventário.
+
+## Inventário analisado
+{inventory_block}
+
 ## Contexto do período analisado
 - Janela de análise: últimos **{period_days} dias**
-- Total de CVEs na base: **{data.get('total_cves', 0)}**
-- CVEs publicadas no período: **{data.get('recent_cves', 0)}**
+- Total de CVEs afetando o inventário: **{data.get('total_cves', 0)}**
+- CVEs publicadas no período afetando o inventário: **{data.get('recent_cves', 0)}**
 - CVEs no catálogo CISA KEV (exploração ativa conhecida): **{data.get('cisa_kev', 0)}**
 
 ### Distribuição total por severidade
@@ -103,24 +149,32 @@ residual e próximo marco de reavaliação.
 
 def _prompt_technical(data: Dict, period_days: int) -> str:
     exploit_list = "\n".join(
-        f"- **{e.get('cve_id')}** | CVSS {e.get('cvss_score')} | {e.get('base_severity')} — {e.get('description','')[:200]}"
+        f"- **{e.get('cve_id')}** | CVSS {e.get('cvss_score')} | {e.get('base_severity')} "
+        f"| patch={e.get('patch_available')} | KEV={e.get('is_in_cisa_kev')}\n  "
+        f"{e.get('description','')[:200]}{_format_affected_assets(e)}"
         for e in (data.get('exploitable_top') or [])
-    ) or "*Nenhuma CVE explorável identificada no período.*"
+    ) or "*Nenhuma CVE exploravel identificada afetando o inventario no periodo.*"
 
     total = data.get('period_cves', 0)
     with_exploit = data.get('with_exploit', 0)
     with_patch = data.get('with_patch', 0)
     exploit_rate = f"{(with_exploit / total * 100):.1f}%" if total else "0%"
     patch_rate = f"{(with_patch / total * 100):.1f}%" if total else "0%"
+    inventory_block = _format_assets_overview(data)
 
     return f"""\
 Gere um **Relatório Técnico de Vulnerabilidades** completo para equipes de \
 segurança ofensiva, blue team e engenharia. Audiência **técnica** — pode e \
 deve incluir detalhes de exploitabilidade, vetores, CWEs, mitigações táticas.
 
+**Escopo:** apenas as CVEs associadas aos **ativos cadastrados deste usuário**.
+
+## Inventário analisado
+{inventory_block}
+
 ## Dados do período
 - Janela: últimos **{period_days} dias**
-- CVEs publicadas no período: **{total}**
+- CVEs do inventário publicadas no período: **{total}**
 - CVEs com exploit público: **{with_exploit}** ({exploit_rate})
 - CVEs com patch disponível: **{with_patch}** ({patch_rate})
 - CVEs no CISA KEV: **{data.get('cisa_kev', 0)}**
@@ -161,10 +215,20 @@ Links para NVD, CISA KEV, vendor advisories e base de conhecimento interna.
 
 
 def _prompt_risk_assessment(data: Dict, period_days: int) -> str:
+    high_risk = data.get('high_risk_assets') or []
+    scored = data.get('scored_assets') or []
     assets_list = "\n".join(
-        f"- **{a.get('name')}** — score {a.get('risk_score')}, {a.get('vulnerabilities')} vulnerabilidades"
-        for a in (data.get('high_risk_assets') or [])
+        f"- **{a.get('name')}** (crit={a.get('criticality')}, env={a.get('environment')}, "
+        f"exp={a.get('exposure')}) — score **{a.get('risk_score')}** | max CVSS {a.get('max_cvss')} "
+        f"| {a.get('vulnerabilities')} vulnerabilidades"
+        for a in high_risk
     ) or "*Nenhum ativo classificado como alto risco.*"
+
+    # tabela compacta de todos os ativos scored (top 15) para o LLM usar
+    ranking_list = "\n".join(
+        f"| {a.get('name')} | {a.get('risk_score')} | {a.get('max_cvss')} | {a.get('vulnerabilities')} | {a.get('criticality')} | {a.get('environment')} |"
+        for a in scored[:15]
+    )
 
     total = data.get('total_assets', 0)
     with_vulns = data.get('assets_with_vulns', 0)
@@ -175,12 +239,17 @@ Gere uma **Avaliação de Risco de Ativos** completa para o CISO e gestores de \
 risco. Foco: exposição por ativo, priorização de mitigação e aceitação de risco.
 
 ## Inventário avaliado
-- Total de ativos no escopo: **{total}**
+- Total de ativos cadastrados: **{total}**
 - Ativos com vulnerabilidades: **{with_vulns}** ({coverage} do inventário)
-- Ativos classificados como ALTO RISCO (score > 7.0): **{len(data.get('high_risk_assets') or [])}**
+- Ativos classificados como ALTO RISCO (score > 7.0): **{len(high_risk)}**
 
-### Ativos de alto risco (ordenados por score)
+### Ativos de alto risco (score > 7.0)
 {assets_list}
+
+### Ranking dos ativos por score de risco (top 15)
+| Ativo | Score | Max CVSS | # Vulns | Criticidade | Ambiente |
+| --- | --- | --- | --- | --- | --- |
+{ranking_list or '| - | - | - | - | - | - |'}
 
 ---
 
@@ -221,11 +290,25 @@ def _prompt_compliance(data: Dict, period_days: int) -> str:
     total = (data.get('total_open', 0) + data.get('total_mitigated', 0)
              + data.get('total_accepted', 0) + data.get('total_resolved', 0))
     by_sev = data.get('by_severity') or {}
+    inventory_block = _format_assets_overview(data)
+
+    # lista de CVEs em aberto com ativos afetados para dar contexto à auditoria
+    open_cves = data.get('open_cves_sample') or []
+    open_cves_list = "\n".join(
+        f"- **{c.get('cve_id')}** | CVSS {c.get('cvss_score')} | {c.get('base_severity')} "
+        f"| status={c.get('status','OPEN')}{_format_affected_assets(c)}"
+        for c in open_cves[:10]
+    ) or "*Nenhuma pendência destacada.*"
 
     return f"""\
 Gere um **Relatório de Conformidade e Remediação** para auditoria interna, \
 GRC (Governança, Risco e Conformidade) e apresentação a frameworks como \
 ISO 27001, NIST CSF e CIS Controls.
+
+**Escopo:** exclusivamente os **ativos cadastrados deste usuário** e suas CVEs associadas.
+
+## Inventário sob gestão
+{inventory_block}
 
 ## Dados de conformidade
 - Total de itens sob gestão: **{total}**
@@ -234,6 +317,9 @@ ISO 27001, NIST CSF e CIS Controls.
 - Aceitas (ACCEPTED): **{data.get('total_accepted', 0)}**
 - Resolvidas (RESOLVED): **{data.get('total_resolved', 0)}**
 - **Taxa de remediação: {data.get('remediation_rate_pct', 0)}%**
+
+### Top pendências em aberto (com ativos afetados)
+{open_cves_list}
 
 ### Distribuição total por severidade
 - Crítica: {by_sev.get('CRITICAL', 0)}
@@ -286,14 +372,20 @@ def _prompt_trend(data: Dict, period_days: int) -> str:
         )
     timeline_block = "\n".join(timeline_lines) or "*Sem dados no período.*"
     by_sev = data.get('by_severity') or {}
+    inventory_block = _format_assets_overview(data)
 
     return f"""\
 Gere um **Relatório de Análise de Tendências** para o time de threat intelligence \
 e liderança de segurança. Foco: identificar padrões temporais, projeções e \
 antecipação de riscos.
 
+**Escopo:** tendências observadas nas CVEs associadas aos **ativos cadastrados deste usuário**.
+
+## Inventário analisado
+{inventory_block}
+
 ## Dados temporais (últimos {period_days} dias)
-- Total de CVEs no período: **{data.get('total_period', 0)}**
+- Total de CVEs no período afetando o inventário: **{data.get('total_period', 0)}**
 
 ### Distribuição do período por severidade
 - Crítica: {by_sev.get('CRITICAL', 0)}
@@ -340,14 +432,21 @@ def _prompt_incident(data: Dict, period_days: int) -> str:
     cves_list = "\n".join(
         f"- **{c.get('cve_id')}** | CVSS {c.get('cvss_score')} | {c.get('base_severity')} "
         f"| KEV: {c.get('is_in_cisa_kev')} | Exploit: {c.get('exploit_available')}\n  "
-        f"{c.get('description','')[:220]}"
+        f"{c.get('description','')[:220]}{_format_affected_assets(c)}"
         for c in cves[:15]
     ) or "*Sem CVEs elegíveis para resposta a incidente no período.*"
+    inventory_block = _format_assets_overview(data)
 
     return f"""\
 Gere um **Relatório de Resposta a Incidente** (IR briefing) para o time de \
 SOC/CSIRT. Foco: consolidar o contexto de ameaças ativas e orientar resposta \
 tática imediata.
+
+**Escopo:** CVEs recentes de severidade CRÍTICA/ALTA associadas aos \
+**ativos cadastrados deste usuário**.
+
+## Inventário afetado
+{inventory_block}
 
 ## Escopo do incidente
 - Janela analisada: últimos **{period_days} dias**
@@ -367,7 +466,8 @@ exploração ativa conhecida, concentração de severidades, nível de urgência
 
 ## CVEs Alvo
 Tabela Markdown com colunas: **CVE**, **CVSS**, **KEV?**, **Exploit?**, \
-**Ação de contenção inicial**. Priorize CVEs com `KEV=True` ou `Exploit=True`.
+**Ativos Afetados**, **Ação de contenção inicial**. Priorize CVEs com `KEV=True` ou `Exploit=True` \
+e ative primeiro ativos `PRODUCTION`/`CRITICAL`.
 
 ## Indicadores de Comprometimento (IOCs)
 Para as principais CVEs da tabela, sugira categorias de IOCs a monitorar \

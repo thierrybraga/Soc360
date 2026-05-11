@@ -8,10 +8,10 @@
 const Markdown = (() => {
     function escHtml(s) {
         return s
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
+            .replace(/&/g, '&')
+            .replace(/</g, '<')
+            .replace(/>/g, '>')
+            .replace(/"/g, '"');
     }
 
     function inlineFmt(s) {
@@ -126,6 +126,33 @@ const Markdown = (() => {
 
     return { render, toPlainText };
 })();
+
+/* ── API helper (fallback if OpenMonitor.api not available) ──────────────── */
+
+const API = {
+    async post(url, data) {
+        // Try OpenMonitor.api first
+        if (window.OpenMonitor?.api?.post) {
+            return await window.OpenMonitor.api.post(url, data);
+        }
+        // Fallback to fetch
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify(data),
+        });
+        if (!resp.ok) {
+            const err = new Error(`HTTP ${resp.status}`);
+            err.response = await resp.json().catch(() => ({}));
+            throw err;
+        }
+        return await resp.json();
+    }
+};
 
 /* ── ChatbotPage ─────────────────────────────────────────────────────────── */
 
@@ -242,18 +269,17 @@ class ChatbotPage {
         this._showTyping();
 
         try {
-            const data = await OpenMonitor.api.post('/chatbot/api/chat', { message: text });
+            const data = await API.post('/chatbot/api/chat', { message: text });
             this._hideTyping();
             this._appendBotMsg(data.response || 'Não foi possível gerar uma resposta.', data.source);
             this._setStatus('Pronto', 'ready');
-        } catch {
+        } catch (err) {
+            console.error('Chat error:', err);
             this._hideTyping();
-            this._appendBotMsg(
-                'Ocorreu um erro ao processar sua mensagem. Verifique a conexão e tente novamente.',
-                'error'
-            );
+            const errorMsg = err?.response?.response || err?.message || 'Erro de conexão';
+            this._appendBotMsg(`Erro: ${errorMsg}`, 'error');
             this._setStatus('Erro de conexão', 'error');
-            window.OpenMonitor?.showToast('Não foi possível enviar a mensagem.', 'error');
+            window.OpenMonitor?.showToast(`Erro: ${errorMsg}`, 'error');
         } finally {
             this._setBusy(false);
             this.els.input.focus();
@@ -314,16 +340,16 @@ class ChatbotPage {
         btn.className = 'chat-msg__copy';
         btn.type = 'button';
         btn.setAttribute('aria-label', 'Copiar mensagem');
-        btn.innerHTML = '<i class="fas fa-copy" </i>';
+        btn.innerHTML = '<i class="fas fa-copy"></i>';
 
         btn.addEventListener('click', async () => {
             const plain = Markdown.toPlainText(rawText);
             try {
                 await navigator.clipboard.writeText(plain);
-                btn.innerHTML = '<i class="fas fa-check" </i>';
+                btn.innerHTML = '<i class="fas fa-check"></i>';
                 btn.classList.add('copied');
                 setTimeout(() => {
-                    btn.innerHTML = '<i class="fas fa-copy" </i>';
+                    btn.innerHTML = '<i class="fas fa-copy"></i>';
                     btn.classList.remove('copied');
                 }, 2000);
             } catch {
@@ -421,20 +447,30 @@ class ChatbotPage {
 
     async _clear() {
         this._setBusy(true);
-
         try {
-            await OpenMonitor.api.post('/chatbot/api/clear', {});
-            // Remove all non-static messages
-            this.els.messages.querySelectorAll('.chat-msg:not([data-static])').forEach(el => el.remove());
+            await API.post('/chatbot/api/clear');
+            this.els.messages.innerHTML = '';
+            // Re-add welcome message
+            const welcome = document.createElement('article');
+            welcome.className = 'chat-msg chat-msg--bot';
+            welcome.setAttribute('data-static', 'welcome');
+            welcome.innerHTML = `
+                <div class="chat-msg__avatar"><i class="fas fa-robot"></i></div>
+                <div class="chat-msg__bubble">
+                    <header class="chat-msg__meta"><strong class="chat-msg__author">SecuriBot</strong></header>
+                    <div class="chat-msg__body">
+                        <p>Conversa limpa. Como posso ajudar?</p>
+                    </div>
+                </div>
+            `;
+            this.els.messages.appendChild(welcome);
             this.els.suggestions.classList.remove('is-hidden');
-            this._setStatus('Conversa limpa', 'ready');
             window.OpenMonitor?.showToast('Conversa limpa.', 'success');
-        } catch {
-            this._setStatus('Erro ao limpar', 'error');
-            window.OpenMonitor?.showToast('Não foi possível limpar a conversa.', 'error');
+        } catch (err) {
+            console.error('Clear error:', err);
+            window.OpenMonitor?.showToast('Erro ao limpar conversa.', 'error');
         } finally {
             this._setBusy(false);
-            this.els.input.focus();
         }
     }
 }

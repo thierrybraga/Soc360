@@ -1,5 +1,5 @@
 """
-Open-Monitor UserRole Model
+SOC360 UserRole Model
 Tabela de associação many-to-many entre User e Role.
 """
 from sqlalchemy import Column, Integer, ForeignKey, DateTime

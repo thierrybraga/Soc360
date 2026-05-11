@@ -1,5 +1,5 @@
 """
-Open-Monitor NVD Schemas
+SOC360 NVD Schemas
 Schemas for NVD (National Vulnerability Database) data.
 """
 from marshmallow import Schema, fields

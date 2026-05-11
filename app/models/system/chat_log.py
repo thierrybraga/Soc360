@@ -1,5 +1,5 @@
 """
-Open-Monitor Chat Log Model
+SOC360 Chat Log Model
 Placeholder model for chat logging.
 """
 

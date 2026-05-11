@@ -1,5 +1,5 @@
 /**
- * Open-Monitor v3.0 - Utilities
+ * SOC360 v3.0 - Utilities
  * Helper functions used across the application
  * All utility functions are now consolidated in OpenMonitor.utils
  */

@@ -1,5 +1,5 @@
 /**
- * Open-Monitor Rule Form Module
+ * SOC360 Rule Form Module
  * Handles create/edit rule page logic.
  */
 

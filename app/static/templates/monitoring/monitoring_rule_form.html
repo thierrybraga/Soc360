@@ -130,9 +130,9 @@
 </div>
 
 <!-- Toast Container -->
-<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1055;"></div>
+<div class="toast-container position-fixed top-0 end-0 p-3 z-1055"></div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
 // Form validation and submission
 document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('monitoring-form');
@@ -178,32 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // Show success toast on form submission
-  function showToast(message, type = 'success') {
-    const toastContainer = document.querySelector('.toast-container');
-    const toastId = 'toast-' + Date.now();
-    
-    const toastHTML = `
-      <div class="toast align-items-center text-bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true" id="${toastId}">
-        <div class="d-flex">
-          <div class="toast-body">
-            <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
-            ${message}
-          </div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-      </div>
-    `;
-    
-    toastContainer.insertAdjacentHTML('beforeend', toastHTML);
-    const toastElement = document.getElementById(toastId);
-    const toast = new bootstrap.Toast(toastElement, { delay: 5000 });
-    toast.show();
-    
-    toastElement.addEventListener('hidden.bs.toast', function() {
-      this.remove();
-    });
-  }
+  // showToast — delegates to global window.showToast (js/core/utils.js)
 });
 </script>
 {% endblock %}

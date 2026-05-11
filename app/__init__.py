@@ -1,5 +1,5 @@
 """
-Open-Monitor Application Factory
+SOC360 Application Factory
 Plataforma Enterprise de Gerenciamento de Vulnerabilidades
 """
 import os
@@ -83,9 +83,9 @@ def create_app(config_name: str | dict | None = None) -> Flask:
     from app import tasks
     
     if isinstance(config_name, dict):
-        app.logger.info("Open-Monitor initialized with explicit config override")
+        app.logger.info("SOC360 initialized with explicit config override")
     else:
-        app.logger.info(f"Open-Monitor initialized in {config_name} mode")
+        app.logger.info(f"SOC360 initialized in {config_name} mode")
     
     return app
 
@@ -118,6 +118,10 @@ def init_extensions(app: Flask) -> None:
     # SQLAlchemy
     db.init_app(app)
     migrate.init_app(app, db)
+
+    # Celery
+    from app.extensions.celery_extension import init_celery
+    init_celery(app)
     
     # Flask-Login
     login_manager.init_app(app)
@@ -199,6 +203,18 @@ def register_blueprints(app: Flask) -> None:
     from app.controllers.chatbot import chatbot_bp
     app.register_blueprint(chatbot_bp)
 
+    # Wazuh SIEM integration
+    from app.controllers.wazuh import wazuh_bp
+    app.register_blueprint(wazuh_bp)
+
+    # Cisco Umbrella integration
+    from app.controllers.umbrella import umbrella_bp
+    app.register_blueprint(umbrella_bp)
+
+    # D3FEND integration
+    from app.controllers.d3fend import d3fend_bp
+    app.register_blueprint(d3fend_bp)
+
 
 def register_error_handlers(app: Flask) -> None:
     """Registrar handlers de erro customizados."""
@@ -269,7 +285,7 @@ def register_context_processors(app: Flask) -> None:
             sync_status = 'unknown'
         
         return {
-            'app_name': 'Open-Monitor',
+            'app_name': 'SOC360',
             'app_version': '3.0.0',
             'sync_status': sync_status,
             'current_year': __import__('datetime').datetime.now().year,

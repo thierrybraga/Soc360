@@ -1,0 +1,70 @@
+# Dockerfile - Ollama otimizado para CPU no Oracle Linux (Rootless)
+# NÃO requer acesso root durante execução
+FROM oraclelinux:9-slim
+
+LABEL maintainer="Open-Monitor Team"
+LABEL description="Ollama CPU-only para Oracle Linux 9 (Rootless)"
+LABEL version="2.0"
+
+# Criar usuário não-root primeiro
+RUN groupadd -r -g 1000 ollama && \
+    useradd -r -u 1000 -g ollama -d /home/ollama -s /bin/bash ollama
+
+# Variáveis de ambiente
+ENV OLLAMA_HOST=0.0.0.0 \
+    OLLAMA_PORT=11434 \
+    OLLAMA_NUM_THREADS=4 \
+    OLLAMA_NUM_PARALLEL=1 \
+    OLLAMA_MAX_LOADED_MODELS=1 \
+    OLLAMA_LLM_LIBRARY=cpu_avx2 \
+    OLLAMA_FLASH_ATTENTION=0 \
+    OLLAMA_DEBUG=false \
+    OLLAMA_KV_CACHE_TYPE=f16 \
+    HOME=/home/ollama \
+    PATH="/usr/local/bin:${PATH}" \
+    OLLAMA_MODELS=/home/ollama/.ollama/models
+
+# Instalar dependências como root (necessário durante build)
+RUN microdnf install -y --setopt=install_weak_deps=False \
+    ca-certificates \
+    curl \
+    gzip \
+    tar \
+    shadow-utils \
+    procps \
+    && microdnf clean all \
+    && rm -rf /var/cache/yum/*
+
+# Baixar e instalar o Ollama com verificação de versão
+ARG OLLAMA_VERSION="0.3.6"
+ARG OLLAMA_ARCH="amd64"
+ARG OLLAMA_SHA256="auto"
+
+RUN echo "Installing Ollama v${OLLAMA_VERSION}..." && \
+    curl -fsSL "https://github.com/ollama/ollama/releases/download/v${OLLAMA_VERSION}/ollama-linux-${OLLAMA_ARCH}" \
+    -o /usr/local/bin/ollama && \
+    chmod +x /usr/local/bin/ollama && \
+    # Verificar instalação
+    /usr/local/bin/ollama --version || (echo "ERROR: Ollama installation failed" && exit 1)
+
+# Criar diretório de dados com permissões do usuário ollama
+RUN mkdir -p /home/ollama/.ollama/models && \
+    chown -R ollama:ollama /home/ollama && \
+    chmod 755 /home/ollama/.ollama
+
+# Copiar e ajustar script de inicialização
+COPY endpoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh && \
+    chown ollama:ollama /entrypoint.sh
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=5 \
+    CMD curl -sf http://localhost:11434/api/tags || exit 1
+
+EXPOSE 11434
+
+# Mudar para usuário não-root
+USER ollama
+
+# Executar como usuário não-root
+ENTRYPOINT ["/entrypoint.sh"]

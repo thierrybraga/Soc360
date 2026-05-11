@@ -8,16 +8,13 @@
    ========================================================================== */
 
 @keyframes content-fade-in {
-    from {
-        opacity: 0;
-        transform: translateY(12px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 
+/* NOTE: do NOT use transform in this animation.
+   transform on .page-content would create a containing block for position:fixed
+   descendants (like modals), breaking their z-index in the body stacking context. */
 .page-content {
     animation: content-fade-in 0.4s ease forwards;
 }

@@ -1,5 +1,5 @@
 """
-Open-Monitor NVD Types
+SOC360 NVD Types
 Data structures for NVD API responses.
 """
 from dataclasses import dataclass

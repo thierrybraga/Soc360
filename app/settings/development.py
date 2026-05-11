@@ -1,5 +1,5 @@
 """
-Open-Monitor Development Settings
+SOC360 Development Settings
 Configurations optimized for local development.
 """
 import os
@@ -61,9 +61,11 @@ class DevelopmentConfig(BaseConfig):
             'core': 'sqlite:///' + db_path,
             'public': 'sqlite:///' + db_path
         }
-        # SQLite doesn't support pool_size/pool_recycle
+        # SQLite não suporta pool_size/pool_recycle; StaticPool evita erros de thread
+        from sqlalchemy.pool import StaticPool
         SQLALCHEMY_ENGINE_OPTIONS = {
             'connect_args': {'check_same_thread': False},
+            'poolclass': StaticPool,
         }
         # Disable Redis if using SQLite mode
         # REDIS_URL = None # Keep Redis if available, but Celery can use DB

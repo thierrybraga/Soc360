@@ -1,5 +1,5 @@
 """
-Open-Monitor Audit Log Model
+SOC360 Audit Log Model
 Model for storing audit trail entries.
 """
 from datetime import datetime, timezone

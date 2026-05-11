@@ -1,5 +1,5 @@
 """
-Open-Monitor Account Controller
+SOC360 Account Controller
 Manage user account: profile, password change, settings.
 """
 import logging

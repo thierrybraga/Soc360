@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}{{ vulnerability.cve_id }} - Vulnerability Report{% endblock %}
+{% block title %}{{ vulnerability.cve_id }} — Relatório de Vulnerabilidade{% endblock %}
 
 {% block extra_css %}
 <link href="{{ url_for('static', filename='css/vulnerabilities.css') }}" rel="stylesheet">
+
 {% endblock %}
 
 {% block content %}
@@ -11,17 +12,17 @@
 {% set sev_lower = sev|lower %}
 {% set sev_class = 'danger' if sev == 'CRITICAL' else 'warning' if sev == 'HIGH' else 'info' if sev == 'MEDIUM' else 'success' if sev == 'LOW' else 'secondary' %}
 
-<div class="container-fluid p-4" data-page="nvd-detail">
+<div class="page-shell page-shell--wide" data-page="nvd-detail">
 
     <!-- Breadcrumb & Actions -->
-    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+    <div class="d-flex justify-content-between align-items-center mb-3 no-print flex-wrap gap-2">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-0 small">
-                <li class="breadcrumb-item"><a href="{{ url_for('nvd.index') }}" class="text-muted text-decoration-none">Vulnerabilities</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('nvd.index') }}" class="text-muted text-decoration-none">Vulnerabilidades</a></li>
                 <li class="breadcrumb-item active text-white">{{ vulnerability.cve_id }}</li>
             </ol>
         </nav>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
             <a href="https://nvd.nist.gov/vuln/detail/{{ vulnerability.cve_id }}" target="_blank" rel="noopener" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-external-link-alt"></i> NVD
             </a>
@@ -29,24 +30,38 @@
                 <i class="fas fa-external-link-alt"></i> MITRE
             </a>
             <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
-                <i class="fas fa-print"></i> Print
+                <i class="fas fa-print"></i> Imprimir
             </button>
             <a href="{{ url_for('nvd.index') }}" class="btn btn-ghost btn-sm text-muted">
-                <i class="fas fa-arrow-left"></i> Back
+                <i class="fas fa-arrow-left"></i> Voltar
             </a>
         </div>
     </div>
 
+    <!-- Quick jump navigation -->
+    <div class="section-anchor-nav no-print d-flex gap-1 overflow-auto">
+        <a href="#section-overview"><i class="fas fa-info-circle me-1"></i>Visão Geral</a>
+        <a href="#section-cvss"><i class="fas fa-chart-bar me-1"></i>CVSS</a>
+        <a href="#section-mitre"><i class="fas fa-shield-alt me-1"></i>MITRE ATT&CK</a>
+        <a href="#section-cwe"><i class="fas fa-bug me-1"></i>CWE</a>
+        <a href="#section-software"><i class="fas fa-sitemap me-1"></i>Software</a>
+        <a href="#section-references"><i class="fas fa-link me-1"></i>Referências</a>
+        <a href="#section-exposure"><i class="fas fa-shield-virus me-1"></i>Exposição</a>
+        <a href="#section-assets"><i class="fas fa-server me-1"></i>Ativos</a>
+        <a href="#section-mitigations"><i class="fas fa-tools me-1"></i>Mitigações</a>
+        <a href="#section-history"><i class="fas fa-history me-1"></i>Histórico</a>
+        <a href="#section-credits"><i class="fas fa-award me-1"></i>Créditos</a>
+    </div>
+
     <!-- ============================================================ -->
-    <!-- SECTION 1: REPORT HEADER -->
+    <!-- HEADER -->
     <!-- ============================================================ -->
     <div class="card mb-4">
         <div class="card-body">
             <div class="row align-items-start">
-                <!-- Left: CVE Info -->
                 <div class="col-lg-9">
                     <div class="report-header" style="--severity-color: var(--{{ sev_lower }}, var(--gray-500));">
-                        <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
                             <h2 class="mb-0 text-white">{{ vulnerability.cve_id }}</h2>
                             <span class="badge bg-{{ sev_class }} fs-6">{{ sev }}</span>
                             {% if vulnerability.vuln_status %}
@@ -65,11 +80,9 @@
                             <span class="badge bg-info"><i class="fas fa-euro-sign me-1"></i>EU CSIRT Coordinated</span>
                             {% endif %}
                         </div>
-                        <p class="text-secondary mb-0 mt-3" style="line-height: 1.7;">{{ vulnerability.description or 'No description available.' }}</p>
+                        <p class="text-secondary mb-0 mt-3">{{ vulnerability.description or 'No description available.' }}</p>
                     </div>
                 </div>
-
-                <!-- Right: Score Ring -->
                 <div class="col-lg-3 text-center mt-3 mt-lg-0">
                     <div class="d-flex flex-column align-items-center">
                         <div class="score-ring {{ sev_lower }}">
@@ -79,7 +92,7 @@
                             <span class="text-muted small">CVSS {{ vulnerability.cvss_version or '' }}</span>
                         </div>
                         {% if vulnerability.cvss_vector_string %}
-                        <code class="text-muted small mt-1 d-block text-break" style="max-width: 220px;">{{ vulnerability.cvss_vector_string }}</code>
+                        <code class="text-muted small mt-1 d-block text-break cvss-vector-code">{{ vulnerability.cvss_vector_string }}</code>
                         {% endif %}
                     </div>
                 </div>
@@ -87,9 +100,7 @@
         </div>
     </div>
 
-    <!-- ============================================================ -->
-    <!-- CISA KEV ALERT (if applicable) -->
-    <!-- ============================================================ -->
+    <!-- CISA KEV ALERT -->
     {% if vulnerability.is_in_cisa_kev %}
     <div class="kev-alert mb-4">
         <div class="d-flex align-items-start gap-3">
@@ -132,35 +143,34 @@
     {% endif %}
 
     <!-- ============================================================ -->
-    <!-- SECTION 2: KEY DETAILS GRID -->
+    <!-- SECTION: OVERVIEW (Timeline + Threat Intel + Software) -->
     <!-- ============================================================ -->
-    <div class="row g-4 mb-4">
-        <!-- Timeline Card -->
+    <div id="section-overview" class="row g-4 mb-4">
         <div class="col-lg-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <h6 class="section-title"><i class="fas fa-clock"></i>Timeline</h6>
+                    <h6 class="section-title"><i class="fas fa-clock"></i>Linha do Tempo</h6>
                     <div class="timeline-item">
-                        <div class="small text-muted">Published</div>
+                        <div class="small text-muted">Publicado</div>
                         <div class="fw-medium text-white">{{ vulnerability.published_date.strftime('%d %b %Y, %H:%M UTC') if vulnerability.published_date else 'N/A' }}</div>
                     </div>
                     <div class="timeline-item">
-                        <div class="small text-muted">Last Modified</div>
+                        <div class="small text-muted">Última Modificação</div>
                         <div class="fw-medium text-white">{{ vulnerability.last_modified_date.strftime('%d %b %Y, %H:%M UTC') if vulnerability.last_modified_date else 'N/A' }}</div>
                     </div>
                     {% if vulnerability.is_in_cisa_kev %}
                     <div class="timeline-item">
-                        <div class="small text-muted">Added to CISA KEV</div>
+                        <div class="small text-muted">Adicionado ao CISA KEV</div>
                         <div class="fw-medium text-danger">{{ vulnerability.cisa_exploit_add.strftime('%d %b %Y') if vulnerability.cisa_exploit_add else 'N/A' }}</div>
                     </div>
                     {% endif %}
                     <div class="timeline-item">
-                        <div class="small text-muted">Age</div>
-                        <div class="fw-medium text-white">{{ vulnerability.age_days }} days</div>
+                        <div class="small text-muted">Idade</div>
+                        <div class="fw-medium text-white">{{ vulnerability.age_days }} dias</div>
                     </div>
                     {% if vulnerability.enisa_last_changed %}
                     <div class="timeline-item">
-                        <div class="small text-muted">ENISA Last Changed</div>
+                        <div class="small text-muted">ENISA Última Alteração</div>
                         <div class="fw-medium text-info">{{ vulnerability.enisa_last_changed.strftime('%d %b %Y') }}</div>
                     </div>
                     {% endif %}
@@ -168,15 +178,14 @@
             </div>
         </div>
 
-        <!-- Exploit & Patch Status -->
         <div class="col-lg-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <h6 class="section-title"><i class="fas fa-crosshairs"></i>Threat Intelligence</h6>
+                    <h6 class="section-title"><i class="fas fa-crosshairs"></i>Inteligência de Ameaças</h6>
                     <table class="table table-sm table-borderless mb-0">
                         <tbody>
                             <tr>
-                                <td class="text-muted" style="width: 50%;">Exploit Available</td>
+                                <td class="text-muted col-w50">Exploit Disponível</td>
                                 <td>
                                     {% if vulnerability.exploit_available %}
                                     <span class="text-danger fw-bold"><i class="fas fa-check-circle"></i> Yes</span>
@@ -187,12 +196,12 @@
                             </tr>
                             {% if vulnerability.exploit_maturity %}
                             <tr>
-                                <td class="text-muted">Exploit Maturity</td>
+                                <td class="text-muted">Maturidade do Exploit</td>
                                 <td class="text-white">{{ vulnerability.exploit_maturity }}</td>
                             </tr>
                             {% endif %}
                             <tr>
-                                <td class="text-muted">Patch Available</td>
+                                <td class="text-muted">Patch Disponível</td>
                                 <td>
                                     {% if vulnerability.patch_available %}
                                     <span class="text-success fw-bold"><i class="fas fa-check-circle"></i> Yes</span>
@@ -212,7 +221,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td class="text-muted">NVD Status</td>
+                                <td class="text-muted">Status NVD</td>
                                 <td class="text-white">{{ vulnerability.vuln_status or 'N/A' }}</td>
                             </tr>
                             {% if vulnerability.euvd_id %}
@@ -227,7 +236,7 @@
                             {% endif %}
                             {% if vulnerability.enisa_exploitation_status %}
                             <tr>
-                                <td class="text-muted">EU Exploitation</td>
+                                <td class="text-muted">Exploração EU</td>
                                 <td>
                                     <span class="badge {% if 'Exploited' in vulnerability.enisa_exploitation_status %}bg-danger{% else %}bg-info{% endif %}">
                                         {{ vulnerability.enisa_exploitation_status }}
@@ -241,14 +250,13 @@
             </div>
         </div>
 
-        <!-- Affected Vendors/Products Summary -->
         <div class="col-lg-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <h6 class="section-title"><i class="fas fa-boxes"></i>Affected Software</h6>
+                    <h6 class="section-title"><i class="fas fa-boxes"></i>Software Afetado</h6>
                     {% if vulnerability.vendors %}
                     <div class="mb-3">
-                        <span class="text-muted small d-block mb-2">Vendors</span>
+                        <span class="text-muted small d-block mb-2">Fornecedores</span>
                         <div class="d-flex flex-wrap gap-1">
                             {% for vendor in vulnerability.vendors %}
                             <span class="badge border border-primary text-primary">{{ vendor }}</span>
@@ -258,7 +266,7 @@
                     {% endif %}
                     {% if vulnerability.products %}
                     <div>
-                        <span class="text-muted small d-block mb-2">Products</span>
+                        <span class="text-muted small d-block mb-2">Produtos</span>
                         <div class="d-flex flex-wrap gap-1">
                             {% for product in vulnerability.products[:10] %}
                             <span class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25">{{ product }}</span>
@@ -269,7 +277,7 @@
                         </div>
                     </div>
                     {% else %}
-                    <p class="text-muted small mb-0">No vendor/product data available.</p>
+                    <p class="text-muted small mb-0">Nenhum dado de fornecedor/produto disponível.</p>
                     {% endif %}
                 </div>
             </div>
@@ -277,60 +285,22 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- SECTION 3: MITRE ENRICHMENT -->
+    <!-- SECTION: CVSS METRICS -->
     <!-- ============================================================ -->
-    <div class="row g-4 mb-4">
-        <!-- Credits Section (New) -->
-        <div class="col-12">
-            <div class="card h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="section-title mb-0"><i class="fas fa-award"></i>Credits</h6>
-                        <span class="badge bg-dark border border-secondary text-secondary">{{ credits|length }}</span>
-                    </div>
-                    {% if credits %}
-                    <ul class="list-unstyled mb-0">
-                        {% for credit in credits %}
-                        <li class="{% if not loop.last %}mb-3 pb-3 border-bottom border-secondary border-opacity-25{% else %}mb-0{% endif %}">
-                            <div class="fw-medium text-white">{{ credit.value }}</div>
-                            <div class="d-flex gap-2 mt-1 flex-wrap">
-                                {% if credit.type %}
-                                <span class="badge bg-dark border border-secondary text-secondary small">{{ credit.type }}</span>
-                                {% endif %}
-                                {% if credit.user %}
-                                <span class="text-muted small"><i class="fas fa-user me-1"></i>{{ credit.user }}</span>
-                                {% endif %}
-                            </div>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    <p class="text-muted small mb-0">No credits recorded.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-
-
-
-    <!-- ============================================================ -->
-    <!-- SECTION 4: REFERENCES & METRICS -->
-    <!-- ============================================================ -->
-
-
-    <div class="card mb-4">
+    <div id="section-cvss" class="card mb-4">
         <div class="card-body">
-            <h6 class="section-title"><i class="fas fa-chart-bar"></i>CVSS Metrics</h6>
+            <h6 class="section-title"><i class="fas fa-chart-bar"></i>Métricas CVSS</h6>
 
             {% if cvss_metrics %}
             {% for metric in cvss_metrics %}
+            {% set m_sev = (metric.base_severity or '')|upper %}
+            {% set m_class = 'danger' if m_sev == 'CRITICAL' else 'warning' if m_sev == 'HIGH' else 'info' if m_sev == 'MEDIUM' else 'success' if m_sev == 'LOW' else 'secondary' %}
             <div class="{% if not loop.first %}mt-4 pt-4 border-top border-secondary border-opacity-25{% endif %}">
-                <div class="d-flex align-items-center gap-3 mb-3">
-                    <span class="badge bg-{{ sev_class }} fs-6">{{ metric.base_score }}</span>
+                <div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+                    <span class="badge bg-{{ m_class }} fs-6">{{ metric.base_score if metric.base_score is not none else 'N/A' }}</span>
                     <div>
                         <span class="text-white fw-bold">CVSS v{{ metric.version }}</span>
-                        <span class="text-muted ms-2">{{ metric.base_severity }}</span>
+                        <span class="text-muted ms-2">{{ metric.base_severity or '-' }}</span>
                     </div>
                     <span class="text-muted small ms-auto">
                         <i class="fas fa-building me-1"></i>{{ metric.source or 'N/A' }}
@@ -344,119 +314,117 @@
                 </div>
                 {% endif %}
 
-                <!-- Scores Row -->
+                <!-- Score breakdown row -->
                 <div class="row g-2 mb-3">
-                    <div class="col-auto">
+                    <div class="col-6 col-md-4">
                         <div class="metric-cell">
                             <div class="label">Base Score</div>
-                            <div class="value text-white">{{ metric.base_score or 'N/A' }}</div>
+                            <div class="value text-white">{{ metric.base_score if metric.base_score is not none else 'N/A' }}</div>
                         </div>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-6 col-md-4">
                         <div class="metric-cell">
-                            <div class="label">Impact</div>
-                            <div class="value text-white">{{ metric.impact_score or 'N/A' }}</div>
+                            <div class="label">Impacto</div>
+                            <div class="value text-white">{{ metric.impact_score if metric.impact_score is not none else 'N/A' }}</div>
                         </div>
                     </div>
-                    <div class="col-auto">
+                    <div class="col-6 col-md-4">
                         <div class="metric-cell">
-                            <div class="label">Exploitability</div>
-                            <div class="value text-white">{{ metric.exploitability_score or 'N/A' }}</div>
+                            <div class="label">Explorabilidade</div>
+                            <div class="value text-white">{{ metric.exploitability_score if metric.exploitability_score is not none else 'N/A' }}</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Vector Components (CVSS v3.x) -->
+                <!-- Vector components: CVSS v3.x/v4.0 -->
                 {% if metric.attack_vector %}
-                <div class="row g-2">
-                    <div class="col-6 col-md-3">
-                        <div class="metric-cell">
-                            <div class="label">Attack Vector</div>
-                            <div class="value {{ 'text-danger' if metric.attack_vector == 'NETWORK' else 'text-warning' if metric.attack_vector in ['ADJACENT_NETWORK', 'ADJACENT'] else 'text-success' }}">{{ metric.attack_vector }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="metric-cell">
-                            <div class="label">Attack Complexity</div>
-                            <div class="value {{ 'text-danger' if metric.attack_complexity == 'LOW' else 'text-success' }}">{{ metric.attack_complexity }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="metric-cell">
-                            <div class="label">Privileges Required</div>
-                            <div class="value {{ 'text-danger' if metric.privileges_required == 'NONE' else 'text-warning' if metric.privileges_required == 'LOW' else 'text-success' }}">{{ metric.privileges_required }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="metric-cell">
-                            <div class="label">User Interaction</div>
-                            <div class="value {{ 'text-danger' if metric.user_interaction == 'NONE' else 'text-success' }}">{{ metric.user_interaction }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="metric-cell">
-                            <div class="label">Scope</div>
-                            <div class="value {{ 'text-danger' if metric.scope == 'CHANGED' else 'text-white' }}">{{ metric.scope }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="metric-cell">
-                            <div class="label">Confidentiality</div>
-                            <div class="value {{ 'text-danger' if metric.confidentiality_impact == 'HIGH' else 'text-warning' if metric.confidentiality_impact == 'LOW' else 'text-success' }}">{{ metric.confidentiality_impact }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="metric-cell">
-                            <div class="label">Integrity</div>
-                            <div class="value {{ 'text-danger' if metric.integrity_impact == 'HIGH' else 'text-warning' if metric.integrity_impact == 'LOW' else 'text-success' }}">{{ metric.integrity_impact }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-3">
-                        <div class="metric-cell">
-                            <div class="label">Availability</div>
-                            <div class="value {{ 'text-danger' if metric.availability_impact == 'HIGH' else 'text-warning' if metric.availability_impact == 'LOW' else 'text-success' }}">{{ metric.availability_impact }}</div>
-                        </div>
+                <div class="mt-3">
+                    <div class="small text-muted mb-2">Vetor de Ataque</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="vector-pill {{ 'danger' if metric.attack_vector == 'NETWORK' else 'warning' if metric.attack_vector in ['ADJACENT_NETWORK','ADJACENT'] else 'safe' }}"
+                              data-tip="How attack reaches victim: NETWORK = remote, ADJACENT = same segment, LOCAL = local access, PHYSICAL = physical access">
+                            AV:<span>{{ metric.attack_vector }}</span>
+                        </span>
+                        {% if metric.attack_complexity %}
+                        <span class="vector-pill {{ 'danger' if metric.attack_complexity == 'LOW' else 'safe' }}"
+                              data-tip="Attack Complexity: LOW = no preconditions, HIGH = requires specific conditions">
+                            AC:<span>{{ metric.attack_complexity }}</span>
+                        </span>
+                        {% endif %}
+                        {% if metric.privileges_required %}
+                        <span class="vector-pill {{ 'danger' if metric.privileges_required == 'NONE' else 'warning' if metric.privileges_required == 'LOW' else 'safe' }}"
+                              data-tip="Privileges Required: NONE = unauthenticated, LOW = basic user, HIGH = admin">
+                            PR:<span>{{ metric.privileges_required }}</span>
+                        </span>
+                        {% endif %}
+                        {% if metric.user_interaction %}
+                        <span class="vector-pill {{ 'danger' if metric.user_interaction == 'NONE' else 'safe' }}"
+                              data-tip="User Interaction: NONE = fully automated, REQUIRED = needs victim action">
+                            UI:<span>{{ metric.user_interaction }}</span>
+                        </span>
+                        {% endif %}
+                        {% if metric.scope %}
+                        <span class="vector-pill {{ 'danger' if metric.scope == 'CHANGED' else '' }}"
+                              data-tip="Scope: CHANGED = impacts beyond vulnerable component, UNCHANGED = contained">
+                            S:<span>{{ metric.scope }}</span>
+                        </span>
+                        {% endif %}
+                        {% if metric.confidentiality_impact %}
+                        <span class="vector-pill {{ 'danger' if metric.confidentiality_impact == 'HIGH' else 'warning' if metric.confidentiality_impact == 'LOW' else 'safe' }}"
+                              data-tip="Confidentiality Impact: HIGH = total disclosure, LOW = partial, NONE = no impact">
+                            C:<span>{{ metric.confidentiality_impact }}</span>
+                        </span>
+                        {% endif %}
+                        {% if metric.integrity_impact %}
+                        <span class="vector-pill {{ 'danger' if metric.integrity_impact == 'HIGH' else 'warning' if metric.integrity_impact == 'LOW' else 'safe' }}"
+                              data-tip="Integrity Impact: HIGH = total modification, LOW = partial, NONE = no impact">
+                            I:<span>{{ metric.integrity_impact }}</span>
+                        </span>
+                        {% endif %}
+                        {% if metric.availability_impact %}
+                        <span class="vector-pill {{ 'danger' if metric.availability_impact == 'HIGH' else 'warning' if metric.availability_impact == 'LOW' else 'safe' }}"
+                              data-tip="Availability Impact: HIGH = total denial, LOW = partial, NONE = no impact">
+                            A:<span>{{ metric.availability_impact }}</span>
+                        </span>
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
 
                 <!-- CVSSv2 legacy fields -->
                 {% if metric.version == '2.0' and metric.access_vector %}
-                <div class="row g-2">
-                    <div class="col-6 col-md-4">
-                        <div class="metric-cell">
-                            <div class="label">Access Vector</div>
-                            <div class="value text-white">{{ metric.access_vector }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <div class="metric-cell">
-                            <div class="label">Access Complexity</div>
-                            <div class="value text-white">{{ metric.access_complexity }}</div>
-                        </div>
-                    </div>
-                    <div class="col-6 col-md-4">
-                        <div class="metric-cell">
-                            <div class="label">Authentication</div>
-                            <div class="value text-white">{{ metric.authentication }}</div>
-                        </div>
+                <div class="mt-3">
+                    <div class="small text-muted mb-2">Componentes CVSS v2</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="vector-pill" data-tip="Access Vector (v2)">AV:<span>{{ metric.access_vector }}</span></span>
+                        <span class="vector-pill" data-tip="Access Complexity (v2)">AC:<span>{{ metric.access_complexity }}</span></span>
+                        <span class="vector-pill" data-tip="Authentication (v2)">Au:<span>{{ metric.authentication }}</span></span>
                     </div>
                 </div>
                 {% endif %}
             </div>
             {% endfor %}
             {% else %}
-            <p class="text-muted mb-0">No detailed CVSS metrics available.</p>
+            <div class="d-flex align-items-center gap-2 text-muted small">
+                <i class="fas fa-info-circle"></i> Nenhuma métrica CVSS detalhada disponível.
+                {% if vulnerability.cvss_score %}
+                Pontuação base NVD: <strong class="text-white">{{ vulnerability.cvss_score }}</strong>
+                ({{ vulnerability.base_severity or 'N/A' }})
+                {% endif %}
+            </div>
             {% endif %}
         </div>
     </div>
 
     <!-- ============================================================ -->
-    <!-- SECTION 4: MITRE ATT&CK -->
+    <!-- SECTION: MITRE ATT&CK -->
     <!-- ============================================================ -->
-    <div class="card mb-4">
+    <div id="section-mitre" class="card mb-4">
         <div class="card-body">
-            <h6 class="section-title"><i class="fas fa-shield-alt"></i>MITRE ATT&CK® Techniques</h6>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="section-title mb-0"><i class="fas fa-shield-alt"></i>Técnicas MITRE ATT&CK®</h6>
+                <span class="badge bg-dark border border-secondary text-secondary">{{ vulnerability.mitre_techniques|length if vulnerability.mitre_techniques else 0 }}</span>
+            </div>
 
             {% if vulnerability.mitre_techniques %}
             <div class="row g-3">
@@ -468,16 +436,16 @@
                                target="_blank" rel="noopener"
                                class="text-primary fw-bold text-decoration-none">
                                 {{ tech.external_id }} - {{ tech.name }}
-                                <i class="fas fa-external-link-alt ms-1" style="font-size: 0.7rem;"></i>
+                                <i class="fas fa-external-link-alt ms-1 icon-external-sm"></i>
                             </a>
                             {% if tech.is_subtechnique %}
                             <span class="badge bg-secondary small">Sub-technique</span>
                             {% endif %}
                         </div>
-                        
+
                         {% if tech.tactics %}
                         <div class="mb-2">
-                            <span class="text-muted small">Tactics:</span>
+                            <span class="text-muted small">Táticas:</span>
                             {% for tactic in tech.tactics %}
                             <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 small me-1">{{ tactic.name }}</span>
                             {% endfor %}
@@ -489,10 +457,10 @@
                             {{ tech.description|striptags }}
                         </p>
                         {% endif %}
-                        
+
                         {% if tech.mitigations %}
                         <div class="mt-3">
-                            <span class="text-muted small d-block mb-1">Recommended Mitigations:</span>
+                            <span class="text-muted small d-block mb-1">Mitigações Recomendadas:</span>
                             <div class="d-flex flex-wrap gap-1">
                                 {% for mit in tech.mitigations[:3] %}
                                 <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 small" title="{{ mit.description }}">
@@ -513,7 +481,7 @@
             <div class="d-flex align-items-center gap-3 p-3 bg-dark bg-opacity-25 rounded border border-secondary border-opacity-25">
                 <i class="fas fa-info-circle text-info"></i>
                 <div class="small text-muted">
-                    Nenhum mapeamento direto do ATT&CK encontrado para esta CVE. 
+                    Nenhum mapeamento direto do ATT&CK encontrado para esta CVE.
                     <a href="https://attack.mitre.org/" target="_blank" class="text-info text-decoration-none">Explore o framework ATT&CK <i class="fas fa-external-link-alt ms-1"></i></a>
                 </div>
             </div>
@@ -522,11 +490,14 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- SECTION 5: WEAKNESSES (CWE) -->
+    <!-- SECTION: WEAKNESSES (CWE) -->
     <!-- ============================================================ -->
-    <div class="card mb-4">
+    <div id="section-cwe" class="card mb-4">
         <div class="card-body">
-            <h6 class="section-title"><i class="fas fa-bug"></i>Weaknesses (CWE)</h6>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="section-title mb-0"><i class="fas fa-bug"></i>Fraquezas (CWE)</h6>
+                <span class="badge bg-dark border border-secondary text-secondary">{{ weaknesses|length }}</span>
+            </div>
 
             {% if weaknesses %}
             <div class="row g-3">
@@ -538,7 +509,7 @@
                                target="_blank" rel="noopener"
                                class="text-primary fw-bold text-decoration-none">
                                 {{ weakness.cwe_id }}
-                                <i class="fas fa-external-link-alt ms-1" style="font-size: 0.7rem;"></i>
+                                <i class="fas fa-external-link-alt ms-1 icon-external-sm"></i>
                             </a>
                             <div class="d-flex gap-2">
                                 {% if weakness.type %}
@@ -560,40 +531,37 @@
                 {% endfor %}
             </div>
             {% else %}
-            <p class="text-muted mb-0">No CWE weaknesses associated.</p>
+            <p class="text-muted small mb-0">Nenhuma fraqueza CWE associada.</p>
             {% endif %}
         </div>
     </div>
 
     <!-- ============================================================ -->
-    <!-- SECTION 5: AFFECTED SOFTWARE (CPE Configurations) -->
+    <!-- SECTION: AFFECTED SOFTWARE (CPE) -->
     <!-- ============================================================ -->
-    <div class="card mb-4">
+    <div id="section-software" class="card mb-4">
         <div class="card-body">
-            <h6 class="section-title"><i class="fas fa-sitemap"></i>Affected Software</h6>
+            <h6 class="section-title"><i class="fas fa-sitemap"></i>Software Afetado / Configurações CPE</h6>
 
             {% if affected_products %}
-            <!-- MITRE Data -->
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead>
                         <tr>
-                            <th class="text-muted small text-uppercase" style="width: 20%;">Vendor</th>
-                            <th class="text-muted small text-uppercase" style="width: 25%;">Product</th>
-                            <th class="text-muted small text-uppercase">Versions/Platforms</th>
+                            <th class="text-muted small text-uppercase col-w20">Fornecedor</th>
+                            <th class="text-muted small text-uppercase col-w25">Produto</th>
+                            <th class="text-muted small text-uppercase">Versões / Plataformas</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in affected_products %}
                         <tr>
-                            <td>
-                                <span class="badge border border-primary text-primary">{{ item.vendor }}</span>
-                            </td>
+                            <td><span class="badge border border-primary text-primary">{{ item.vendor }}</span></td>
                             <td class="fw-medium text-white">{{ item.product }}</td>
                             <td>
                                 {% if item.versions %}
                                 <div class="mb-2">
-                                    <span class="text-muted small d-block">Versions:</span>
+                                    <span class="text-muted small d-block">Versões:</span>
                                     {% for ver in item.versions %}
                                     <span class="badge bg-dark border border-secondary text-secondary small me-1 mb-1">
                                         {{ ver.version if ver.version is defined else ver }}
@@ -604,10 +572,9 @@
                                     {% endfor %}
                                 </div>
                                 {% endif %}
-                                
                                 {% if item.platforms %}
                                 <div>
-                                    <span class="text-muted small d-block">Platforms:</span>
+                                    <span class="text-muted small d-block">Plataformas:</span>
                                     {% for plat in item.platforms %}
                                     <span class="badge bg-secondary bg-opacity-25 text-light small me-1">{{ plat }}</span>
                                     {% endfor %}
@@ -619,23 +586,20 @@
                     </tbody>
                 </table>
             </div>
-            
             {% elif vulnerability.affected_software_list %}
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
                     <thead>
                         <tr>
-                            <th class="text-muted small text-uppercase" style="width: 20%;">Vendor</th>
-                            <th class="text-muted small text-uppercase" style="width: 25%;">Product</th>
-                            <th class="text-muted small text-uppercase">Affected Versions</th>
+                            <th class="text-muted small text-uppercase col-w20">Fornecedor</th>
+                            <th class="text-muted small text-uppercase col-w25">Produto</th>
+                            <th class="text-muted small text-uppercase">Versões Afetadas</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in vulnerability.affected_software_list %}
                         <tr>
-                            <td>
-                                <span class="badge border border-primary text-primary">{{ item.vendor }}</span>
-                            </td>
+                            <td><span class="badge border border-primary text-primary">{{ item.vendor }}</span></td>
                             <td class="fw-medium text-white">{{ item.product }}</td>
                             <td>
                                 {% for ver in item.versions %}
@@ -651,414 +615,300 @@
                 </table>
             </div>
             {% else %}
-            <!-- Fallback: vendor/product summary -->
-            <div class="row g-4">
+            <p class="text-muted small mb-0">Nenhum dado de software estruturado disponível.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION: REFERENCES -->
+    <!-- ============================================================ -->
+    <div id="section-references" class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="section-title mb-0"><i class="fas fa-link"></i>Referências</h6>
+                <span class="badge bg-dark border border-secondary text-secondary">{{ references|length }}</span>
+            </div>
+
+            {% if references %}
+            <div class="row g-3">
+                {% if patch_refs %}
                 <div class="col-md-6">
-                    <span class="text-muted small d-block mb-2">Vendors</span>
-                    {% if vulnerability.nvd_vendors_data %}
-                    <div class="d-flex flex-wrap gap-1">
-                        {% for vendor in vulnerability.nvd_vendors_data %}
-                        <span class="badge border border-primary text-primary">{{ vendor }}</span>
-                        {% endfor %}
+                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 mb-2">
+                        <i class="fas fa-band-aid me-1"></i>Patches ({{ patch_refs|length }})
+                    </span>
+                    {% for ref in patch_refs %}
+                    <div class="ref-item">
+                        <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-primary">
+                            <i class="fas fa-external-link-alt me-1 icon-external-xs"></i>
+                            {{ ref.url|truncate(80) }}
+                        </a>
+                        {% if ref.source %}<span class="text-muted small ms-2">{{ ref.source }}</span>{% endif %}
                     </div>
-                    {% else %}
-                    <span class="text-muted small">No vendor data available.</span>
-                    {% endif %}
+                    {% endfor %}
                 </div>
+                {% endif %}
+
+                {% if exploit_refs %}
                 <div class="col-md-6">
-                    <span class="text-muted small d-block mb-2">Products</span>
-                    {% if vulnerability.products %}
-                    <div class="d-flex flex-wrap gap-1">
-                        {% for product in vulnerability.products %}
-                        <span class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25">{{ product }}</span>
-                        {% endfor %}
+                    <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 mb-2">
+                        <i class="fas fa-skull-crossbones me-1"></i>Exploits ({{ exploit_refs|length }})
+                    </span>
+                    {% for ref in exploit_refs %}
+                    <div class="ref-item">
+                        <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-danger">
+                            <i class="fas fa-external-link-alt me-1 icon-external-xs"></i>
+                            {{ ref.url|truncate(80) }}
+                        </a>
+                        {% if ref.source %}<span class="text-muted small ms-2">{{ ref.source }}</span>{% endif %}
                     </div>
-                    {% else %}
-                    <span class="text-muted small">No product data available.</span>
-                    {% endif %}
+                    {% endfor %}
                 </div>
+                {% endif %}
+
+                {% if advisory_refs %}
+                <div class="col-md-6">
+                    <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25 mb-2">
+                        <i class="fas fa-building me-1"></i>Vendor Advisories ({{ advisory_refs|length }})
+                    </span>
+                    {% for ref in advisory_refs %}
+                    <div class="ref-item">
+                        <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-info">
+                            <i class="fas fa-external-link-alt me-1 icon-external-xs"></i>
+                            {{ ref.url|truncate(80) }}
+                        </a>
+                        {% if ref.source %}<span class="text-muted small ms-2">{{ ref.source }}</span>{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if other_refs %}
+                <div class="col-md-6">
+                    <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 mb-2">
+                        <i class="fas fa-bookmark me-1"></i>Other ({{ other_refs|length }})
+                    </span>
+                    {% for ref in other_refs %}
+                    <div class="ref-item">
+                        <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-secondary">
+                            <i class="fas fa-external-link-alt me-1 icon-external-xs"></i>
+                            {{ ref.url|truncate(80) }}
+                        </a>
+                        {% if ref.tags %}
+                        <div class="mt-1">
+                            {% for tag in ref.tags %}
+                            <span class="ref-tag bg-dark text-muted border border-secondary">{{ tag }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">Nenhuma referência encontrada.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION: ORGANIZATION EXPOSURE INSIGHTS (KPIs + Radar) -->
+    <!-- ============================================================ -->
+    <div id="section-exposure" class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="section-title mb-0"><i class="fas fa-shield-virus"></i>Exposição na Organização</h6>
+                <span class="badge bg-{{ 'danger' if affected_assets|length > 0 else 'secondary' }}">
+                    {{ affected_assets|length }} asset{{ 's' if affected_assets|length != 1 else '' }}
+                </span>
+            </div>
+
+            <!-- KPI Row -->
+            <div class="row g-3 mb-3">
+                <div class="col-6 col-md-3">
+                    <div class="exposure-kpi">
+                        <div class="kpi-label">Casos Abertos</div>
+                        <div class="kpi-value text-warning">{{ open_assets_count }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="exposure-kpi">
+                        <div class="kpi-label">Resolvidos / Mitigados</div>
+                        <div class="kpi-value text-success">{{ resolved_assets_count }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="exposure-kpi">
+                        <div class="kpi-label">Vencidos</div>
+                        <div class="kpi-value {{ 'text-danger' if overdue_assets_count > 0 else 'text-muted' }}">{{ overdue_assets_count }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="exposure-kpi">
+                        <div class="kpi-label">Risco Médio</div>
+                        <div class="kpi-value {{ 'text-danger' if avg_contextual_risk and avg_contextual_risk >= 8 else 'text-warning' if avg_contextual_risk and avg_contextual_risk >= 6 else 'text-info' if avg_contextual_risk else 'text-muted' }}">
+                            {{ '%.1f'|format(avg_contextual_risk) if avg_contextual_risk is not none else '—' }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Radar + Distribution -->
+            <div class="row g-3">
+                <div class="col-lg-6">
+                    <div class="insight-card h-100">
+                        <div class="small text-muted mb-2">Radar de postura de risco</div>
+                        {% if radar_chart %}
+                        <div class="radar-wrap">
+                            <canvas id="riskRadarChart"></canvas>
+                        </div>
+                        <div class="text-center small text-muted mt-2">
+                            Passe o mouse sobre os eixos para ver os valores.
+                        </div>
+                        {% else %}
+                        <div class="d-flex align-items-center justify-content-center h-100 text-muted small p-3">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Radar indisponível — CVSS base ausente.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="insight-card h-100">
+                        <div class="small text-muted mb-2">Distribuição por criticidade</div>
+                        {% set crit_count = asset_criticality_counts.get('CRITICAL', 0) %}
+                        {% set high_count = asset_criticality_counts.get('HIGH', 0) %}
+                        {% set med_count  = asset_criticality_counts.get('MEDIUM', 0) %}
+                        {% set low_count  = asset_criticality_counts.get('LOW', 0) %}
+                        {% set max_count = [crit_count, high_count, med_count, low_count, 1]|max %}
+
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-danger">CRITICAL</span>
+                                <span class="text-white fw-bold">{{ crit_count }}</span>
+                            </div>
+                            <div class="severity-bar crit-bar">
+                                <div class="fill" style="width: {{ (crit_count / max_count * 100)|round(0, 'floor') }}%;"></div>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-warning">HIGH</span>
+                                <span class="text-white fw-bold">{{ high_count }}</span>
+                            </div>
+                            <div class="severity-bar high-bar">
+                                <div class="fill" style="width: {{ (high_count / max_count * 100)|round(0, 'floor') }}%;"></div>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-info">MEDIUM</span>
+                                <span class="text-white fw-bold">{{ med_count }}</span>
+                            </div>
+                            <div class="severity-bar med-bar">
+                                <div class="fill" style="width: {{ (med_count / max_count * 100)|round(0, 'floor') }}%;"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="text-success">LOW</span>
+                                <span class="text-white fw-bold">{{ low_count }}</span>
+                            </div>
+                            <div class="severity-bar low-bar">
+                                <div class="fill" style="width: {{ (low_count / max_count * 100)|round(0, 'floor') }}%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 pt-2 border-top border-secondary border-opacity-25">
+                            <span class="badge bg-dark border border-secondary text-secondary">
+                                Sem responsável: {{ unassigned_assets_count }}
+                            </span>
+                            {% if max_contextual_risk is not none %}
+                            <span class="badge bg-dark border border-danger text-danger">
+                                Max risk: {{ '%.1f'|format(max_contextual_risk) }}
+                            </span>
+                            {% endif %}
+                            {% if top_asset_types %}
+                            {% for type_name, type_count in top_asset_types %}
+                            <span class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25">
+                                {{ type_name }}: {{ type_count }}
+                            </span>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if not affected_assets %}
+            <div class="mt-3 p-3 rounded border border-secondary border-opacity-25 small text-muted d-flex align-items-center gap-2">
+                <i class="fas fa-check-circle text-success"></i>
+                Nenhum ativo da organização está associado a esta CVE. O radar exibe apenas dimensões globais (CVSS e Threat Intel).
             </div>
             {% endif %}
         </div>
     </div>
 
     <!-- ============================================================ -->
-    <!-- SECTION 6: REFERENCES & MITIGATIONS -->
+    <!-- SECTION: AFFECTED ASSETS IN ORGANIZATION -->
     <!-- ============================================================ -->
-    <div class="row g-4 mb-4">
-        <!-- References -->
-        <div class="col-lg-8">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h6 class="section-title"><i class="fas fa-link"></i>References</h6>
-
-                    {% if references %}
-                    <!-- Patches -->
-                    {% if patch_refs %}
-                    <div class="mb-3">
-                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 mb-2">
-                            <i class="fas fa-band-aid me-1"></i>Patches ({{ patch_refs|length }})
-                        </span>
-                        {% for ref in patch_refs %}
-                        <div class="ref-item">
-                            <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-primary">
-                                <i class="fas fa-external-link-alt me-1" style="font-size: 0.6rem;"></i>
-                                {{ ref.url|truncate(80) }}
-                            </a>
-                            {% if ref.source %}<span class="text-muted small ms-2">{{ ref.source }}</span>{% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-
-                    <!-- Exploits -->
-                    {% if exploit_refs %}
-                    <div class="mb-3">
-                        <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 mb-2">
-                            <i class="fas fa-skull-crossbones me-1"></i>Exploits ({{ exploit_refs|length }})
-                        </span>
-                        {% for ref in exploit_refs %}
-                        <div class="ref-item">
-                            <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-danger">
-                                <i class="fas fa-external-link-alt me-1" style="font-size: 0.6rem;"></i>
-                                {{ ref.url|truncate(80) }}
-                            </a>
-                            {% if ref.source %}<span class="text-muted small ms-2">{{ ref.source }}</span>{% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-
-                    <!-- Vendor Advisories -->
-                    {% if advisory_refs %}
-                    <div class="mb-3">
-                        <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25 mb-2">
-                            <i class="fas fa-building me-1"></i>Vendor Advisories ({{ advisory_refs|length }})
-                        </span>
-                        {% for ref in advisory_refs %}
-                        <div class="ref-item">
-                            <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-info">
-                                <i class="fas fa-external-link-alt me-1" style="font-size: 0.6rem;"></i>
-                                {{ ref.url|truncate(80) }}
-                            </a>
-                            {% if ref.source %}<span class="text-muted small ms-2">{{ ref.source }}</span>{% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-
-                    <!-- Other References -->
-                    {% if other_refs %}
-                    <div class="mb-0">
-                        <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25 mb-2">
-                            <i class="fas fa-bookmark me-1"></i>Other References ({{ other_refs|length }})
-                        </span>
-                        {% for ref in other_refs %}
-                        <div class="ref-item">
-                            <a href="{{ ref.url }}" target="_blank" rel="noopener noreferrer" class="text-decoration-none small text-secondary">
-                                <i class="fas fa-external-link-alt me-1" style="font-size: 0.6rem;"></i>
-                                {{ ref.url|truncate(80) }}
-                            </a>
-                            {% if ref.tags %}
-                            <div class="mt-1">
-                                {% for tag in ref.tags %}
-                                <span class="ref-tag bg-dark text-muted border border-secondary">{{ tag }}</span>
-                                {% endfor %}
-                            </div>
-                            {% endif %}
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-
-                    {% else %}
-                    <p class="text-muted mb-0">No references found.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Mitigations & Credits -->
-        <div class="col-lg-4">
-            <!-- Mitigations -->
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h6 class="section-title"><i class="fas fa-shield-alt"></i>Mitigations & Workarounds</h6>
-                    <div id="mitigationWorkflowAlert" class="alert d-none py-2 mb-3"></div>
-
-                    <div class="row g-2 mb-3">
-                        <div class="col-12">
-                            <label class="form-label text-muted small mb-1">Workflow Action</label>
-                            <select class="form-select form-select-sm bg-dark text-light border-secondary" id="mitigationAction">
-                                <option value="start">Start mitigation</option>
-                                <option value="update">Update progress</option>
-                                <option value="resolve">Resolve</option>
-                                <option value="mitigate">Mitigate</option>
-                                <option value="accept_risk">Accept risk</option>
-                                <option value="reopen">Reopen</option>
-                                <option value="add_note">Add note</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label text-muted small mb-1">Affected Asset</label>
-                            <select class="form-select form-select-sm bg-dark text-light border-secondary" id="mitigationAssetVulnId">
-                                <option value="">No specific asset</option>
-                                {% for av in affected_assets %}
-                                <option value="{{ av.id }}">{{ av.asset.name if av.asset else ('Asset #' ~ av.asset_id) }} | {{ av.status }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label text-muted small mb-1">Type</label>
-                            <select class="form-select form-select-sm bg-dark text-light border-secondary" id="mitigationType">
-                                <option value="Workaround">Workaround</option>
-                                <option value="Configuration">Configuration</option>
-                                <option value="Patch">Patch</option>
-                                <option value="Compensating Control">Compensating Control</option>
-                            </select>
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label text-muted small mb-1">Effectiveness</label>
-                            <select class="form-select form-select-sm bg-dark text-light border-secondary" id="mitigationEffectiveness">
-                                <option value="">N/A</option>
-                                <option value="Low">Low</option>
-                                <option value="Medium">Medium</option>
-                                <option value="High">High</option>
-                                <option value="Full">Full</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label text-muted small mb-1">Due date</label>
-                            <input type="datetime-local" class="form-control form-control-sm bg-dark text-light border-secondary" id="mitigationDueDate">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label text-muted small mb-1">Mitigation/Workaround Description</label>
-                            <textarea class="form-control form-control-sm bg-dark text-light border-secondary" id="mitigationDescription" rows="2" placeholder="Ex: bloquear endpoint vulnerável, aplicar regra WAF, atualizar pacote..."></textarea>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label text-muted small mb-1">Operational Notes</label>
-                            <textarea class="form-control form-control-sm bg-dark text-light border-secondary" id="mitigationNotes" rows="2" placeholder="Detalhes da execução e evidências"></textarea>
-                        </div>
-                        <div class="col-12">
-                            <button type="button" class="btn btn-primary btn-sm w-100" id="submitMitigationWorkflow">
-                                <i class="fas fa-save me-1"></i>Apply Workflow Update
-                            </button>
-                        </div>
-                    </div>
-
-                    {% if mitigations %}
-                    {% for mit in mitigations %}
-                    <div class="{% if not loop.first %}mt-3 pt-3 border-top border-secondary border-opacity-25{% endif %}">
-                        <div class="d-flex align-items-center gap-2 mb-2">
-                            {% if mit.type %}
-                            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 small">{{ mit.type }}</span>
-                            {% endif %}
-                            {% if mit.effectiveness %}
-                            <span class="badge bg-dark border border-secondary small">{{ mit.effectiveness }}</span>
-                            {% endif %}
-                            {% if mit.source %}
-                            <span class="text-muted small ms-auto">{{ mit.source }}</span>
-                            {% endif %}
-                        </div>
-                        <p class="text-secondary small mb-0">{{ mit.description }}</p>
-                    </div>
-                    {% endfor %}
-                    {% elif vulnerability.patch_available and vulnerability.patch_url %}
-                    <div>
-                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 small mb-2">Patch</span>
-                        <p class="small mb-1">A patch is available for this vulnerability.</p>
-                        <a href="{{ vulnerability.patch_url }}" target="_blank" rel="noopener" class="small text-primary text-decoration-none">
-                            <i class="fas fa-external-link-alt me-1"></i>View Patch
-                        </a>
-                    </div>
-                    {% else %}
-                    <p class="text-muted mb-0">No specific mitigations recorded.</p>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h6 class="section-title"><i class="fas fa-history"></i>Mitigation History</h6>
-                    <div id="mitigationHistoryContainer">
-                        {% if mitigation_history %}
-                        <ul class="list-unstyled mb-0">
-                            {% for item in mitigation_history %}
-                            <li class="{% if not loop.last %}mb-3 pb-3 border-bottom border-secondary border-opacity-25{% else %}mb-0{% endif %}">
-                                <div class="d-flex justify-content-between align-items-start gap-2">
-                                    <div>
-                                        <div class="text-white fw-medium small">{{ item.title }}</div>
-                                        {% if item.description %}
-                                        <div class="text-muted small mt-1">{{ item.description }}</div>
-                                        {% endif %}
-                                        <div class="mt-1 d-flex flex-wrap gap-2">
-                                            {% if item.status %}
-                                            <span class="badge bg-dark border border-secondary text-secondary">{{ item.status }}</span>
-                                            {% endif %}
-                                            {% if item.effectiveness %}
-                                            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">{{ item.effectiveness }}</span>
-                                            {% endif %}
-                                            {% if item.source %}
-                                            <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25">{{ item.source }}</span>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                    <span class="text-muted small">{{ item.timestamp[:16].replace('T', ' ') if item.timestamp else '-' }}</span>
-                                </div>
-                            </li>
-                            {% endfor %}
-                        </ul>
-                        {% else %}
-                        <p class="text-muted small mb-0">No mitigation history registered.</p>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- Credits -->
-            <div class="card">
-                <div class="card-body">
-                    <h6 class="section-title"><i class="fas fa-award"></i>Credits</h6>
-                    {% if credits %}
-                    <ul class="list-unstyled mb-0">
-                        {% for credit in credits %}
-                        <li class="{% if not loop.last %}mb-3 pb-3 border-bottom border-secondary border-opacity-25{% else %}mb-0{% endif %}">
-                            <div class="fw-medium text-white">{{ credit.value }}</div>
-                            <div class="d-flex gap-2 mt-1 flex-wrap">
-                                {% if credit.type %}
-                                <span class="badge bg-dark border border-secondary text-secondary small">{{ credit.type }}</span>
-                                {% endif %}
-                                {% if credit.user %}
-                                <span class="text-muted small"><i class="fas fa-user me-1"></i>{{ credit.user }}</span>
-                                {% endif %}
-                            </div>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    <p class="text-muted small mb-0">No credits recorded.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card mb-4">
+    <div id="section-assets" class="card mb-4">
         <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="section-title mb-0"><i class="fas fa-shield-virus"></i>Organization Exposure Insights</h6>
-                <span class="badge bg-{{ 'danger' if affected_assets|length > 0 else 'secondary' }}">
-                    {{ affected_assets|length }} asset{{ 's' if affected_assets|length != 1 else '' }}
-                </span>
-            </div>
-            <div class="row g-3">
-                <div class="col-6 col-md-3">
-                    <div class="exposure-kpi">
-                        <div class="kpi-label">Open Cases</div>
-                        <div class="kpi-value text-warning">{{ open_assets_count }}</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="exposure-kpi">
-                        <div class="kpi-label">Resolved/Mitigated</div>
-                        <div class="kpi-value text-success">{{ resolved_assets_count }}</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="exposure-kpi">
-                        <div class="kpi-label">Overdue</div>
-                        <div class="kpi-value {{ 'text-danger' if overdue_assets_count > 0 else 'text-muted' }}">{{ overdue_assets_count }}</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="exposure-kpi">
-                        <div class="kpi-label">Avg Contextual Risk</div>
-                        <div class="kpi-value {{ 'text-danger' if avg_contextual_risk and avg_contextual_risk >= 8 else 'text-warning' if avg_contextual_risk and avg_contextual_risk >= 6 else 'text-info' if avg_contextual_risk else 'text-muted' }}">
-                            {{ '%.1f'|format(avg_contextual_risk) if avg_contextual_risk is not none else '-' }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="row g-3 mt-1">
-                <div class="col-lg-6">
-                    <div class="p-3 rounded border border-secondary border-opacity-25 h-100">
-                        <div class="small text-muted mb-2">Asset criticality distribution</div>
-                        <div class="d-flex flex-wrap gap-2">
-                            <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">CRITICAL: {{ asset_criticality_counts.get('CRITICAL', 0) }}</span>
-                            <span class="badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-25">HIGH: {{ asset_criticality_counts.get('HIGH', 0) }}</span>
-                            <span class="badge bg-info bg-opacity-25 text-info border border-info border-opacity-25">MEDIUM: {{ asset_criticality_counts.get('MEDIUM', 0) }}</span>
-                            <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">LOW: {{ asset_criticality_counts.get('LOW', 0) }}</span>
-                            <span class="badge bg-dark border border-secondary text-secondary">UNASSIGNED: {{ unassigned_assets_count }}</span>
-                            {% if max_contextual_risk is not none %}
-                            <span class="badge bg-dark border border-danger text-danger">MAX RISK: {{ '%.1f'|format(max_contextual_risk) }}</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6">
-                    <div class="p-3 rounded border border-secondary border-opacity-25 h-100">
-                        <div class="small text-muted mb-2">Top affected asset types</div>
-                        {% if top_asset_types %}
-                        <div class="d-flex flex-wrap gap-2">
-                            {% for type_name, type_count in top_asset_types %}
-                            <span class="badge bg-secondary bg-opacity-50 text-light border border-secondary border-opacity-25">
-                                {{ type_name }}: {{ type_count }}
-                            </span>
-                            {% endfor %}
-                        </div>
-                        {% else %}
-                        <span class="text-muted small">No asset type information available.</span>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            <div class="mt-3">
-                {% if radar_chart %}
-                <div class="p-3 rounded border border-secondary border-opacity-25">
-                    <div class="small text-muted mb-2">Risk posture radar</div>
-                    <div class="radar-wrap">
-                        <canvas id="riskRadarChart"></canvas>
-                    </div>
-                </div>
-                {% else %}
-                <div class="p-3 rounded border border-secondary border-opacity-25">
-                    <span class="text-muted small">Radar chart disponível quando CVSS base, exploitability, impact e dados de risco/contexto dos ativos estiverem completos.</span>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h6 class="section-title mb-0"><i class="fas fa-server"></i>Affected Assets in Organization</h6>
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h6 class="section-title mb-0"><i class="fas fa-server"></i>Ativos Afetados na Organização</h6>
                 <span class="badge bg-{{ 'danger' if affected_assets|length > 0 else 'secondary' }}">
                     {{ affected_assets|length }} asset{{ 's' if affected_assets|length != 1 else '' }}
                 </span>
             </div>
 
             {% if affected_assets %}
+            <!-- Status filter tabs -->
+            <div class="asset-filter-tabs" id="assetFilterTabs">
+                <button type="button" class="tab-btn active" data-filter="ALL">
+                    Todos <span class="count-chip">{{ affected_assets|length }}</span>
+                </button>
+                <button type="button" class="tab-btn" data-filter="OPEN">
+                    Abertos <span class="count-chip">{{ affected_assets|selectattr('status','equalto','OPEN')|list|length }}</span>
+                </button>
+                <button type="button" class="tab-btn" data-filter="IN_PROGRESS">
+                    Em Andamento <span class="count-chip">{{ affected_assets|selectattr('status','equalto','IN_PROGRESS')|list|length }}</span>
+                </button>
+                <button type="button" class="tab-btn" data-filter="RESOLVED">
+                    Resolvidos <span class="count-chip">{{ affected_assets|selectattr('status','equalto','RESOLVED')|list|length }}</span>
+                </button>
+                <button type="button" class="tab-btn" data-filter="MITIGATED">
+                    Mitigados <span class="count-chip">{{ affected_assets|selectattr('status','equalto','MITIGATED')|list|length }}</span>
+                </button>
+                <button type="button" class="tab-btn" data-filter="ACCEPTED">
+                    Aceitos <span class="count-chip">{{ affected_assets|selectattr('status','equalto','ACCEPTED')|list|length }}</span>
+                </button>
+                <button type="button" class="tab-btn" data-filter="OVERDUE">
+                    <i class="fas fa-clock"></i> Vencidos <span class="count-chip">{{ overdue_assets_count }}</span>
+                </button>
+            </div>
+
             <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0" id="affectedAssetsTable">
                     <thead>
                         <tr>
-                            <th class="text-muted small text-uppercase">Asset</th>
-                            <th class="text-muted small text-uppercase">Type</th>
-                            <th class="text-muted small text-uppercase">Criticality</th>
-                            <th class="text-muted small text-uppercase">Status</th>
-                            <th class="text-muted small text-uppercase">Risk Score</th>
-                            <th class="text-muted small text-uppercase">Assignee</th>
-                            <th class="text-muted small text-uppercase">Discovered</th>
-                            <th class="text-muted small text-uppercase">Due Date</th>
-                            <th class="text-muted small text-uppercase">Detection</th>
+                            <th class="text-muted small text-uppercase sortable" data-sort-key="asset" data-sort-type="text">Ativo<span class="sort-indicator">⇅</span></th>
+                            <th class="text-muted small text-uppercase sortable" data-sort-key="type" data-sort-type="text">Tipo<span class="sort-indicator">⇅</span></th>
+                            <th class="text-muted small text-uppercase sortable" data-sort-key="criticality" data-sort-type="criticality">Criticidade<span class="sort-indicator">⇅</span></th>
+                            <th class="text-muted small text-uppercase sortable" data-sort-key="status" data-sort-type="text">Status<span class="sort-indicator">⇅</span></th>
+                            <th class="text-muted small text-uppercase sortable" data-sort-key="risk" data-sort-type="number">Risco<span class="sort-indicator">⇅</span></th>
+                            <th class="text-muted small text-uppercase sortable" data-sort-key="assignee" data-sort-type="text">Responsável<span class="sort-indicator">⇅</span></th>
+                            <th class="text-muted small text-uppercase sortable" data-sort-key="discovered" data-sort-type="date">Detectado<span class="sort-indicator">⇅</span></th>
+                            <th class="text-muted small text-uppercase sortable" data-sort-key="due" data-sort-type="date">Prazo<span class="sort-indicator">⇅</span></th>
+                            <th class="text-muted small text-uppercase">Detecção</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for av in affected_assets %}
                         {% set status_class = 'danger' if av.status == 'OPEN' else 'warning' if av.status == 'IN_PROGRESS' else 'success' if av.status in ['RESOLVED', 'MITIGATED'] else 'info' if av.status == 'ACCEPTED' else 'secondary' %}
-                        <tr>
-                            <td>
+                        <tr data-status="{{ av.status }}" data-overdue="{{ 'true' if av.is_overdue else 'false' }}">
+                            <td data-sort-value="{{ (av.asset.name if av.asset else 'Asset #' ~ av.asset_id)|lower }}">
                                 {% if av.asset %}
                                 <a href="{{ url_for('inventory.detail', asset_id=av.asset_id) }}" class="text-decoration-none text-white fw-medium">
                                     <i class="fas fa-server me-1 text-muted"></i>{{ av.asset.name }}
@@ -1070,15 +920,15 @@
                                 <span class="text-muted">Asset #{{ av.asset_id }}</span>
                                 {% endif %}
                             </td>
-                            <td class="text-muted small">{{ av.asset.asset_type if av.asset and av.asset.asset_type else '-' }}</td>
-                            <td>
+                            <td class="text-muted small" data-sort-value="{{ (av.asset.asset_type if av.asset and av.asset.asset_type else '')|lower }}">{{ av.asset.asset_type if av.asset and av.asset.asset_type else '-' }}</td>
+                            <td data-sort-value="{{ av.asset.criticality if av.asset and av.asset.criticality else '' }}">
                                 {% if av.asset and av.asset.criticality %}
                                 <span class="badge bg-dark border border-secondary text-secondary">{{ av.asset.criticality }}</span>
                                 {% else %}
                                 <span class="text-muted small">-</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td data-sort-value="{{ av.status }}">
                                 <span class="asset-status-badge bg-{{ status_class }} bg-opacity-25 text-{{ status_class }}">
                                     {{ av.status }}
                                 </span>
@@ -1086,7 +936,7 @@
                                 <span class="badge bg-danger ms-1 small">OVERDUE</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td data-sort-value="{{ av.contextual_risk_score if av.contextual_risk_score is not none else -1 }}">
                                 {% if av.contextual_risk_score is not none %}
                                 <span class="fw-bold {{ 'text-danger' if av.contextual_risk_score >= 9 else 'text-warning' if av.contextual_risk_score >= 7 else 'text-info' if av.contextual_risk_score >= 4 else 'text-success' }}">
                                     {{ '%.1f'|format(av.contextual_risk_score) }}
@@ -1095,20 +945,20 @@
                                 <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td data-sort-value="{{ (av.assignee.username if av.assignee else 'zzzz-unassigned')|lower }}">
                                 {% if av.assignee %}
-                                <span class="text-white small">{{ av.assignee.username }}</span>
+                                <span class="text-white small"><i class="fas fa-user-circle me-1 text-muted"></i>{{ av.assignee.username }}</span>
                                 {% else %}
-                                <span class="text-muted small">Unassigned</span>
+                                <span class="text-muted small">Sem responsável</span>
                                 {% endif %}
                             </td>
-                            <td class="text-muted small">{{ av.discovered_at.strftime('%d/%m/%Y') if av.discovered_at else '-' }}</td>
-                            <td class="small {{ 'text-danger fw-bold' if av.is_overdue else 'text-muted' }}">
+                            <td class="text-muted small" data-sort-value="{{ av.discovered_at.isoformat() if av.discovered_at else '' }}">{{ av.discovered_at.strftime('%d/%m/%Y') if av.discovered_at else '-' }}</td>
+                            <td class="small {{ 'text-danger fw-bold' if av.is_overdue else 'text-muted' }}" data-sort-value="{{ av.due_date.isoformat() if av.due_date else '' }}">
                                 {{ av.due_date.strftime('%d/%m/%Y') if av.due_date else '-' }}
                             </td>
                             <td class="text-muted small">
                                 {% if av.detected_by %}{{ av.detected_by }}{% endif %}
-                                {% if av.detection_method %} ({{ av.detection_method }}){% endif %}
+                                {% if av.detection_method %} <span class="text-secondary">({{ av.detection_method }})</span>{% endif %}
                                 {% if not av.detected_by and not av.detection_method %}-{% endif %}
                             </td>
                         </tr>
@@ -1119,22 +969,248 @@
             {% else %}
             <div class="text-center py-4">
                 <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
-                <p class="text-muted mb-0">No assets in the organization are affected by this vulnerability.</p>
+                <p class="text-muted mb-0">Nenhum ativo da organização está afetado por esta vulnerabilidade.</p>
             </div>
             {% endif %}
         </div>
     </div>
 
     <!-- ============================================================ -->
-    <!-- SECTION 8: RAW DATA / DEBUG (Admin Only) -->
+    <!-- SECTION: MITIGATIONS & WORKAROUNDS WORKFLOW -->
     <!-- ============================================================ -->
+    <div id="section-mitigations" class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="section-title mb-0"><i class="fas fa-tools"></i>Mitigações &amp; Alternativas</h6>
+                <span class="badge bg-dark border border-secondary text-secondary">{{ mitigations|length }} registradas</span>
+            </div>
+
+            <div class="row g-4">
+                <!-- Workflow form -->
+                <div class="col-lg-7">
+                    <div id="mitigationWorkflowAlert" class="alert d-none py-2 mb-3"></div>
+
+                    <!-- Action stepper -->
+                    <div class="field-group-title"><i class="fas fa-play-circle"></i>Ação do Workflow</div>
+                    <div class="workflow-stepper mb-3" id="workflowStepper">
+                        <div class="step-pill active" data-action="start"><i class="step-icon fas fa-play"></i>Iniciar</div>
+                        <div class="step-pill" data-action="update"><i class="step-icon fas fa-edit"></i>Atualizar</div>
+                        <div class="step-pill" data-action="mitigate"><i class="step-icon fas fa-shield-alt"></i>Mitigar</div>
+                        <div class="step-pill" data-action="resolve"><i class="step-icon fas fa-check"></i>Resolver</div>
+                        <div class="step-pill" data-action="accept_risk"><i class="step-icon fas fa-clipboard-check"></i>Aceitar</div>
+                        <div class="step-pill" data-action="reopen"><i class="step-icon fas fa-undo"></i>Reabrir</div>
+                        <div class="step-pill" data-action="add_note"><i class="step-icon fas fa-sticky-note"></i>Nota</div>
+                    </div>
+                    <input type="hidden" id="mitigationAction" value="start">
+
+                    <!-- Target asset -->
+                    <div class="field-group">
+                        <div class="field-group-title"><i class="fas fa-crosshairs"></i>Alvo</div>
+                        <label class="form-label text-muted small mb-1">Ativo Afetado</label>
+                        <select class="form-select form-select-sm bg-dark text-light border-secondary" id="mitigationAssetVulnId">
+                            <option value="">— Nenhum ativo específico (toda a org) —</option>
+                            {% for av in affected_assets %}
+                            <option value="{{ av.id }}">
+                                {{ av.asset.name if av.asset else ('Asset #' ~ av.asset_id) }} | {{ av.status }}
+                                {% if av.is_overdue %} ⚠ OVERDUE{% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="small text-muted mt-1">
+                            {% if affected_assets %}
+                            Selecione o ativo para rastrear o workflow. Sem seleção, a ação é registrada para toda a CVE.
+                            {% else %}
+                            Nenhum ativo associado. A ação será registrada apenas para a CVE.
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Classification -->
+                    <div class="field-group">
+                        <div class="field-group-title"><i class="fas fa-tags"></i>Classificação</div>
+                        <div class="row g-2">
+                            <div class="col-sm-6">
+                                <label class="form-label text-muted small mb-1">Tipo</label>
+                                <select class="form-select form-select-sm bg-dark text-light border-secondary" id="mitigationType">
+                                    <option value="Workaround">Workaround</option>
+                                    <option value="Configuration">Configuration change</option>
+                                    <option value="Patch">Patch / Update</option>
+                                    <option value="Compensating Control">Compensating control</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label text-muted small mb-1">Eficácia</label>
+                                <select class="form-select form-select-sm bg-dark text-light border-secondary" id="mitigationEffectiveness">
+                                    <option value="">— N/A —</option>
+                                    <option value="Low">Low</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="High">High</option>
+                                    <option value="Full">Full</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label text-muted small mb-1">Prazo</label>
+                                <input type="datetime-local" class="form-control form-control-sm bg-dark text-light border-secondary" id="mitigationDueDate">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Narrative -->
+                    <div class="field-group">
+                        <div class="field-group-title"><i class="fas fa-file-alt"></i>Narrativa</div>
+                        <label class="form-label text-muted small mb-1">Descrição da Mitigação / Alternativa</label>
+                        <textarea class="form-control form-control-sm bg-dark text-light border-secondary mb-2" id="mitigationDescription" rows="2" placeholder="Ex: bloquear endpoint vulnerável, aplicar regra WAF, atualizar pacote..."></textarea>
+                        <label class="form-label text-muted small mb-1">Notas Operacionais</label>
+                        <textarea class="form-control form-control-sm bg-dark text-light border-secondary" id="mitigationNotes" rows="2" placeholder="Detalhes da execução, evidências, responsáveis..."></textarea>
+                    </div>
+
+                    <button type="button" class="btn btn-primary btn-sm w-100" id="submitMitigationWorkflow">
+                        <i class="fas fa-save me-1"></i>Aplicar Atualização
+                    </button>
+                </div>
+
+                <!-- Recorded mitigations -->
+                <div class="col-lg-5">
+                    <div class="field-group-title mb-2"><i class="fas fa-list-check"></i>Mitigações Registradas</div>
+                    {% if mitigations %}
+                    <div class="d-flex flex-column gap-3">
+                        {% for mit in mitigations %}
+                        <div class="insight-card">
+                            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                                {% if mit.type %}
+                                <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 small">
+                                    <i class="fas fa-shield-alt me-1"></i>{{ mit.type }}
+                                </span>
+                                {% endif %}
+                                {% if mit.effectiveness %}
+                                <span class="badge bg-dark border border-secondary small">{{ mit.effectiveness }}</span>
+                                {% endif %}
+                                {% if mit.source %}
+                                <span class="text-muted small ms-auto"><i class="fas fa-building me-1"></i>{{ mit.source }}</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-secondary small mb-0">{{ mit.description }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% elif vulnerability.patch_available and vulnerability.patch_url %}
+                    <div class="insight-card">
+                        <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25 small mb-2">
+                            <i class="fas fa-band-aid me-1"></i>Patch
+                        </span>
+                        <p class="small mb-1">A vendor patch is available for this vulnerability.</p>
+                        <a href="{{ vulnerability.patch_url }}" target="_blank" rel="noopener" class="small text-primary text-decoration-none">
+                            <i class="fas fa-external-link-alt me-1"></i>View Patch
+                        </a>
+                    </div>
+                    {% else %}
+                    <div class="insight-card text-muted small d-flex align-items-center gap-2">
+                        <i class="fas fa-info-circle"></i>
+                        Nenhuma mitigação registrada. Use o formulário ao lado para começar a rastrear.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION: MITIGATION HISTORY -->
+    <!-- ============================================================ -->
+    <div id="section-history" class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="section-title mb-0"><i class="fas fa-history"></i>Histórico de Mitigação</h6>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="refreshHistoryBtn" title="Recarregar histórico">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <div id="mitigationHistoryContainer">
+                {% if mitigation_history %}
+                <div class="history-timeline">
+                    {% for item in mitigation_history %}
+                    <div class="history-entry" data-kind="{{ item.kind }}">
+                        <div class="d-flex justify-content-between align-items-start gap-2">
+                            <div class="flex-grow-1">
+                                <div class="text-white fw-medium small">{{ item.title }}</div>
+                                {% if item.description %}
+                                <div class="text-muted small mt-1">{{ item.description }}</div>
+                                {% endif %}
+                                <div class="mt-1 d-flex flex-wrap gap-2">
+                                    {% if item.status %}
+                                    <span class="badge bg-dark border border-secondary text-secondary">{{ item.status }}</span>
+                                    {% endif %}
+                                    {% if item.effectiveness %}
+                                    <span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">{{ item.effectiveness }}</span>
+                                    {% endif %}
+                                    {% if item.source %}
+                                    <span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25">{{ item.source }}</span>
+                                    {% endif %}
+                                    {% if item.username %}
+                                    <span class="badge bg-dark border border-info text-info"><i class="fas fa-user me-1"></i>{{ item.username }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <span class="text-muted small flex-shrink-0 text-nowrap">
+                                <i class="fas fa-clock me-1"></i>{{ item.timestamp[:16].replace('T', ' ') if item.timestamp else '-' }}
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted small mb-0">Nenhum histórico de mitigação registrado.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- SECTION: CREDITS -->
+    <!-- ============================================================ -->
+    <div id="section-credits" class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="section-title mb-0"><i class="fas fa-award"></i>Créditos</h6>
+                <span class="badge bg-dark border border-secondary text-secondary">{{ credits|length }}</span>
+            </div>
+            {% if credits %}
+            <div class="row g-3">
+                {% for credit in credits %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="insight-card h-100">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="fas fa-user-circle text-primary mt-1"></i>
+                            <div class="flex-grow-1">
+                                <div class="fw-medium text-white">{{ credit.value }}</div>
+                                <div class="d-flex gap-2 mt-1 flex-wrap">
+                                    {% if credit.type %}
+                                    <span class="badge bg-dark border border-secondary text-secondary small">{{ credit.type }}</span>
+                                    {% endif %}
+                                    {% if credit.user %}
+                                    <span class="text-muted small"><i class="fas fa-at me-1"></i>{{ credit.user }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted small mb-0">Nenhum crédito registrado.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Raw NVD Data (Admin) -->
     {% if current_user.is_admin and vulnerability.raw_nvd_data %}
     <div class="card mb-4">
         <div class="card-body">
-            <h6 class="section-title"><i class="fas fa-code"></i>Raw NVD Data</h6>
+            <h6 class="section-title"><i class="fas fa-code"></i>Dados Brutos NVD (admin)</h6>
             <details>
-                <summary class="text-muted small mb-2" style="cursor: pointer;">Click to expand raw API response</summary>
-                <pre class="bg-dark text-light p-3 rounded small" style="max-height: 400px; overflow-y: auto;"><code>{{ vulnerability.raw_nvd_data|tojson(indent=2) }}</code></pre>
+                <summary class="text-muted small mb-2 cursor-pointer">Clique para expandir a resposta bruta da API</summary>
+                <pre class="bg-dark text-light p-3 rounded small raw-data-pre"><code>{{ vulnerability.raw_nvd_data|tojson(indent=2) }}</code></pre>
             </details>
         </div>
     </div>
@@ -1144,21 +1220,18 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
+<script nonce="{{ csp_nonce() }}">
 (function () {
     const cveId = '{{ vulnerability.cve_id }}';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const alertBox = document.getElementById('mitigationWorkflowAlert');
     const submitBtn = document.getElementById('submitMitigationWorkflow');
     const historyContainer = document.getElementById('mitigationHistoryContainer');
+    const refreshBtn = document.getElementById('refreshHistoryBtn');
 
     function escapeHtml(value) {
         return (value || '').replace(/[&<>"']/g, (char) => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#39;'
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
         }[char]));
     }
 
@@ -1166,37 +1239,130 @@
         if (!alertBox) return;
         alertBox.className = `alert alert-${type} py-2 mb-3`;
         alertBox.textContent = message;
+        alertBox.classList.remove('d-none');
+        setTimeout(() => alertBox.classList.add('d-none'), 6000);
     }
 
+    // ── Workflow stepper ──────────────────────────────────────────────
+    const stepper = document.getElementById('workflowStepper');
+    const actionInput = document.getElementById('mitigationAction');
+    if (stepper) {
+        stepper.addEventListener('click', (e) => {
+            const pill = e.target.closest('.step-pill');
+            if (!pill) return;
+            stepper.querySelectorAll('.step-pill').forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            if (actionInput) actionInput.value = pill.dataset.action;
+        });
+    }
+
+    // ── Affected assets status filter tabs ────────────────────────────
+    const filterTabs = document.getElementById('assetFilterTabs');
+    const assetTable = document.getElementById('affectedAssetsTable');
+    if (filterTabs && assetTable) {
+        filterTabs.addEventListener('click', (e) => {
+            const btn = e.target.closest('.tab-btn');
+            if (!btn) return;
+            filterTabs.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const filter = btn.dataset.filter;
+            assetTable.querySelectorAll('tbody tr').forEach(tr => {
+                if (filter === 'ALL') {
+                    tr.style.display = '';
+                } else if (filter === 'OVERDUE') {
+                    tr.style.display = tr.dataset.overdue === 'true' ? '' : 'none';
+                } else {
+                    tr.style.display = tr.dataset.status === filter ? '' : 'none';
+                }
+            });
+        });
+    }
+
+    // ── Affected assets sortable columns ──────────────────────────────
+    if (assetTable) {
+        const CRITICALITY_RANK = { 'CRITICAL': 4, 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1, '': 0 };
+        const headers = assetTable.querySelectorAll('thead th.sortable');
+        headers.forEach((th, colIndex) => {
+            th.addEventListener('click', () => {
+                const type = th.dataset.sortType || 'text';
+                const currentDir = th.classList.contains('sort-asc') ? 'asc'
+                                 : th.classList.contains('sort-desc') ? 'desc'
+                                 : null;
+                const nextDir = currentDir === 'asc' ? 'desc' : 'asc';
+                headers.forEach(h => { h.classList.remove('sort-asc', 'sort-desc'); h.querySelector('.sort-indicator').textContent = '⇅'; });
+                th.classList.add(`sort-${nextDir}`);
+                th.querySelector('.sort-indicator').textContent = nextDir === 'asc' ? '▲' : '▼';
+
+                const tbody = assetTable.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const multiplier = nextDir === 'asc' ? 1 : -1;
+
+                rows.sort((a, b) => {
+                    const av = (a.children[colIndex]?.dataset.sortValue || '').trim();
+                    const bv = (b.children[colIndex]?.dataset.sortValue || '').trim();
+                    if (type === 'number') {
+                        return ((parseFloat(av) || 0) - (parseFloat(bv) || 0)) * multiplier;
+                    }
+                    if (type === 'date') {
+                        // empty dates sort last on asc, first on desc by pushing them
+                        if (!av && !bv) return 0;
+                        if (!av) return 1;
+                        if (!bv) return -1;
+                        return av.localeCompare(bv) * multiplier;
+                    }
+                    if (type === 'criticality') {
+                        return ((CRITICALITY_RANK[av.toUpperCase()] || 0) - (CRITICALITY_RANK[bv.toUpperCase()] || 0)) * multiplier;
+                    }
+                    return av.localeCompare(bv) * multiplier;
+                });
+                rows.forEach(r => tbody.appendChild(r));
+            });
+        });
+    }
+
+    // ── Mitigation history ────────────────────────────────────────────
     function renderHistory(items) {
         if (!historyContainer) return;
         if (!items || items.length === 0) {
-            historyContainer.innerHTML = '<p class="text-muted small mb-0">No mitigation history registered.</p>';
+            historyContainer.innerHTML = '<p class="text-muted small mb-0">Nenhum histórico de mitigação registrado.</p>';
             return;
         }
-        historyContainer.innerHTML = `<ul class="list-unstyled mb-0">${items.map((item, index) => {
+        const html = items.map((item) => {
             const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : '-';
             const status = item.status ? `<span class="badge bg-dark border border-secondary text-secondary">${escapeHtml(item.status)}</span>` : '';
             const effectiveness = item.effectiveness ? `<span class="badge bg-success bg-opacity-25 text-success border border-success border-opacity-25">${escapeHtml(item.effectiveness)}</span>` : '';
             const source = item.source ? `<span class="badge bg-secondary bg-opacity-25 text-secondary border border-secondary border-opacity-25">${escapeHtml(item.source)}</span>` : '';
-            const borderClass = index === items.length - 1 ? '' : 'mb-3 pb-3 border-bottom border-secondary border-opacity-25';
-            return `<li class="${borderClass}">
+            const user = item.username ? `<span class="badge bg-dark border border-info text-info"><i class="fas fa-user me-1"></i>${escapeHtml(item.username)}</span>` : '';
+            return `<div class="history-entry" data-kind="${escapeHtml(item.kind || '')}">
                 <div class="d-flex justify-content-between align-items-start gap-2">
-                    <div>
+                    <div class="flex-grow-1">
                         <div class="text-white fw-medium small">${escapeHtml(item.title || '')}</div>
                         ${item.description ? `<div class="text-muted small mt-1">${escapeHtml(item.description)}</div>` : ''}
-                        <div class="mt-1 d-flex flex-wrap gap-2">${status}${effectiveness}${source}</div>
+                        <div class="mt-1 d-flex flex-wrap gap-2">${status}${effectiveness}${source}${user}</div>
                     </div>
-                    <span class="text-muted small">${timestamp}</span>
+                    <span class="text-muted small flex-shrink-0 text-nowrap">
+                        <i class="fas fa-clock me-1"></i>${timestamp}
+                    </span>
                 </div>
-            </li>`;
-        }).join('')}</ul>`;
+            </div>`;
+        }).join('');
+        historyContainer.innerHTML = `<div class="history-timeline">${html}</div>`;
     }
 
     async function refreshHistory() {
-        const response = await fetch(`/vulnerabilities/api/${encodeURIComponent(cveId)}/mitigations/history`);
-        const data = await response.json();
-        renderHistory(data.items || []);
+        try {
+            const response = await fetch(`/vulnerabilities/api/${encodeURIComponent(cveId)}/mitigations/history`);
+            if (!response.ok) return;
+            const data = await response.json();
+            renderHistory(data.items || []);
+        } catch (err) { /* best-effort */ }
+    }
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            refreshBtn.disabled = true;
+            refreshHistory().finally(() => { refreshBtn.disabled = false; });
+        });
     }
 
     if (submitBtn) {
@@ -1215,10 +1381,7 @@
             try {
                 const response = await fetch(`/vulnerabilities/api/${encodeURIComponent(cveId)}/mitigations/workflow`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
                     body: JSON.stringify(payload)
                 });
                 const data = await response.json();
@@ -1237,82 +1400,132 @@
         });
     }
 
-    refreshHistory().catch(() => null);
+    // ── Anchor nav active state on scroll ─────────────────────────────
+    const anchors = document.querySelectorAll('.section-anchor-nav a');
+    const sections = Array.from(anchors).map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+    if (sections.length) {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.id;
+                    anchors.forEach(a => {
+                        a.classList.toggle('active', a.getAttribute('href') === `#${id}`);
+                    });
+                }
+            });
+        }, { rootMargin: '-40% 0px -55% 0px', threshold: 0 });
+        sections.forEach(s => observer.observe(s));
+    }
+
+    refreshHistory();
 })();
 </script>
 
 {% if radar_chart %}
-<script>
-(async function () {
+<script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}"></script>
+<script nonce="{{ csp_nonce() }}">
+(function () {
     const radarCanvas = document.getElementById('riskRadarChart');
-    if (!radarCanvas) return;
+    if (!radarCanvas || typeof Chart === 'undefined') return;
 
-    if (typeof Chart === 'undefined') {
-        await new Promise((resolve, reject) => {
-            const existing = document.querySelector('script[src*="chart.umd.js"]');
-            if (existing) {
-                existing.addEventListener('load', resolve, { once: true });
-                existing.addEventListener('error', reject, { once: true });
-                return;
-            }
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js';
-            script.onload = resolve;
-            script.onerror = reject;
-            document.head.appendChild(script);
-        }).catch(() => null);
+    const LABELS = {{ radar_chart['labels']|tojson }};
+    const VALUES = {{ radar_chart['values']|tojson }};
+
+    // Cor do dataset baseada no score máximo (herda paleta de severidade do tema)
+    function severityColor(maxVal) {
+        if (maxVal >= 9)  return { border: '#ef4444', bg: 'rgba(239,68,68,0.18)',  point: '#ef4444' };
+        if (maxVal >= 7)  return { border: '#f97316', bg: 'rgba(249,115,22,0.18)', point: '#f97316' };
+        if (maxVal >= 4)  return { border: '#eab308', bg: 'rgba(234,179,8,0.18)',  point: '#eab308' };
+        return              { border: '#22c55e', bg: 'rgba(34,197,94,0.18)',  point: '#22c55e' };
     }
 
-    if (typeof Chart === 'undefined') return;
+    // Ler variáveis CSS do tema (funciona em claro e escuro)
+    function cssVar(name, fallback) {
+        const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        return v || fallback;
+    }
 
-    const labels = {{ radar_chart['labels']|tojson }};
-    const values = {{ radar_chart['values']|tojson }};
+    function buildChart() {
+        const maxVal = Math.max(...VALUES);
+        const col = severityColor(maxVal);
 
-    new Chart(radarCanvas, {
-        type: 'radar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Risk Profile',
-                data: values,
-                borderWidth: 3,
-                borderColor: '#ef4444',
-                backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                pointBackgroundColor: '#ef4444',
-                pointBorderColor: '#fff',
-                pointHoverBackgroundColor: '#fff',
-                pointHoverBorderColor: '#ef4444',
-                pointRadius: 3,
-                pointHoverRadius: 5
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                r: {
-                    min: 0,
-                    max: 10,
-                    ticks: { stepSize: 2, color: '#94a3b8' },
-                    grid: { color: 'rgba(148, 163, 184, 0.2)' },
-                    angleLines: { color: 'rgba(148, 163, 184, 0.2)' },
-                    pointLabels: { color: '#cbd5e1' }
-                }
+        const textColor    = cssVar('--text-secondary', '#cbd5e1');
+        const mutedColor   = cssVar('--text-muted',     '#94a3b8');
+        const bgPrimary    = cssVar('--bg-primary',     '#0f172a');
+        const bgSecondary  = cssVar('--bg-secondary',   '#1e293b');
+        const borderColor  = cssVar('--border-color',   'rgba(148,163,184,0.15)');
+
+        return new Chart(radarCanvas, {
+            type: 'radar',
+            data: {
+                labels: LABELS,
+                datasets: [{
+                    label: 'Risk Profile',
+                    data: VALUES,
+                    borderWidth: 2,
+                    borderColor: col.border,
+                    backgroundColor: col.bg,
+                    pointBackgroundColor: col.point,
+                    pointBorderColor: bgPrimary,
+                    pointBorderWidth: 1.5,
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: col.border,
+                    pointRadius: 4,
+                    pointHoverRadius: 7,
+                    tension: 0.1
+                }]
             },
-            plugins: {
-                legend: {
-                    labels: { color: '#cbd5e1' }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 600, easing: 'easeInOutQuart' },
+                scales: {
+                    r: {
+                        min: 0,
+                        max: 10,
+                        ticks: {
+                            stepSize: 2,
+                            color: mutedColor,
+                            backdropColor: 'transparent',
+                            font: { size: 10, family: "'Inter', sans-serif" }
+                        },
+                        grid:        { color: borderColor },
+                        angleLines:  { color: borderColor },
+                        pointLabels: {
+                            color: textColor,
+                            font:  { size: 11, weight: '600', family: "'Inter', sans-serif" }
+                        }
+                    }
                 },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const value = typeof context.raw === 'number' ? context.raw.toFixed(2) : context.raw;
-                            return `${context.dataset.label}: ${value}`;
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: bgSecondary,
+                        borderColor: borderColor,
+                        borderWidth: 1,
+                        titleColor: textColor,
+                        bodyColor: textColor,
+                        padding: 10,
+                        callbacks: {
+                            title: () => 'Postura de Risco',
+                            label: function(ctx) {
+                                const val = typeof ctx.raw === 'number' ? ctx.raw.toFixed(2) : ctx.raw;
+                                const bar = '█'.repeat(Math.round(ctx.raw)) + '░'.repeat(10 - Math.round(ctx.raw));
+                                return ` ${ctx.label}: ${val}/10  ${bar}`;
+                            }
                         }
                     }
                 }
             }
-        }
+        });
+    }
+
+    let chartInstance = buildChart();
+
+    // Recriar o chart quando o tema mudar (claro ↔ escuro)
+    document.addEventListener('themechange', function() {
+        if (chartInstance) { chartInstance.destroy(); }
+        chartInstance = buildChart();
     });
 })();
 </script>

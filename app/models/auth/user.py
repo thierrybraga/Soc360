@@ -1,8 +1,8 @@
 """
-Open-Monitor User Model
+SOC360 User Model
 Model de usuário com autenticação e perfil.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 import bcrypt
 from flask_login import UserMixin
@@ -156,24 +156,29 @@ class User(CoreModel, UserMixin):
     
     def record_login(self, ip_address=None):
         """Registra login bem-sucedido."""
-        self.last_login_at = datetime.utcnow()
+        self.last_login_at = datetime.now(timezone.utc)
         self.last_login_ip = ip_address
         self.login_count = (self.login_count or 0) + 1
         self.failed_login_count = 0
         self.locked_until = None
         db.session.commit()
-    
+
     def record_failed_login(self, max_attempts=5, lockout_minutes=15):
         """Registra tentativa de login falha."""
         self.failed_login_count = (self.failed_login_count or 0) + 1
         if self.failed_login_count >= max_attempts:
-            self.locked_until = datetime.utcnow() + timedelta(minutes=lockout_minutes)
+            self.locked_until = datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
         db.session.commit()
-    
+
     def is_locked(self):
         """Verifica se conta está bloqueada."""
-        if self.locked_until and self.locked_until > datetime.utcnow():
-            return True
+        if self.locked_until:
+            locked_until = self.locked_until
+            # Make timezone-aware if stored as naive UTC
+            if locked_until.tzinfo is None:
+                locked_until = locked_until.replace(tzinfo=timezone.utc)
+            if locked_until > datetime.now(timezone.utc):
+                return True
         return False
     
     @property

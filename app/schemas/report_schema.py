@@ -1,5 +1,5 @@
 """
-Open-Monitor Report Schemas
+SOC360 Report Schemas
 Schemas for report-related data.
 """
 from marshmallow import Schema, fields

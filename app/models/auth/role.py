@@ -1,5 +1,5 @@
 """
-Open-Monitor Role Model
+SOC360 Role Model
 Model de roles para RBAC.
 """
 from sqlalchemy import Column, String, Text

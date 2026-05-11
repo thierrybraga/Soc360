@@ -1,5 +1,5 @@
 """
-Open-Monitor MITRE ATT&CK Models
+SOC360 MITRE ATT&CK Models
 Modelos para Táticas, Técnicas e Mitigações do framework MITRE ATT&CK.
 """
 from sqlalchemy import Column, String, Integer, Text, ForeignKey, Boolean

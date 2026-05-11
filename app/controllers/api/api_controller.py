@@ -1,5 +1,5 @@
 """
-Open-Monitor API Controller
+SOC360 API Controller
 Endpoints REST: /api/v1/cves, /api/v1/assets, /api/v1/analytics, /api/v1/sync
 """
 from datetime import datetime, timedelta, timezone
@@ -16,6 +16,23 @@ from app.utils.security import rate_limit, admin_required, api_key_required
 
 
 api_bp = Blueprint('api', __name__)
+
+
+# =============================================================================
+# CSRF TOKEN REFRESH
+# =============================================================================
+
+@api_bp.route('/csrf-token', methods=['GET'])
+def csrf_token_refresh():
+    """Retorna um CSRF token fresco (atrelado à sessão atual).
+
+    Endpoint utilizado pelo cliente JS quando um POST falha com ``CSRF_ERROR``
+    — evita que o usuário tenha que recarregar a página inteira só porque
+    a sessão renovou ou o token antigo ficou defasado. O GET não muta estado,
+    então é exempt de CSRF pelo Flask-WTF (aplicável só a POST/PUT/PATCH/DELETE).
+    """
+    from flask_wtf.csrf import generate_csrf
+    return jsonify({'csrf_token': generate_csrf()})
 
 
 # =============================================================================

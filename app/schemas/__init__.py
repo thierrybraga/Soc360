@@ -1,5 +1,5 @@
 """
-Open-Monitor Schemas Package
+SOC360 Schemas Package
 Marshmallow schemas and service classes.
 """
 

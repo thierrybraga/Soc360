@@ -24,7 +24,7 @@
                     <div class="col-md-6">
                         <div class="meta-item">
                             <i class="bi bi-calendar-event"></i>
-                            <span><strong>Data de Geração:</strong> {{ report.generated_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                            <span><strong>Data de Geração:</strong> {{ report.generation_completed_at.strftime('%d/%m/%Y %H:%M') if report.generation_completed_at else (report.created_at.strftime('%d/%m/%Y %H:%M') if report.created_at else 'N/A') }}</span>
                         </div>
                         <div class="meta-item">
                             <i class="bi bi-file-text"></i>
@@ -59,25 +59,30 @@
             <!-- Report Content -->
             <div class="report-detail-container">
                 <h2><i class="bi bi-file-text"></i> Conteúdo do Relatório</h2>
-                {% if report.content %}
+                {% if report.ai_summary %}
                     <div class="report-content">
-                        {{ report.content | safe }}
+                        <h5>Resumo</h5>
+                        <p>{{ report.ai_summary }}</p>
+                    </div>
+                {% elif report.data %}
+                    <div class="report-content">
+                        <pre class="bg-light p-3 rounded rpt-raw-pre">{{ report.data | tojson(indent=2) }}</pre>
                     </div>
                 {% else %}
                     <div class="empty-state">
                         <i class="bi bi-file-earmark-x"></i>
                         <h3>Conteúdo não disponível</h3>
-                        <p>O conteúdo deste relatório não está disponível para visualização online. Faça o download do PDF para acessar o relatório completo.</p>
+                        <p>O conteúdo deste relatório não está disponível para visualização online.</p>
                     </div>
                 {% endif %}
             </div>
 
             <!-- Action Buttons -->
             <div class="report-actions">
-                <a href="{{ url_for('report.view_report', report_id=report.id) }}" class="btn-download">
+                <a href="{{ url_for('reports.download_report', report_id=report.id) }}" class="btn-download">
                     <i class="bi bi-download"></i> Baixar PDF
                 </a>
-                <a href="{{ url_for('report.list_reports') }}" class="btn-back">
+                <a href="{{ url_for('reports.index') }}" class="btn-back">
                     <i class="bi bi-arrow-left"></i> Voltar aos Relatórios
                 </a>
             </div>
@@ -89,7 +94,7 @@
             <i class="bi bi-exclamation-triangle"></i>
             <h3>Relatório não encontrado</h3>
             <p>O relatório solicitado não foi encontrado ou não está mais disponível.</p>
-            <a href="{{ url_for('report.list_reports') }}" class="btn-back">Voltar aos Relatórios</a>
+            <a href="{{ url_for('reports.index') }}" class="btn-back">Voltar aos Relatórios</a>
         </div>
     {% endif %}
         </div>
@@ -99,25 +104,8 @@
 <!-- Toast Container -->
 <div class="toast-container"></div>
 
-<script>
-// Toast notification function
-function showToast(message, type = 'info') {
-    const toastContainer = document.querySelector('.toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type} show`;
-    toast.innerHTML = `
-        <div class="toast-body">
-            <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
-            ${message}
-        </div>
-    `;
-    
-    toastContainer.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
-}
+<script nonce="{{ csp_nonce() }}">
+// showToast — delegates to global window.showToast (js/core/utils.js)
 
 // Enhanced functionality
 document.addEventListener('DOMContentLoaded', function() {

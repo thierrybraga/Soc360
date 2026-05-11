@@ -1,5 +1,5 @@
 """
-Open-Monitor CVE Vendor Model
+SOC360 CVE Vendor Model
 Association table: Vulnerability <-> Vendor (Many-to-Many).
 Note: No FK to vendors table as it's in a different database bind.
 """

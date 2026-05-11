@@ -1,12 +1,12 @@
 """
-Open-Monitor Chatbot Controller
+SOC360 Chatbot Controller
 AI-powered chatbot — suporta Ollama (local) e OpenAI via AI_PROVIDER.
 """
 import logging
 from datetime import datetime, timezone
 
-from flask import Blueprint, render_template, request, jsonify
-from flask_login import login_required
+from flask import Blueprint, render_template, request, jsonify, current_app
+from flask_login import login_required, current_user
 
 logger = logging.getLogger(__name__)
 
@@ -30,23 +30,40 @@ def chat():
         return jsonify({'success': False, 'error': 'Mensagem não pode estar vazia.'}), 400
 
     timestamp = datetime.now(timezone.utc).isoformat()
+    
+    logger.info(f'Chatbot: mensagem recebida de {current_user.username}: {user_message[:50]}...')
 
     try:
         from app.services.core.ai_service import get_ai_service
         service = get_ai_service()
+        logger.info(f'Chatbot: usando serviço {service.__class__.__name__}, modelo {getattr(service, "model", "unknown")}')
+        
+        # Verificar se o cliente está inicializado
+        if hasattr(service, 'client') and service.client is None:
+            logger.error('Chatbot: cliente Ollama não inicializado')
+            return jsonify({
+                'success': False,
+                'response': 'Serviço de IA não está disponível. Verifique se o Ollama está em execução.',
+                'source': 'error',
+                'timestamp': timestamp,
+            }), 503
+            
         response = service.generate_chat_response(user_message)
+        logger.info(f'Chatbot: resposta gerada ({len(response)} chars)')
         return jsonify({
             'success': True,
             'response': response,
             'source': 'ai',
-            'model': service.model,
+            'model': getattr(service, 'model', 'unknown'),
             'timestamp': timestamp,
         })
     except Exception as exc:
+        import traceback
         logger.error(f'Chatbot error: {exc}')
+        logger.error(f'Chatbot traceback: {traceback.format_exc()}')
         return jsonify({
             'success': False,
-            'response': 'Ocorreu um erro ao processar sua mensagem. Tente novamente.',
+            'response': f'Erro: {str(exc)}',
             'source': 'error',
             'timestamp': timestamp,
         }), 500

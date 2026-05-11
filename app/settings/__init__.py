@@ -1,5 +1,5 @@
 """
-Open-Monitor Settings Module
+SOC360 Settings Module
 Export configurations based on environment.
 """
 import os

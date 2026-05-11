@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Wazuh SIEM — Relatório de Alertas</title>
+    <style>
+        @page { size: A4; margin: 1.4cm; }
+        body { font-family: "Helvetica", Arial, sans-serif; color: #222; font-size: 11px; }
+        h1 { font-size: 22px; margin: 0 0 4px; color: #0f3e6b; }
+        h2 { font-size: 14px; margin: 14px 0 6px; color: #0f3e6b; border-bottom: 1px solid #ccd; padding-bottom: 2px; }
+        .muted { color: #666; font-size: 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+        th, td { border: 1px solid #ccd; padding: 4px 6px; text-align: left; vertical-align: top; }
+        th { background: #eef2f7; font-weight: bold; }
+        .sev { padding: 1px 6px; border-radius: 3px; color: #fff; font-weight: bold; font-size: 10px; }
+        .sev.CRITICAL { background: #a70000; }
+        .sev.HIGH { background: #d9534f; }
+        .sev.MEDIUM { background: #f0ad4e; color: #222; }
+        .sev.LOW { background: #5cb85c; }
+        .kpis { display: table; width: 100%; margin-bottom: 8px; }
+        .kpi { display: table-cell; border: 1px solid #ccd; padding: 6px; text-align: center; }
+        .kpi b { display: block; font-size: 18px; }
+        .filters { font-size: 10px; color: #666; margin-bottom: 4px; }
+        .footer { position: fixed; bottom: 0.3cm; left: 0; right: 0; text-align: center; color: #888; font-size: 9px; }
+    </style>
+</head>
+<body>
+    <h1>Wazuh SIEM — Relatório de Alertas</h1>
+    <div class="muted">
+        Gerado em {{ generated_at.strftime('%Y-%m-%d %H:%M %Z') }} · por {{ user.username }}
+    </div>
+    {% if filters %}
+    <div class="filters">
+        Filtros: {% for k, v in filters.items() %}{% if v %}<b>{{ k }}</b>={{ v }} · {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <h2>Resumo (janela de {{ stats.window_hours }}h)</h2>
+    <div class="kpis">
+        <div class="kpi"><b>{{ stats.total_window }}</b>Janela</div>
+        <div class="kpi"><b>{{ stats.total_24h }}</b>Últimas 24h</div>
+        <div class="kpi"><b>{{ stats.open_count }}</b>Em aberto</div>
+        <div class="kpi"><b>{{ stats.total_all }}</b>Total</div>
+    </div>
+
+    <table>
+        <tr>
+            <th>Severidade</th>
+            <th>Contagem</th>
+        </tr>
+        {% for sev, n in stats.by_severity.items() %}
+        <tr>
+            <td><span class="sev {{ sev }}">{{ sev }}</span></td>
+            <td>{{ n }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Top regras</h2>
+    <table>
+        <tr><th>Rule ID</th><th>Descrição</th><th>Nível máx</th><th>Contagem</th></tr>
+        {% for r in stats.top_rules %}
+        <tr>
+            <td>{{ r.rule_id }}</td>
+            <td>{{ r.description }}</td>
+            <td>{{ r.max_level }}</td>
+            <td>{{ r.count }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Alertas ({{ alerts|length }} registros — limitado a 500)</h2>
+    <table>
+        <tr>
+            <th>Quando</th>
+            <th>Sev</th>
+            <th>Status</th>
+            <th>Regra</th>
+            <th>Descrição</th>
+            <th>Agente</th>
+            <th>src_ip</th>
+            <th>Atribuído</th>
+        </tr>
+        {% for a in alerts %}
+        <tr>
+            <td>{{ a.timestamp.strftime('%Y-%m-%d %H:%M') if a.timestamp else '' }}</td>
+            <td><span class="sev {{ a.severity or 'LOW' }}">{{ a.severity }}</span></td>
+            <td>{{ a.status }}</td>
+            <td>{{ a.rule_id }} / L{{ a.rule_level }}</td>
+            <td>{{ (a.rule_description or '')[:120] }}</td>
+            <td>{{ a.agent_name or '' }}</td>
+            <td>{{ a.src_ip or '' }}</td>
+            <td>{{ a.assigned_to.username if a.assigned_to else '' }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div class="footer">SOC360 · Wazuh SIEM Report</div>
+</body>
+</html>

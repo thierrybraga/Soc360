@@ -1,5 +1,5 @@
 """
-Open-Monitor Monitoring Controller
+SOC360 Monitoring Controller
 Rotas para gerenciamento de regras de monitoramento e alertas.
 """
 import logging

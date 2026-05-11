@@ -1,5 +1,5 @@
 """
-Open-Monitor Reference Model
+SOC360 Reference Model
 Model para referências de CVEs.
 """
 from sqlalchemy import Column, String, Text, ForeignKey, Boolean, UniqueConstraint

@@ -1,5 +1,5 @@
 """
-Open-Monitor Extensions Module
+SOC360 Extensions Module
 Inicialização centralizada de todas as extensões Flask.
 """
 from app.extensions.db import db, migrate, init_db, get_db

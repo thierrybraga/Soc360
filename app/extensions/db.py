@@ -1,5 +1,5 @@
 """
-Open-Monitor Database Extension
+SOC360 Database Extension
 Configuração do SQLAlchemy com suporte a múltiplos bancos.
 """
 from flask_sqlalchemy import SQLAlchemy

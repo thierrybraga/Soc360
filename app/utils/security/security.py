@@ -1,5 +1,5 @@
 """
-Open-Monitor Security Utils
+SOC360 Security Utils
 Funções de segurança: rate limiting, validação de senha, decorators.
 """
 import re

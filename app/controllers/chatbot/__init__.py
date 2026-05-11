@@ -1,5 +1,5 @@
 """
-Open-Monitor Chatbot Controller Package
+SOC360 Chatbot Controller Package
 """
 from app.controllers.chatbot.chatbot_controller import chatbot_bp
 

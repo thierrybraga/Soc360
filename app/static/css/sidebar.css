@@ -504,3 +504,48 @@
         display: none !important;
     }
 }
+
+/* ==========================================================================
+   Tema Claro — ajustes de sidebar
+   ========================================================================== */
+
+[data-theme="light"] .sidebar {
+    background: rgba(248, 250, 252, 0.95);
+    border-right-color: var(--border-color);
+}
+
+[data-theme="light"] .version {
+    background: var(--gray-200);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .sidebar-nav {
+    scrollbar-color: var(--gray-300) transparent;
+}
+
+[data-theme="light"] .sidebar-nav::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+}
+
+[data-theme="light"] .sidebar-footer {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .user-info:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .nav-item:hover {
+    background: rgba(37, 99, 235, 0.07);
+    border-color: rgba(37, 99, 235, 0.10);
+}
+
+[data-theme="light"] .nav-group-toggle:hover {
+    background: rgba(37, 99, 235, 0.06);
+    border-color: rgba(37, 99, 235, 0.08);
+}
+
+[data-theme="light"] .logout-btn:hover {
+    background: rgba(220, 38, 38, 0.08);
+}

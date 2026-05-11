@@ -1,5 +1,5 @@
 """
-Open-Monitor Affected Product Model
+SOC360 Affected Product Model
 Model para produtos afetados por CVEs (dados detalhados da MITRE).
 """
 from sqlalchemy import Column, String, ForeignKey

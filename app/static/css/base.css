@@ -12,6 +12,7 @@ html {
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-y: scroll; /* prevents Bootstrap modal padding-right layout shift */
 }
 
 body {
@@ -55,16 +56,16 @@ small {
 }
 
 a {
-    color: var(--primary-400);
+    color: var(--color-link, var(--primary-400));
     text-decoration: none;
     transition: color var(--transition-fast);
 }
 
 a:hover {
-    color: var(--primary-300);
+    color: var(--color-link-hover, var(--primary-300));
 }
 
-/* Scrollbar */
+/* Scrollbar — tema escuro */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -81,7 +82,17 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--gray-600);
+    background: var(--gray-500);
+}
+
+/* Scrollbar — tema claro */
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-color: var(--bg-primary);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-400);
 }
 
 /* Layout Structure */
@@ -320,6 +331,46 @@ a:hover {
 
 .fade-in {
     animation: fadeIn var(--transition-normal) forwards;
+}
+
+/* ── Tema Claro — ajustes de componentes de base ─────────────────────────── */
+
+[data-theme="light"] .menu-toggle {
+    background: rgba(0, 0, 0, 0.04);
+    border-color: var(--border-color);
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .menu-toggle:hover {
+    color: var(--primary-600);
+    background: rgba(37, 99, 235, 0.08);
+    border-color: rgba(37, 99, 235, 0.20);
+}
+
+[data-theme="light"] .search-box {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .search-box:hover {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: var(--border-color-hover);
+}
+
+[data-theme="light"] .search-box:focus-within {
+    background: var(--bg-card);
+    border-color: var(--primary-500);
+}
+
+[data-theme="light"] .search-shortcut kbd {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .icon-btn:hover {
+    color: var(--primary-600);
+    background: rgba(37, 99, 235, 0.08);
+    border-color: rgba(37, 99, 235, 0.18);
 }
 
 /* Responsive */

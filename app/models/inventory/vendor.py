@@ -1,5 +1,5 @@
 """
-Open-Monitor Vendor and Product Models
+SOC360 Vendor and Product Models
 Models para gestão de vendors e produtos.
 """
 from sqlalchemy import Column, String, Integer, Text, ForeignKey, Boolean

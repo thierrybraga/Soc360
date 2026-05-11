@@ -1,5 +1,5 @@
 """
-Open-Monitor Inventory Controller
+SOC360 Inventory Controller
 Rotas para gerenciamento de ativos.
 """
 from app.controllers.inventory.inventory_controller import inventory_bp

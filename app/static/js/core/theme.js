@@ -10,7 +10,7 @@
     'use strict';
 
     // Constantes
-    const THEME_KEY = 'open-monitor-theme';
+    const THEME_KEY = 'soc360-theme';
     const THEME_LIGHT = 'light';
     const THEME_DARK = 'dark';
     const THEME_AUTO = 'auto';
@@ -116,8 +116,9 @@
             body.classList.add('theme-light');
         }
 
-        // Atualiza o atributo data-theme para CSS
+        // Atualiza o atributo data-theme para CSS (html + body para cobrir todos os seletores)
         body.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-theme', theme);
         
         // Atualiza a aparência do botão
         updateToggleButton(theme);

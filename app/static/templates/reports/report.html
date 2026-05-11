@@ -203,25 +203,8 @@
 <!-- Toast Container -->
 <div class="toast-container"></div>
 
-<script>
-// Toast notification function
-function showToast(message, type = 'info') {
-    const toastContainer = document.querySelector('.toast-container');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type} show`;
-    toast.innerHTML = `
-        <div class="toast-body">
-            <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
-            ${message}
-        </div>
-    `;
-    
-    toastContainer.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
-}
+<script nonce="{{ csp_nonce() }}">
+// showToast — delegates to global window.showToast (js/core/utils.js)
 
 // Filter form enhancements
 document.addEventListener('DOMContentLoaded', function() {

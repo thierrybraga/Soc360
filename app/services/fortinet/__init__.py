@@ -1,5 +1,5 @@
 """
-Open-Monitor Fortinet Services
+SOC360 Fortinet Services
 Serviços especializados para dispositivos Fortinet.
 """
 from app.services.fortinet.fortinet_presets import (

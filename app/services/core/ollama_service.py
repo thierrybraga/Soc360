@@ -39,7 +39,7 @@ class OllamaService:
 
     def __init__(self):
         self.base_url  = current_app.config.get('OLLAMA_BASE_URL', 'http://localhost:11434/v1')
-        self.model     = current_app.config.get('OLLAMA_MODEL', 'llama3.2:latest')
+        self.model     = current_app.config.get('OLLAMA_MODEL', 'gemma4:e4b')
         self.max_tokens = int(current_app.config.get('OLLAMA_MAX_TOKENS', 2048))
         self.temperature = float(current_app.config.get('OLLAMA_TEMPERATURE', 0.7))
 

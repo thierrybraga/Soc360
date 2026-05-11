@@ -1,5 +1,5 @@
 """
-Open-Monitor Version Reference Model
+SOC360 Version Reference Model
 Model para referencias de versao afetada/corrigida.
 """
 from datetime import datetime

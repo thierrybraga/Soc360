@@ -1,5 +1,5 @@
 """
-Open-Monitor Security Headers Service
+SOC360 Security Headers Service
 CSP, HSTS, and other security headers configuration.
 """
 import hashlib
@@ -48,7 +48,7 @@ class SecurityHeadersService:
         return {
             'default-src': ["'self'"],
             'script-src': ["'self'", "'nonce-{nonce}'"],
-            'style-src': ["'self'", "'unsafe-inline'"],  # Allow inline styles for UI
+            'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             'img-src': ["'self'", "data:", "https:"],
             'font-src': ["'self'", "https://fonts.gstatic.com"],
             'connect-src': ["'self'"],
@@ -220,7 +220,7 @@ class SecurityHeadersService:
 CSP_DEVELOPMENT = {
     'default-src': ["'self'"],
     'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],  # Dev tools
-    'style-src': ["'self'", "'unsafe-inline'"],
+    'style-src': ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     'img-src': ["'self'", "data:", "https:", "http:"],
     'font-src': ["'self'", "https://fonts.gstatic.com", "data:"],
     'connect-src': ["'self'", "ws:", "wss:"],  # WebSocket for hot reload
@@ -232,7 +232,7 @@ CSP_DEVELOPMENT = {
 CSP_PRODUCTION = {
     'default-src': ["'self'"],
     'script-src': ["'self'", "'nonce-{nonce}'"],
-    'style-src': ["'self'", "'nonce-{nonce}'"],
+    'style-src': ["'self'", "'nonce-{nonce}'", "https://fonts.googleapis.com"],
     'img-src': ["'self'", "data:", "https:"],
     'font-src': ["'self'", "https://fonts.gstatic.com"],
     'connect-src': ["'self'", "https://services.nvd.nist.gov"],  # NVD API

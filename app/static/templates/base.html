@@ -5,21 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="description" content="{% block meta_description %}Plataforma de monitoramento, gestão de vulnerabilidades e inventário de ativos.{% endblock %}">
-    <meta name="keywords" content="{% block meta_keywords %}open-monitor, vulnerabilidades, inventário, monitoramento, segurança{% endblock %}">
+    <meta name="keywords" content="{% block meta_keywords %}soc360, vulnerabilidades, inventário, monitoramento, segurança{% endblock %}">
     <meta property="og:title" content="{% block og_title %}{% block social_title %}{{ self.title() }}{% endblock %}{% endblock %}">
     <meta property="og:description" content="{% block og_description %}Plataforma profissional para gestão de vulnerabilidades, ativos e inteligência de segurança.{% endblock %}">
     <meta property="og:type" content="{% block og_type %}website{% endblock %}">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
     
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Icons — Font Awesome 6.4.0 (served locally, CDN blocked in sandbox) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/fontawesome-all.min.css') }}">
+
+    <!-- Bootstrap 5.3.2 CSS (served locally) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/bootstrap.min.css') }}">
+
+    <!-- Tema Consolidado - Responsividade, Contraste e Tema Escuro Unificado -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-consolidated.css') }}">
     
-    <!-- Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Melhorias de Responsividade -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive-enhancements.css') }}">
     
-    <!-- CSS -->
+    <!-- Main CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/loading.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/notifications.css') }}">
@@ -32,7 +36,7 @@
         <div class="sidebar-header">
             <div class="logo">
                 <i class="fas fa-shield-alt"></i>
-                <span>Open-Monitor</span>
+                <span>SOC360</span>
             </div>
             <span class="version">v{{ app_version }}</span>
         </div>
@@ -93,7 +97,7 @@
             </div>
 
             <!-- Integrações -->
-            <div class="nav-group {% if request.blueprint in ('fortinet', 'chatbot') %}open{% endif %}">
+            <div class="nav-group {% if request.blueprint in ('fortinet', 'chatbot', 'wazuh', 'umbrella') %}open{% endif %}">
                 <button class="nav-group-toggle" type="button">
                     <i class="fas fa-plug"></i>
                     <span>Integrações</span>
@@ -103,6 +107,14 @@
                     <a href="{{ url_for('fortinet.dashboard') }}" class="nav-item nav-sub {% if request.blueprint == 'fortinet' %}active{% endif %}">
                         <i class="fas fa-network-wired"></i>
                         <span>Fortinet</span>
+                    </a>
+                    <a href="{{ url_for('wazuh.dashboard') }}" class="nav-item nav-sub {% if request.blueprint == 'wazuh' %}active{% endif %}">
+                        <i class="fas fa-shield-virus"></i>
+                        <span>Wazuh SIEM</span>
+                    </a>
+                    <a href="{{ url_for('umbrella.dashboard') }}" class="nav-item nav-sub {% if request.blueprint == 'umbrella' %}active{% endif %}">
+                        <i class="fas fa-umbrella"></i>
+                        <span>Umbrella</span>
                     </a>
                     <a href="{{ url_for('chatbot.index') }}" class="nav-item nav-sub {% if request.blueprint == 'chatbot' %}active{% endif %}">
                         <i class="fas fa-robot"></i>
@@ -191,12 +203,12 @@
         <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="flash-messages">
+        <div class="flash-messages" id="flashMessages">
             {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">
-                <i class="fas {% if category == 'success' %}fa-check-circle{% elif category == 'error' %}fa-exclamation-circle{% elif category == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %}"></i>
-                <span>{{ message }}</span>
-                <button class="alert-close">&times;</button>
+            <div class="alert alert-{{ category }}" role="alert">
+                <i class="fas {% if category == 'success' %}fa-check-circle{% elif category == 'danger' or category == 'error' %}fa-times-circle{% elif category == 'warning' %}fa-exclamation-triangle{% else %}fa-info-circle{% endif %}"></i>
+                <div class="alert-body">{{ message }}</div>
+                <button class="alert-close" aria-label="Fechar">&times;</button>
             </div>
             {% endfor %}
         </div>
@@ -209,6 +221,10 @@
         </div>
     </main>
     
+    <!-- Page-level modals rendered here, as direct <body> children,
+         to avoid stacking context issues from animated page content wrappers. -->
+    {% block modals %}{% endblock %}
+
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay" style="display: none;">
         <div class="spinner"></div>
@@ -219,7 +235,7 @@
     <div class="toast-container" id="toastContainer"></div>
     
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/vendor/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/core/utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/core/app.js') }}"></script>
     {% block extra_js %}{% endblock %}

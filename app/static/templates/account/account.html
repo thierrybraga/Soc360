@@ -57,7 +57,7 @@
               <!-- Profile Picture -->
               <div class="mb-4 d-flex align-items-center gap-3">
                 <div class="profile-picture-wrapper position-relative">
-                  <img id="profile-pic-preview" src="https://via.placeholder.com/80" alt="Profile picture" class="rounded-circle" style="width: 80px; height: 80px;">
+                  <img id="profile-pic-preview" src="https://via.placeholder.com/80" alt="Profile picture" class="rounded-circle profile-pic-sm">
                   <label for="profile-pic" class="profile-picture-upload-overlay position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50 rounded-circle" aria-label="Upload new profile picture">
                     <i class="bi bi-camera fs-4 text-white"></i>
                   </label>
@@ -368,8 +368,8 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="https://cdn.jsdelivr.net/npm/imask@7.6.1/dist/imask.min.js" defer nonce="{{ nonce }}"></script>
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.12.4/dist/sweetalert2.all.min.js" defer nonce="{{ nonce }}"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer nonce="{{ nonce }}"></script>
-  <script src="{{ url_for('static', filename='js/pages/account.js') }}" defer nonce="{{ nonce }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/imask@7.6.1/dist/imask.min.js" defer nonce="{{ csp_nonce() }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.12.4/dist/sweetalert2.all.min.js" defer nonce="{{ csp_nonce() }}"></script>
+  <script src="{{ url_for('static', filename='js/vendor/chart.umd.min.js') }}" defer nonce="{{ csp_nonce() }}"></script>
+  <script src="{{ url_for('static', filename='js/pages/account.js') }}" defer nonce="{{ csp_nonce() }}"></script>
 {% endblock %}

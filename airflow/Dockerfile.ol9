@@ -1,0 +1,80 @@
+# Dockerfile - Airflow Otimizado para Oracle Linux 9
+FROM oraclelinux:9
+
+LABEL maintainer="Open-Monitor Team"
+LABEL description="Airflow para Oracle Linux 9"
+LABEL version="1.0"
+
+# Variáveis de ambiente
+ENV AIRFLOW_HOME=/opt/airflow \
+    AIRFLOW__CORE__EXECUTOR=LocalExecutor \
+    AIRFLOW__CORE__LOAD_EXAMPLES=false \
+    AIRFLOW_UID=50000 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/usr/local/bin:${PATH}"
+
+# Instalação de dependências
+RUN microdnf install -y --setopt=install_weak_deps=False \
+    python3.11 \
+    python3.11-pip \
+    gcc \
+    gcc-c++ \
+    libpq-devel \
+    openssl \
+    curl \
+    shadow-utils \
+    && microdnf clean all && \
+    rm -rf /var/cache/yum/*
+
+# Criar usuário airflow
+RUN groupadd -g 50000 airflow || true && \
+    useradd -u 50000 -g airflow -d $AIRFLOW_HOME -s /bin/bash airflow || true
+
+# Instalação do Airflow e dependências Python
+RUN pip3.11 install --no-cache-dir --upgrade pip && \
+    pip3.11 install --no-cache-dir \
+    apache-airflow==2.10.5 \
+    psycopg2-binary \
+    redis \
+    requests
+
+WORKDIR $AIRFLOW_HOME
+
+# Copiar requirements se existir
+COPY requirements.txt /requirements.txt
+RUN if [ -s /requirements.txt ]; then pip3.11 install --no-cache-dir -r /requirements.txt; fi
+
+# Criar diretórios e ajustar permissões
+RUN mkdir -p $AIRFLOW_HOME/{dags,logs,plugins} && \
+    chown -R airflow:airflow $AIRFLOW_HOME
+
+# Script de inicialização
+COPY <<'EOF' /entrypoint.sh
+#!/bin/bash
+set -e
+
+# Inicializar banco de dados se necessário
+if [ "$1" = "webserver" ]; then
+    echo "Initializing Airflow database..."
+    airflow db init 2>/dev/null || airflow db upgrade
+    echo "Airflow database ready"
+fi
+
+# Executar comando
+exec airflow "$@"
+EOF
+
+RUN chmod +x /entrypoint.sh && \
+    chown airflow:airflow /entrypoint.sh
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=5 \
+    CMD curl -sf http://localhost:8080/health || exit 1
+
+EXPOSE 8080
+
+USER airflow
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["webserver"]

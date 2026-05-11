@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Configurações - Open-Monitor{% endblock %}
+{% block title %}Configurações — SOC360{% endblock %}
 
 {% block extra_css %}
 {{ super() }}
@@ -14,367 +14,844 @@
 
 {% block content %}
 <div class="page-shell" data-page="settings">
-    <!-- HEADER -->
-    <div class="page-header">
-        <div class="page-header__content">
-            <h1 class="page-header__title">
-                <i class="fas fa-cog"></i>Configurações
-            </h1>
-            <p class="page-header__subtitle">
-                Gerencie informações de perfil, credenciais de segurança e acesso à API em um único lugar centralizado.
-            </p>
-        </div>
+
+    <!-- ─── Page Header ──────────────────────────────────────────── -->
+    <div class="settings-page-header">
+        <nav class="settings-breadcrumb" aria-label="breadcrumb">
+            <a href="{{ url_for('core.dashboard') }}"><i class="fas fa-house"></i></a>
+            <span>/</span>
+            <span>Configurações</span>
+        </nav>
+        <h1 class="settings-page-title">
+            <i class="fas fa-sliders"></i>Configurações da Conta
+        </h1>
     </div>
 
-    <!-- AVISO de Segurança (se aplicável) -->
-    {% if current_user.is_admin and (current_user.force_password_reset or current_user.username|lower == 'admin') %}
-        <div class="container-lg">
-            <div class="alert alert-warning" role="alert">
-                <i class="fas fa-exclamation-triangle"></i>
-                <div>
-                    <strong>Atenção Importante de Segurança:</strong>
-                    <p style="margin: 0.5rem 0 0 0;">Sua conta de administrador está usando credenciais padrão ou precisa de redefinição de senha. 
-                    <strong>Altere a senha imediatamente</strong> na seção "Segurança" abaixo para manter sua conta protegida.</p>
+    <!-- ─── Two-column Layout ────────────────────────────────────── -->
+    <div class="settings-layout">
+
+        <!-- ══ SIDEBAR ═══════════════════════════════════════════════ -->
+        <aside class="settings-sidebar" aria-label="Navegação de configurações">
+
+            <!-- User identity -->
+            <div class="sidebar-user">
+                <div class="sidebar-avatar" aria-hidden="true">
+                    {{ (current_user.first_name or current_user.username)[0] | upper }}
+                </div>
+                <div class="sidebar-user__info">
+                    <strong class="sidebar-user__name">
+                        {{ current_user.full_name if current_user.first_name else current_user.username }}
+                    </strong>
+                    <span class="sidebar-user__email">{{ current_user.email }}</span>
+                    {% if current_user.is_admin %}
+                    <span class="sidebar-user__badge sidebar-user__badge--admin">
+                        <i class="fas fa-shield-alt"></i>Administrador
+                    </span>
+                    {% else %}
+                    <span class="sidebar-user__badge">
+                        <i class="fas fa-user"></i>Usuário
+                    </span>
+                    {% endif %}
                 </div>
             </div>
-        </div>
-    {% endif %}
 
-    <div class="container-lg">
-        <!-- SEÇÃO 1 & 2: PERFIL e SEGURANÇA lado a lado -->
-        <div class="row g-4 mb-5">
-            <!-- CARD 1: Profile Information -->
-            <div class="col-12 col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header border-bottom">
-                        <h2 class="card-title">
-                            <i class="fas fa-user-circle"></i>Informações do Perfil
-                        </h2>
+            <!-- Navigation -->
+            <nav class="sidebar-nav" aria-label="Seções de configurações">
+                <ul role="tablist" id="settingsTabs">
+
+                    <li role="presentation">
+                        <button
+                            class="sidebar-nav__item {% if active_tab == 'profile' %}active{% endif %}"
+                            id="tab-btn-profile"
+                            data-bs-toggle="tab"
+                            data-bs-target="#tab-profile"
+                            type="button" role="tab"
+                            aria-controls="tab-profile"
+                            aria-selected="{{ 'true' if active_tab == 'profile' else 'false' }}"
+                        >
+                            <span class="sidebar-nav__icon"><i class="fas fa-user"></i></span>
+                            <span class="sidebar-nav__label">
+                                <span class="sidebar-nav__title">Perfil</span>
+                                <span class="sidebar-nav__desc">Identidade e organização</span>
+                            </span>
+                        </button>
+                    </li>
+
+                    <li role="presentation">
+                        <button
+                            class="sidebar-nav__item {% if active_tab == 'security' %}active{% endif %}"
+                            id="tab-btn-security"
+                            data-bs-toggle="tab"
+                            data-bs-target="#tab-security"
+                            type="button" role="tab"
+                            aria-controls="tab-security"
+                            aria-selected="{{ 'true' if active_tab == 'security' else 'false' }}"
+                        >
+                            <span class="sidebar-nav__icon {% if current_user.force_password_reset %}sidebar-nav__icon--danger{% endif %}">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <span class="sidebar-nav__label">
+                                <span class="sidebar-nav__title">
+                                    Segurança
+                                    {% if current_user.force_password_reset %}
+                                    <span class="snav-badge snav-badge--danger" aria-label="Ação necessária">!</span>
+                                    {% endif %}
+                                </span>
+                                <span class="sidebar-nav__desc">Senha e proteção</span>
+                            </span>
+                        </button>
+                    </li>
+
+                    <li role="presentation">
+                        <button
+                            class="sidebar-nav__item {% if active_tab == 'api' %}active{% endif %}"
+                            id="tab-btn-api"
+                            data-bs-toggle="tab"
+                            data-bs-target="#tab-api"
+                            type="button" role="tab"
+                            aria-controls="tab-api"
+                            aria-selected="{{ 'true' if active_tab == 'api' else 'false' }}"
+                        >
+                            <span class="sidebar-nav__icon {% if current_user.api_key %}sidebar-nav__icon--success{% endif %}">
+                                <i class="fas fa-code"></i>
+                            </span>
+                            <span class="sidebar-nav__label">
+                                <span class="sidebar-nav__title">
+                                    Chave de API
+                                    {% if current_user.api_key %}
+                                    <span class="snav-badge snav-badge--success">✓</span>
+                                    {% endif %}
+                                </span>
+                                <span class="sidebar-nav__desc">Acesso programático</span>
+                            </span>
+                        </button>
+                    </li>
+
+                    {% if current_user.is_admin %}
+                    <li role="presentation">
+                        <button
+                            class="sidebar-nav__item {% if active_tab == 'tacacs' %}active{% endif %}"
+                            id="tab-btn-tacacs"
+                            data-bs-toggle="tab"
+                            data-bs-target="#tab-tacacs"
+                            type="button" role="tab"
+                            aria-controls="tab-tacacs"
+                            aria-selected="{{ 'true' if active_tab == 'tacacs' else 'false' }}"
+                        >
+                            <span class="sidebar-nav__icon {% if tacacs_config and tacacs_config.enabled %}sidebar-nav__icon--success{% endif %}">
+                                <i class="fas fa-network-wired"></i>
+                            </span>
+                            <span class="sidebar-nav__label">
+                                <span class="sidebar-nav__title">
+                                    TACACS+
+                                    {% if tacacs_config and tacacs_config.enabled %}
+                                    <span class="snav-badge snav-badge--success">ON</span>
+                                    {% endif %}
+                                </span>
+                                <span class="sidebar-nav__desc">Autenticação centralizada</span>
+                            </span>
+                        </button>
+                    </li>
+                    {% endif %}
+
+                    <li role="presentation">
+                        <button
+                            class="sidebar-nav__item {% if active_tab == 'session' %}active{% endif %}"
+                            id="tab-btn-session"
+                            data-bs-toggle="tab"
+                            data-bs-target="#tab-session"
+                            type="button" role="tab"
+                            aria-controls="tab-session"
+                            aria-selected="{{ 'true' if active_tab == 'session' else 'false' }}"
+                        >
+                            <span class="sidebar-nav__icon {% if current_user.failed_login_count and current_user.failed_login_count > 0 %}sidebar-nav__icon--danger{% endif %}">
+                                <i class="fas fa-chart-line"></i>
+                            </span>
+                            <span class="sidebar-nav__label">
+                                <span class="sidebar-nav__title">Sessão &amp; Conta</span>
+                                <span class="sidebar-nav__desc">Atividade e status</span>
+                            </span>
+                        </button>
+                    </li>
+
+                </ul>
+            </nav>
+
+            {% if current_user.created_at %}
+            <div class="sidebar-footer">
+                <i class="fas fa-calendar-alt"></i>
+                Membro desde {{ current_user.created_at.strftime('%b/%Y') }}
+            </div>
+            {% endif %}
+
+        </aside>
+        <!-- /sidebar -->
+
+        <!-- ══ CONTENT ════════════════════════════════════════════════ -->
+        <div class="settings-content">
+            <div class="settings-tab-content tab-content" id="settingsTabContent">
+
+                <!-- ══════════════════════════════════════════════
+                     TAB: PERFIL
+                ══════════════════════════════════════════════ -->
+                <div class="tab-pane fade {% if active_tab == 'profile' %}show active{% endif %}"
+                     id="tab-profile" role="tabpanel" aria-labelledby="tab-btn-profile">
+
+                    <div class="sc-header">
+                        <h2 class="sc-title"><i class="fas fa-user"></i>Perfil</h2>
+                        <p class="sc-desc">Gerencie suas informações pessoais, organizacionais e de contato.</p>
                     </div>
-                    <div class="card-body">
-                        <form method="POST" action="" class="settings-form" id="profileForm">
-                            {{ profile_form.hidden_tag() }}
-                            
-                            <div class="form-group">
-                                <label for="{{ profile_form.username.id }}" class="form-label required">
-                                    Nome de Usuário
-                                </label>
-                                {{ profile_form.username(
-                                    class="form-input" + (" is-invalid" if profile_form.username.errors else ""),
-                                    placeholder="Digite seu nome de usuário público",
-                                    required="required"
-                                ) }}
-                                {% if profile_form.username.errors %}
-                                    <div class="invalid-feedback">
-                                        <i class="fas fa-info-circle"></i>
-                                        {{ profile_form.username.errors[0] }}
-                                    </div>
-                                {% else %}
-                                    <div class="form-text">Seu nome de usuário público visível na plataforma</div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="{{ profile_form.email.id }}" class="form-label required">
-                                    E-mail
-                                </label>
-                                {{ profile_form.email(
-                                    class="form-input" + (" is-invalid" if profile_form.email.errors else ""),
-                                    placeholder="seu.email@exemplo.com",
-                                    required="required",
-                                    type="email"
-                                ) }}
-                                {% if profile_form.email.errors %}
-                                    <div class="invalid-feedback">
-                                        <i class="fas fa-info-circle"></i>
-                                        {{ profile_form.email.errors[0] }}
-                                    </div>
-                                {% else %}
-                                    <div class="form-text">Usado para notificações e recuperação de conta</div>
-                                {% endif %}
-                            </div>
 
-                            <div class="d-grid pt-3" style="margin-top: 1.5rem;">
-                                <button 
-                                    type="submit" 
-                                    name="profile_submit" 
-                                    class="btn btn-primary"
-                                    data-action="profile-save"
-                                >
-                                    <i class="fas fa-save"></i>Salvar Alterações
+                    <form method="POST" action="" id="profileForm" novalidate>
+                        {{ profile_form.hidden_tag() }}
+
+                        <!-- Credenciais de acesso -->
+                        <div class="scard">
+                            <div class="scard__head">
+                                <div class="scard__icon"><i class="fas fa-fingerprint"></i></div>
+                                <div>
+                                    <h3 class="scard__title">Credenciais de Acesso</h3>
+                                    <p class="scard__sub">Dados utilizados para login e notificações</p>
+                                </div>
+                            </div>
+                            <div class="scard__body">
+                                <div class="fgrid">
+                                    <div class="fgrid__col">
+                                        <label for="{{ profile_form.username.id }}" class="form-label required">Nome de Usuário</label>
+                                        {{ profile_form.username(class="form-input" + (" is-invalid" if profile_form.username.errors else ""), autocomplete="username", placeholder="ex: joao.silva") }}
+                                        {% if profile_form.username.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ profile_form.username.errors[0] }}</div>
+                                        {% else %}
+                                        <div class="form-text">Usado para login. Sem espaços ou caracteres especiais.</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ profile_form.email.id }}" class="form-label required">E-mail</label>
+                                        {{ profile_form.email(class="form-input" + (" is-invalid" if profile_form.email.errors else ""), type="email", autocomplete="email", placeholder="ex: joao@empresa.com") }}
+                                        {% if profile_form.email.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ profile_form.email.errors[0] }}</div>
+                                        {% else %}
+                                        <div class="form-text">Para notificações e recuperação de acesso.</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Nome completo -->
+                        <div class="scard">
+                            <div class="scard__head">
+                                <div class="scard__icon"><i class="fas fa-id-badge"></i></div>
+                                <div>
+                                    <h3 class="scard__title">Nome Completo</h3>
+                                    <p class="scard__sub">Exibido no perfil, relatórios e menções</p>
+                                </div>
+                            </div>
+                            <div class="scard__body">
+                                <div class="fgrid">
+                                    <div class="fgrid__col">
+                                        <label for="{{ profile_form.first_name.id }}" class="form-label">Nome</label>
+                                        {{ profile_form.first_name(class="form-input" + (" is-invalid" if profile_form.first_name.errors else ""), autocomplete="given-name", placeholder="ex: João") }}
+                                        {% if profile_form.first_name.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ profile_form.first_name.errors[0] }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ profile_form.last_name.id }}" class="form-label">Sobrenome</label>
+                                        {{ profile_form.last_name(class="form-input" + (" is-invalid" if profile_form.last_name.errors else ""), autocomplete="family-name", placeholder="ex: Silva") }}
+                                        {% if profile_form.last_name.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ profile_form.last_name.errors[0] }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Organização & contato -->
+                        <div class="scard">
+                            <div class="scard__head">
+                                <div class="scard__icon"><i class="fas fa-building"></i></div>
+                                <div>
+                                    <h3 class="scard__title">Organização &amp; Contato</h3>
+                                    <p class="scard__sub">Dados institucionais e preferências regionais</p>
+                                </div>
+                            </div>
+                            <div class="scard__body">
+                                <div class="fgrid">
+                                    <div class="fgrid__col">
+                                        <label for="{{ profile_form.department.id }}" class="form-label">Departamento</label>
+                                        {{ profile_form.department(class="form-input" + (" is-invalid" if profile_form.department.errors else ""), autocomplete="organization", placeholder="ex: TI / SOC") }}
+                                        {% if profile_form.department.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ profile_form.department.errors[0] }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ profile_form.job_title.id }}" class="form-label">Cargo</label>
+                                        {{ profile_form.job_title(class="form-input" + (" is-invalid" if profile_form.job_title.errors else ""), autocomplete="organization-title", placeholder="ex: Analista de Segurança") }}
+                                        {% if profile_form.job_title.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ profile_form.job_title.errors[0] }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ profile_form.phone.id }}" class="form-label">Telefone</label>
+                                        {{ profile_form.phone(class="form-input" + (" is-invalid" if profile_form.phone.errors else ""), type="tel", autocomplete="tel", placeholder="ex: +55 11 99999-9999") }}
+                                        {% if profile_form.phone.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ profile_form.phone.errors[0] }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ profile_form.timezone.id }}" class="form-label">Fuso Horário</label>
+                                        {{ profile_form.timezone(class="form-input" + (" is-invalid" if profile_form.timezone.errors else "")) }}
+                                        {% if profile_form.timezone.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ profile_form.timezone.errors[0] }}</div>
+                                        {% else %}
+                                        <div class="form-text">Afeta datas e horários exibidos na plataforma.</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-action-bar">
+                            <button type="submit" name="profile_submit" class="btn btn-primary" data-action="profile-save">
+                                <i class="fas fa-check"></i>Salvar Alterações
+                            </button>
+                            <span class="action-hint">
+                                <i class="fas fa-info-circle"></i>
+                                Alterações aplicadas imediatamente após salvar.
+                            </span>
+                        </div>
+                    </form>
+                </div><!-- /tab-profile -->
+
+                <!-- ══════════════════════════════════════════════
+                     TAB: SEGURANÇA
+                ══════════════════════════════════════════════ -->
+                <div class="tab-pane fade {% if active_tab == 'security' %}show active{% endif %}"
+                     id="tab-security" role="tabpanel" aria-labelledby="tab-btn-security">
+
+                    <div class="sc-header">
+                        <h2 class="sc-title"><i class="fas fa-lock"></i>Segurança</h2>
+                        <p class="sc-desc">Gerencie sua senha e monitore a segurança da conta.</p>
+                    </div>
+
+                    {% if current_user.force_password_reset %}
+                    <div class="alert alert-warning alert--prominent" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div class="alert-body">
+                            <strong>Redefinição de senha obrigatória</strong>
+                            <p>Sua conta requer a troca de senha antes de continuar usando o sistema.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="scard">
+                        <div class="scard__head">
+                            <div class="scard__icon scard__icon--warning"><i class="fas fa-key"></i></div>
+                            <div>
+                                <h3 class="scard__title">Alterar Senha</h3>
+                                <p class="scard__sub">Mínimo 12 caracteres com maiúsculas, números e símbolos</p>
+                            </div>
+                        </div>
+                        <div class="scard__body">
+                            <form method="POST" action="" id="passwordForm" novalidate>
+                                {{ password_form.hidden_tag() }}
+
+                                <div class="fgrid fgrid--single">
+                                    <div class="fgrid__col">
+                                        <label for="{{ password_form.current_password.id }}" class="form-label required">Senha Atual</label>
+                                        <div class="input-group">
+                                            {{ password_form.current_password(class="form-input" + (" is-invalid" if password_form.current_password.errors else ""), autocomplete="current-password", placeholder="••••••••••••") }}
+                                            <button class="btn toggle-password-btn" type="button" data-target="{{ password_form.current_password.id }}" aria-label="Mostrar/Ocultar senha atual"><i class="fas fa-eye"></i></button>
+                                        </div>
+                                        {% if password_form.current_password.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ password_form.current_password.errors[0] }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="fgrid">
+                                    <div class="fgrid__col">
+                                        <label for="newPasswordInput" class="form-label required">Nova Senha</label>
+                                        <div class="input-group">
+                                            {{ password_form.new_password(class="form-input" + (" is-invalid" if password_form.new_password.errors else ""), id="newPasswordInput", autocomplete="new-password", placeholder="••••••••••••") }}
+                                            <button class="btn toggle-password-btn" type="button" data-target="newPasswordInput" aria-label="Mostrar/Ocultar nova senha"><i class="fas fa-eye"></i></button>
+                                        </div>
+                                        {% if password_form.new_password.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ password_form.new_password.errors[0] }}</div>
+                                        {% endif %}
+                                        <div class="pw-strength-wrap" id="pwStrengthWrap" hidden>
+                                            <div class="pw-strength-bar"><div class="pw-strength-fill" id="pwStrengthFill"></div></div>
+                                            <span class="pw-strength-label" id="pwStrengthLabel"></span>
+                                        </div>
+                                        <div class="pw-reqs" id="pwReqs" hidden>
+                                            <span class="pw-req" data-req="length"><i class="fas fa-circle"></i>12+ caracteres</span>
+                                            <span class="pw-req" data-req="upper"><i class="fas fa-circle"></i>Maiúscula</span>
+                                            <span class="pw-req" data-req="lower"><i class="fas fa-circle"></i>Minúscula</span>
+                                            <span class="pw-req" data-req="number"><i class="fas fa-circle"></i>Número</span>
+                                            <span class="pw-req" data-req="symbol"><i class="fas fa-circle"></i>Símbolo</span>
+                                        </div>
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ password_form.confirm_new_password.id }}" class="form-label required">Confirmar Nova Senha</label>
+                                        <div class="input-group">
+                                            {{ password_form.confirm_new_password(class="form-input" + (" is-invalid" if password_form.confirm_new_password.errors else ""), autocomplete="new-password", placeholder="••••••••••••") }}
+                                            <button class="btn toggle-password-btn" type="button" data-target="{{ password_form.confirm_new_password.id }}" aria-label="Mostrar/Ocultar confirmação"><i class="fas fa-eye"></i></button>
+                                        </div>
+                                        {% if password_form.confirm_new_password.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ password_form.confirm_new_password.errors[0] }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="settings-action-bar mt-2">
+                                    <button type="submit" name="password_submit" class="btn btn-warning" data-action="password-save">
+                                        <i class="fas fa-shield-alt"></i>Atualizar Senha
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="tips-row">
+                        <div class="tip-item">
+                            <div class="tip-item__icon"><i class="fas fa-shield-halved"></i></div>
+                            <div>
+                                <strong>Use senha forte</strong>
+                                <p>Misture maiúsculas, números e símbolos. Evite dados pessoais óbvios.</p>
+                            </div>
+                        </div>
+                        <div class="tip-item">
+                            <div class="tip-item__icon"><i class="fas fa-arrows-rotate"></i></div>
+                            <div>
+                                <strong>Troque com frequência</strong>
+                                <p>Altere imediatamente se suspeitar de comprometimento.</p>
+                            </div>
+                        </div>
+                        <div class="tip-item">
+                            <div class="tip-item__icon"><i class="fas fa-chart-line"></i></div>
+                            <div>
+                                <strong>Monitore acessos</strong>
+                                <p>Verifique a aba Sessão &amp; Conta regularmente.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /tab-security -->
+
+                <!-- ══════════════════════════════════════════════
+                     TAB: CHAVE DE API
+                ══════════════════════════════════════════════ -->
+                <div class="tab-pane fade {% if active_tab == 'api' %}show active{% endif %}"
+                     id="tab-api" role="tabpanel" aria-labelledby="tab-btn-api">
+
+                    <div class="sc-header">
+                        <h2 class="sc-title"><i class="fas fa-code"></i>Chave de API</h2>
+                        <p class="sc-desc">Autentique integrações externas com a API REST do SOC360.</p>
+                    </div>
+
+                    {% if current_user.api_key %}
+
+                    <div class="scard">
+                        <div class="scard__head">
+                            <div class="scard__icon scard__icon--success"><i class="fas fa-key"></i></div>
+                            <div>
+                                <h3 class="scard__title">Chave Ativa</h3>
+                                <p class="scard__sub">
+                                    {% if current_user.api_key_created_at %}
+                                    Gerada em {{ current_user.api_key_created_at.strftime('%d/%m/%Y às %H:%M') }}
+                                    {% else %}Chave de acesso à API SOC360{% endif %}
+                                </p>
+                            </div>
+                            <span class="scard__status scard__status--ok"><i class="fas fa-circle"></i>Ativa</span>
+                        </div>
+                        <div class="scard__body">
+                            <label for="apiKeyInput" class="form-label sr-only">Chave de API</label>
+                            <div class="input-group mb-3">
+                                <input type="password" class="form-input font-monospace"
+                                    value="{{ current_user.api_key }}" readonly
+                                    id="apiKeyInput" aria-label="Chave de API"
+                                    autocomplete="off" spellcheck="false">
+                                <button class="btn toggle-password-btn" type="button"
+                                        data-target="apiKeyInput" title="Revelar chave" aria-label="Revelar ou ocultar chave de API">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn copy-btn" type="button"
+                                        data-target="apiKeyInput" title="Copiar chave" aria-label="Copiar chave de API">
+                                    <i class="fas fa-copy"></i>
                                 </button>
                             </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
 
-            <!-- CARD 2: Security / Password -->
-            <div class="col-12 col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header border-bottom">
-                        <h2 class="card-title">
-                            <i class="fas fa-lock"></i>Segurança
-                        </h2>
-                    </div>
-                    <div class="card-body">
-                        <form method="POST" action="" class="settings-form" id="passwordForm">
-                            {{ password_form.hidden_tag() }}
-                            
-                            <div class="form-group">
-                                <label for="{{ password_form.current_password.id }}" class="form-label required">
-                                    Senha Atual
-                                </label>
-                                <div class="input-group">
-                                    {{ password_form.current_password(
-                                        class="form-input" + (" is-invalid" if password_form.current_password.errors else ""),
-                                        placeholder="Digite sua senha atual",
-                                        required="required"
-                                    ) }}
-                                    <button 
-                                        class="btn toggle-password-btn" 
-                                        type="button" 
-                                        data-target="{{ password_form.current_password.id }}"
-                                        aria-label="Mostrar/Ocultar Senha"
-                                        tabindex="0"
-                                    >
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                                {% if password_form.current_password.errors %}
-                                    <div class="invalid-feedback">
-                                        <i class="fas fa-info-circle"></i>
-                                        {{ password_form.current_password.errors[0] }}
-                                    </div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="{{ password_form.new_password.id }}" class="form-label required">
-                                    Nova Senha
-                                </label>
-                                <div class="input-group">
-                                    {{ password_form.new_password(
-                                        class="form-input" + (" is-invalid" if password_form.new_password.errors else ""),
-                                        placeholder="Mínimo 12 caracteres",
-                                        required="required"
-                                    ) }}
-                                    <button 
-                                        class="btn toggle-password-btn" 
-                                        type="button" 
-                                        data-target="{{ password_form.new_password.id }}"
-                                        aria-label="Mostrar/Ocultar Senha"
-                                        tabindex="0"
-                                    >
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                                {% if password_form.new_password.errors %}
-                                    <div class="invalid-feedback">
-                                        <i class="fas fa-info-circle"></i>
-                                        {{ password_form.new_password.errors[0] }}
-                                    </div>
-                                {% else %}
-                                    <div class="form-text">
-                                        <i class="fas fa-shield-alt"></i>
-                                        Mínimo 12 caracteres com letras, números e símbolos
-                                    </div>
-                                {% endif %}
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="{{ password_form.confirm_new_password.id }}" class="form-label required">
-                                    Confirmar Nova Senha
-                                </label>
-                                <div class="input-group">
-                                    {{ password_form.confirm_new_password(
-                                        class="form-input" + (" is-invalid" if password_form.confirm_new_password.errors else ""),
-                                        placeholder="Repita sua nova senha",
-                                        required="required"
-                                    ) }}
-                                    <button 
-                                        class="btn toggle-password-btn" 
-                                        type="button" 
-                                        data-target="{{ password_form.confirm_new_password.id }}"
-                                        aria-label="Mostrar/Ocultar Senha"
-                                        tabindex="0"
-                                    >
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                                {% if password_form.confirm_new_password.errors %}
-                                    <div class="invalid-feedback">
-                                        <i class="fas fa-info-circle"></i>
-                                        {{ password_form.confirm_new_password.errors[0] }}
-                                    </div>
-                                {% endif %}
+                            <div class="api-example-block">
+                                <span class="api-example-block__label"><i class="fas fa-terminal"></i>Exemplo de uso</span>
+                                <pre class="api-example-code">curl -H "Authorization: Bearer &lt;SUA_CHAVE&gt;" \
+     {{ request.host_url }}api/v1/vulnerabilities</pre>
                             </div>
 
-                            <div class="d-grid pt-3" style="margin-top: 1.5rem;">
-                                <button 
-                                    type="submit" 
-                                    name="password_submit" 
-                                    class="btn btn-warning"
-                                    data-action="password-save"
-                                >
-                                    <i class="fas fa-key"></i>Atualizar Senha
+                            <form method="POST" id="apiKeyForm" class="api-key-actions">
+                                {{ api_key_form.hidden_tag() }}
+                                <button type="submit" name="api_key_regenerate" class="btn btn-outline-primary btn-sm" data-action="api-regenerate">
+                                    <i class="fas fa-rotate"></i>Regenerar
                                 </button>
-                            </div>
+                                <button type="submit" name="api_key_revoke" class="btn btn-outline-danger btn-sm" data-action="api-revoke" id="revokeKeyBtn">
+                                    <i class="fas fa-trash"></i>Revogar
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    {% else %}
+
+                    <div class="api-empty-state">
+                        <div class="api-empty-state__icon"><i class="fas fa-key"></i></div>
+                        <h3>Nenhuma chave ativa</h3>
+                        <p>Gere uma chave para conectar aplicações externas com segurança à API SOC360.</p>
+                        <form method="POST">
+                            {{ api_key_form.hidden_tag() }}
+                            <button type="submit" name="api_key_generate" class="btn btn-primary" data-action="api-generate">
+                                <i class="fas fa-plus"></i>Gerar Chave de API
+                            </button>
                         </form>
                     </div>
-                </div>
-            </div>
-        </div>
 
-        <!-- SEÇÃO 3: API ACCESS -->
-        <div class="card mb-5">
-            <div class="card-header border-bottom">
-                <h2 class="card-title">
-                    <i class="fas fa-code"></i>Acesso à API
-                </h2>
-            </div>
-            <div class="card-body">
-                <p class="text-muted mb-3">
-                    <i class="fas fa-info-circle me-2"></i>
-                    Use sua chave de API para autenticar requisições com a API Open-Monitor. 
-                    <strong>Mantenha sua chave segura</strong> e nunca a compartilhe publicamente.
-                </p>
-                
-                {% if user.api_key %}
-                    <!-- API KEY EXISTENTE -->
-                    <div class="form-group mb-4">
-                        <label for="apiKeyInput" class="form-label">
-                            <i class="fas fa-key me-2"></i>Sua Chave de API
-                        </label>
-                        <div class="input-group">
-                            <input 
-                                type="text" 
-                                class="form-input font-monospace" 
-                                value="{{ user.api_key }}" 
-                                readonly 
-                                id="apiKeyInput"
-                                aria-label="Chave de API"
-                            >
-                            <button 
-                                class="btn copy-btn" 
-                                type="button" 
-                                data-target="apiKeyInput"
-                                title="Copiar para área de transferência"
-                            >
-                                <i class="fas fa-copy"></i>
+                    {% endif %}
+
+                    <div class="tips-row">
+                        <div class="tip-item">
+                            <div class="tip-item__icon"><i class="fas fa-eye-slash"></i></div>
+                            <div>
+                                <strong>Mantenha em segredo</strong>
+                                <p>Nunca exponha em repositórios, logs ou mensagens. Trate como senha.</p>
+                            </div>
+                        </div>
+                        <div class="tip-item">
+                            <div class="tip-item__icon"><i class="fas fa-arrows-rotate"></i></div>
+                            <div>
+                                <strong>Regenere periodicamente</strong>
+                                <p>Após desligamento de colaboradores ou suspeita de vazamento.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div><!-- /tab-api -->
+
+                <!-- ══════════════════════════════════════════════
+                     TAB: TACACS+  (admin only)
+                ══════════════════════════════════════════════ -->
+                {% if current_user.is_admin %}
+                <div class="tab-pane fade {% if active_tab == 'tacacs' %}show active{% endif %}"
+                     id="tab-tacacs" role="tabpanel" aria-labelledby="tab-btn-tacacs">
+
+                    <div class="sc-header">
+                        <h2 class="sc-title"><i class="fas fa-network-wired"></i>TACACS+</h2>
+                        <p class="sc-desc">Configure autenticação centralizada via servidor TACACS+.</p>
+                    </div>
+
+                    {% if tacacs_dependency and not tacacs_dependency.available %}
+                    <div class="alert alert-warning alert--prominent" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div class="alert-body">
+                            <strong>Dependência ausente</strong>
+                            <p>O pacote <code>tacacs_plus</code> não está instalado.
+                            Execute <code>pip install tacacs_plus</code> no servidor para habilitar esta funcionalidade.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if tacacs_last_test and tacacs_last_test.at %}
+                    <div class="alert {% if tacacs_last_test.ok %}alert-success{% else %}alert-warning{% endif %}" role="alert">
+                        <i class="fas {% if tacacs_last_test.ok %}fa-circle-check{% else %}fa-circle-exclamation{% endif %}"></i>
+                        <div class="alert-body">
+                            <strong>Último teste:</strong> {{ tacacs_last_test.message or 'sem mensagem' }}
+                            <br><small class="text-muted">{{ tacacs_last_test.at }}</small>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <form method="POST" action="" id="tacacsForm" autocomplete="off">
+                        {{ tacacs_form.hidden_tag() }}
+
+                        <!-- Enable toggle card -->
+                        <div class="scard scard--toggle">
+                            <div class="scard__head scard__head--no-border">
+                                <div class="scard__icon {% if tacacs_config and tacacs_config.enabled %}scard__icon--success{% endif %}">
+                                    <i class="fas fa-toggle-on"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <h3 class="scard__title">Habilitar TACACS+</h3>
+                                    <p class="scard__sub">Quando ativo, o login autentica primeiro no servidor TACACS+</p>
+                                </div>
+                                <div class="form-check form-switch ms-auto">
+                                    {{ tacacs_form.enabled(class="form-check-input", role="switch", id="tacacsEnabled") }}
+                                    <label class="sr-only" for="tacacsEnabled">Habilitar TACACS+</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Server & connection -->
+                        <div class="scard">
+                            <div class="scard__head">
+                                <div class="scard__icon"><i class="fas fa-server"></i></div>
+                                <div>
+                                    <h3 class="scard__title">Servidor &amp; Conexão</h3>
+                                    <p class="scard__sub">Endereço, porta e credenciais do servidor TACACS+</p>
+                                </div>
+                            </div>
+                            <div class="scard__body">
+                                <div class="fgrid fgrid--3col">
+                                    <div class="fgrid__col fgrid__col--wide">
+                                        <label for="{{ tacacs_form.host.id }}" class="form-label">Host / IP do Servidor</label>
+                                        {{ tacacs_form.host(class="form-input" + (" is-invalid" if tacacs_form.host.errors else ""), placeholder="tacacs.empresa.com") }}
+                                        {% if tacacs_form.host.errors %}<div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ tacacs_form.host.errors[0] }}</div>{% endif %}
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ tacacs_form.port.id }}" class="form-label">Porta</label>
+                                        {{ tacacs_form.port(class="form-input" + (" is-invalid" if tacacs_form.port.errors else ""), placeholder="49") }}
+                                        {% if tacacs_form.port.errors %}<div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ tacacs_form.port.errors[0] }}</div>{% endif %}
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ tacacs_form.timeout.id }}" class="form-label">Timeout (s)</label>
+                                        {{ tacacs_form.timeout(class="form-input" + (" is-invalid" if tacacs_form.timeout.errors else ""), placeholder="10") }}
+                                        {% if tacacs_form.timeout.errors %}<div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ tacacs_form.timeout.errors[0] }}</div>{% endif %}
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ tacacs_form.secret.id }}" class="form-label">
+                                            Shared Secret
+                                            {% if tacacs_config and tacacs_config.has_secret %}
+                                            <span class="field-badge field-badge--ok"><i class="fas fa-lock"></i>armazenado</span>
+                                            {% endif %}
+                                        </label>
+                                        <div class="input-group">
+                                            {{ tacacs_form.secret(class="form-input", id="tacacsSecret", placeholder="Deixe em branco para manter o atual") }}
+                                            <button class="btn toggle-password-btn" type="button" data-target="tacacsSecret" aria-label="Mostrar/Ocultar segredo"><i class="fas fa-eye"></i></button>
+                                        </div>
+                                        <div class="form-text">{% if tacacs_config and tacacs_config.has_secret %}Em branco = manter o segredo existente.{% else %}Shared secret cadastrado no servidor.{% endif %}</div>
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ tacacs_form.auth_type.id }}" class="form-label">Protocolo</label>
+                                        {{ tacacs_form.auth_type(class="form-input") }}
+                                        <div class="form-text">ASCII = padrão. PAP/CHAP para dispositivos de rede.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Behavior -->
+                        <div class="scard">
+                            <div class="scard__head">
+                                <div class="scard__icon"><i class="fas fa-sliders"></i></div>
+                                <div>
+                                    <h3 class="scard__title">Comportamento</h3>
+                                    <p class="scard__sub">Como o sistema reage a falhas e novos usuários</p>
+                                </div>
+                            </div>
+                            <div class="scard__body">
+                                <div class="toggle-list">
+                                    <div class="toggle-item">
+                                        <div class="form-check form-switch">
+                                            {{ tacacs_form.fallback_local(class="form-check-input", id="tacacsFallback", role="switch") }}
+                                        </div>
+                                        <label for="tacacsFallback" class="toggle-item__label">
+                                            <strong>Fallback para autenticação local</strong>
+                                            <span>Se o TACACS+ estiver indisponível, permite login com senha local.</span>
+                                        </label>
+                                    </div>
+                                    <div class="toggle-item">
+                                        <div class="form-check form-switch">
+                                            {{ tacacs_form.auto_create_user(class="form-check-input", id="tacacsAutoCreate", role="switch") }}
+                                        </div>
+                                        <label for="tacacsAutoCreate" class="toggle-item__label">
+                                            <strong>Criar usuário local automaticamente</strong>
+                                            <span>No primeiro login bem-sucedido via TACACS+, cria espelho local.</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="fgrid mt-3">
+                                    <div class="fgrid__col">
+                                        <label for="{{ tacacs_form.default_email_domain.id }}" class="form-label">Domínio de e-mail padrão</label>
+                                        {{ tacacs_form.default_email_domain(class="form-input" + (" is-invalid" if tacacs_form.default_email_domain.errors else ""), placeholder="empresa.com") }}
+                                        {% if tacacs_form.default_email_domain.errors %}
+                                        <div class="invalid-feedback"><i class="fas fa-circle-exclamation"></i> {{ tacacs_form.default_email_domain.errors[0] }}</div>
+                                        {% else %}
+                                        <div class="form-text">Aplicado na criação automática: usuario@domínio</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Test connection -->
+                        <div class="scard">
+                            <div class="scard__head">
+                                <div class="scard__icon scard__icon--info"><i class="fas fa-vial"></i></div>
+                                <div>
+                                    <h3 class="scard__title">Testar Conexão</h3>
+                                    <p class="scard__sub">Verifica TCP e, opcionalmente, autentica um usuário de teste</p>
+                                </div>
+                            </div>
+                            <div class="scard__body">
+                                <div class="fgrid">
+                                    <div class="fgrid__col">
+                                        <label for="{{ tacacs_form.probe_username.id }}" class="form-label">
+                                            Usuário de teste
+                                            <span class="form-label-opt">(opcional)</span>
+                                        </label>
+                                        {{ tacacs_form.probe_username(class="form-input", placeholder="Deixe em branco para só testar TCP") }}
+                                    </div>
+                                    <div class="fgrid__col">
+                                        <label for="{{ tacacs_form.probe_password.id }}" class="form-label">
+                                            Senha de teste
+                                            <span class="form-label-opt">(opcional)</span>
+                                        </label>
+                                        {{ tacacs_form.probe_password(class="form-input", placeholder="••••••••") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-action-bar">
+                            <button type="submit" name="tacacs_config_submit" class="btn btn-primary" data-action="tacacs-save">
+                                <i class="fas fa-check"></i>Salvar Configuração
+                            </button>
+                            <button type="submit" name="tacacs_test_submit" class="btn btn-outline-secondary" data-action="tacacs-test">
+                                <i class="fas fa-vial"></i>Testar Conexão
                             </button>
                         </div>
-                        <div class="form-text">
-                            <i class="fas fa-clock me-1"></i>
-                            Criada em: <strong>{{ user.api_key_created_at.strftime('%d/%m/%Y às %H:%M') if user.api_key_created_at else 'Data desconhecida' }}</strong>
-                        </div>
-                    </div>
-
-                    <div class="alert alert-info mb-4">
-                        <i class="fas fa-book"></i>
-                        <div>
-                            <strong>Como usar:</strong>
-                            <pre style="background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 6px; margin: 0.5rem 0; overflow-x: auto;">curl -H "Authorization: Bearer YOUR_API_KEY" https://api.openmonitor.local/v1/vulnerabilities</pre>
-                        </div>
-                    </div>
-
-                    <!-- BOTÕES DE AÇÃO -->
-                    <form method="POST" class="d-flex gap-2 flex-wrap">
-                        {{ api_key_form.hidden_tag() }}
-                        <button 
-                            type="submit" 
-                            name="api_key_regenerate" 
-                            class="btn btn-outline-primary"
-                            data-action="api-regenerate"
-                        >
-                            <i class="fas fa-sync"></i>Regenerar Chave
-                        </button>
-                        <button 
-                            type="submit" 
-                            name="api_key_revoke" 
-                            class="btn btn-danger"
-                            data-action="api-revoke"
-                            onclick="return confirm('Tem certeza? Todas as aplicações usando essa chave deixarão de funcionar.');"
-                        >
-                            <i class="fas fa-trash"></i>Revogar Chave
-                        </button>
                     </form>
-                {% else %}
-                    <!-- NENHUMA API KEY -->
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i>
-                        <div>
-                            <strong>Você não possui uma chave de API ativa.</strong>
-                            <p style="margin: 0.5rem 0 0 0;">Clique no botão abaixo para gerar uma nova chave de API.</p>
-                        </div>
-                    </div>
-                    <form method="POST" class="mt-4">
-                        {{ api_key_form.hidden_tag() }}
-                        <button 
-                            type="submit" 
-                            name="api_key_generate" 
-                            class="btn btn-primary"
-                            data-action="api-generate"
-                        >
-                            <i class="fas fa-plus"></i>Gerar Chave de API
-                        </button>
-                    </form>
+                </div><!-- /tab-tacacs -->
                 {% endif %}
-            </div>
-        </div>
 
-        <!-- DICAS E BOAS PRÁTICAS -->
-        <div class="card">
-            <div class="card-header border-bottom">
-                <h2 class="card-title">
-                    <i class="fas fa-lightbulb"></i>Dicas de Segurança
-                </h2>
-            </div>
-            <div class="card-body">
-                <div class="row g-4">
-                    <div class="col-12 col-md-6">
-                        <div style="padding: 1rem; background: rgba(59, 130, 246, 0.05); border-radius: 8px; border-left: 3px solid var(--primary-500);">
-                            <strong style="color: var(--primary-400);">
-                                <i class="fas fa-check-circle me-2"></i>Use uma Senha Forte
-                            </strong>
-                            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
-                                Combine letras maiúsculas, minúsculas, números e símbolos especiais.
-                            </p>
+                <!-- ══════════════════════════════════════════════
+                     TAB: SESSÃO & CONTA
+                ══════════════════════════════════════════════ -->
+                <div class="tab-pane fade {% if active_tab == 'session' %}show active{% endif %}"
+                     id="tab-session" role="tabpanel" aria-labelledby="tab-btn-session">
+
+                    <div class="sc-header">
+                        <h2 class="sc-title"><i class="fas fa-chart-line"></i>Sessão &amp; Conta</h2>
+                        <p class="sc-desc">Histórico de atividade e status atual da sua conta.</p>
+                    </div>
+
+                    {% if current_user.failed_login_count and current_user.failed_login_count > 2 %}
+                    <div class="alert alert-warning alert--prominent" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div class="alert-body">
+                            <strong>{{ current_user.failed_login_count }} tentativas de login falhas detectadas</strong>
+                            <p>Se não foram suas, altere a senha imediatamente na aba <strong>Segurança</strong>.</p>
                         </div>
                     </div>
-                    <div class="col-12 col-md-6">
-                        <div style="padding: 1rem; background: rgba(59, 130, 246, 0.05); border-radius: 8px; border-left: 3px solid var(--primary-500);">
-                            <strong style="color: var(--primary-400);">
-                                <i class="fas fa-lock-alt me-2"></i>Proteja Sua Chave API
-                            </strong>
-                            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
-                                Nunca compartilhe sua chave de API. Regenere-a regularmente.
-                            </p>
+                    {% endif %}
+
+                    <div class="account-stats">
+
+                        <div class="astat astat--{% if current_user.is_active %}success{% else %}danger{% endif %}">
+                            <div class="astat__icon"><i class="fas fa-{% if current_user.is_active %}circle-check{% else %}circle-xmark{% endif %}"></i></div>
+                            <div class="astat__body">
+                                <span class="astat__label">Estado da conta</span>
+                                <span class="astat__value">
+                                    {% if current_user.is_active %}<span class="badge bg-success">Ativa</span>
+                                    {% else %}<span class="badge bg-danger">Inativa</span>{% endif %}
+                                </span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <div style="padding: 1rem; background: rgba(59, 130, 246, 0.05); border-radius: 8px; border-left: 3px solid var(--primary-500);">
-                            <strong style="color: var(--primary-400);">
-                                <i class="fas fa-bell me-2"></i>Monitore Sua Conta
-                            </strong>
-                            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
-                                Verifique regularmente as atividades suspeitas na sua conta.
-                            </p>
+
+                        <div class="astat astat--{% if current_user.is_admin %}admin{% else %}secondary{% endif %}">
+                            <div class="astat__icon"><i class="fas fa-{% if current_user.is_admin %}shield-alt{% else %}user{% endif %}"></i></div>
+                            <div class="astat__body">
+                                <span class="astat__label">Nível de acesso</span>
+                                <span class="astat__value">
+                                    {% if current_user.is_admin %}<span class="badge bg-purple">Administrador</span>
+                                    {% else %}<span class="badge bg-secondary">Usuário</span>{% endif %}
+                                    {% for role in current_user.roles %}
+                                    <span class="badge bg-outline-secondary">{{ role.name }}</span>
+                                    {% endfor %}
+                                </span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <div style="padding: 1rem; background: rgba(59, 130, 246, 0.05); border-radius: 8px; border-left: 3px solid var(--primary-500);">
-                            <strong style="color: var(--primary-400);">
-                                <i class="fas fa-refresh me-2"></i>Atualize Regularmente
-                            </strong>
-                            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">
-                                Mantenha sua senha atualizada e regenere chaves de API periodicamente.
-                            </p>
+
+                        <div class="astat astat--info">
+                            <div class="astat__icon"><i class="fas fa-sign-in-alt"></i></div>
+                            <div class="astat__body">
+                                <span class="astat__label">Último acesso</span>
+                                <span class="astat__value">
+                                    {% if current_user.last_login_at %}{{ current_user.last_login_at.strftime('%d/%m/%Y às %H:%M') }}
+                                    {% else %}<em class="text-muted">—</em>{% endif %}
+                                </span>
+                            </div>
                         </div>
+
+                        <div class="astat astat--secondary">
+                            <div class="astat__icon"><i class="fas fa-location-dot"></i></div>
+                            <div class="astat__body">
+                                <span class="astat__label">IP do último acesso</span>
+                                <span class="astat__value font-monospace">
+                                    {% if current_user.last_login_ip %}{{ current_user.last_login_ip }}
+                                    {% else %}<em class="text-muted">—</em>{% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="astat astat--success">
+                            <div class="astat__icon"><i class="fas fa-check-double"></i></div>
+                            <div class="astat__body">
+                                <span class="astat__label">Logins bem-sucedidos</span>
+                                <span class="astat__value">{{ current_user.login_count or 0 }}</span>
+                            </div>
+                        </div>
+
+                        <div class="astat astat--{% if current_user.failed_login_count and current_user.failed_login_count > 0 %}danger{% else %}secondary{% endif %}">
+                            <div class="astat__icon"><i class="fas fa-times-circle"></i></div>
+                            <div class="astat__body">
+                                <span class="astat__label">Tentativas falhas</span>
+                                <span class="astat__value {% if current_user.failed_login_count and current_user.failed_login_count > 0 %}text-danger{% endif %}">
+                                    {{ current_user.failed_login_count or 0 }}
+                                    {% if current_user.failed_login_count and current_user.failed_login_count > 0 %}
+                                    <span class="badge bg-danger">Atenção</span>{% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="astat astat--{% if current_user.email_confirmed %}success{% else %}warning{% endif %}">
+                            <div class="astat__icon"><i class="fas fa-envelope{% if not current_user.email_confirmed %}-open{% endif %}"></i></div>
+                            <div class="astat__body">
+                                <span class="astat__label">E-mail</span>
+                                <span class="astat__value">
+                                    {% if current_user.email_confirmed %}
+                                    <span class="badge bg-success">Confirmado</span>
+                                    {% if current_user.email_confirmed_at %}<small class="text-muted">{{ current_user.email_confirmed_at.strftime('%d/%m/%Y') }}</small>{% endif %}
+                                    {% else %}<span class="badge bg-warning text-dark">Não confirmado</span>{% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="astat astat--info">
+                            <div class="astat__icon"><i class="fas fa-calendar-plus"></i></div>
+                            <div class="astat__body">
+                                <span class="astat__label">Membro desde</span>
+                                <span class="astat__value">
+                                    {% if current_user.created_at %}{{ current_user.created_at.strftime('%d/%m/%Y') }}
+                                    {% else %}<em class="text-muted">—</em>{% endif %}
+                                </span>
+                            </div>
+                        </div>
+
+                        {% if current_user.is_locked() %}
+                        <div class="astat astat--danger astat--full">
+                            <div class="astat__icon"><i class="fas fa-lock"></i></div>
+                            <div class="astat__body">
+                                <span class="astat__label">Bloqueio ativo</span>
+                                <span class="astat__value text-danger">
+                                    Até {{ current_user.locked_until.strftime('%H:%M') }}
+                                    <span class="badge bg-danger">Conta Bloqueada</span>
+                                </span>
+                            </div>
+                        </div>
+                        {% endif %}
+
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+                </div><!-- /tab-session -->
+
+            </div><!-- /tab-content -->
+        </div><!-- /settings-content -->
+    </div><!-- /settings-layout -->
+
+</div><!-- /page-shell -->
 {% endblock %}

@@ -1,5 +1,5 @@
 /**
- * Open-Monitor v3.0 - Dashboard JavaScript
+ * SOC360 v3.0 - Dashboard JavaScript
  * Chart.js integration and dashboard functionality
  */
 
@@ -128,11 +128,11 @@ OpenMonitor.dashboard = {
                         <span class="${colorClass} small fw-medium">
                             <i class="fas ${icon} me-1"></i>${percent}%
                         </span>
-                        <span class="text-muted small ms-1">(${trend.change > 0 ? '+' : ''}${changeValue} this month)</span>
+                        <span class="text-muted small ms-1">(${trend.change > 0 ? '+' : ''}${changeValue} este mês)</span>
                     `;
                     changeEl.classList.remove('skeleton-text', 'w-25');
                 } else if (changeEl) {
-                     changeEl.innerHTML = '<span class="text-muted small">No change data</span>';
+                     changeEl.innerHTML = '<span class="text-muted small">Sem dados de comparação</span>';
                      changeEl.classList.remove('skeleton-text', 'w-25');
                 }
             }
@@ -152,7 +152,7 @@ OpenMonitor.dashboard = {
         if (!tbody) return;
 
         if (cves.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-muted">No critical vulnerabilities found</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-muted">Nenhuma vulnerabilidade crítica encontrada</td></tr>`;
             return;
         }
 
@@ -166,7 +166,9 @@ OpenMonitor.dashboard = {
                     <span class="badge badge-critical">${cve.cvss_score?.toFixed(1) || 'N/A'}</span>
                 </td>
                 <td class="text-muted text-truncate" style="max-width: 200px;" title="${OpenMonitor.utils.escapeHtml(cve.description || '')}">
-                    ${OpenMonitor.utils.escapeHtml(cve.description || '').substring(0, 80)}...
+                    ${cve.description
+                        ? OpenMonitor.utils.escapeHtml(cve.description).substring(0, 80) + (cve.description.length > 80 ? '…' : '')
+                        : '<em>No description</em>'}
                 </td>
             </tr>
         `).join('');
@@ -352,10 +354,10 @@ OpenMonitor.dashboard = {
         const total = Object.values(breakdown).reduce((a, b) => a + b, 0) || 1;
         
         const items = [
-            { label: 'Critical', value: breakdown.CRITICAL || 0, color: 'var(--critical)' },
-            { label: 'High', value: breakdown.HIGH || 0, color: 'var(--high)' },
-            { label: 'Medium', value: breakdown.MEDIUM || 0, color: 'var(--medium)' },
-            { label: 'Low', value: breakdown.LOW || 0, color: 'var(--low)' }
+            { label: 'Critical', value: breakdown.CRITICAL || 0, color: '#dc2626' },
+            { label: 'High',     value: breakdown.HIGH     || 0, color: '#ea580c' },
+            { label: 'Medium',   value: breakdown.MEDIUM   || 0, color: '#ca8a04' },
+            { label: 'Low',      value: breakdown.LOW      || 0, color: '#16a34a' }
         ];
         
         legend.innerHTML = `
@@ -435,6 +437,18 @@ OpenMonitor.dashboard = {
     },
 
     /**
+     * Definição centralizada dos status de remediação — espelha VulnerabilityStatus (enums.py)
+     */
+    REMEDIATION_STATUSES: [
+        { key: 'OPEN',          label: 'Open',           color: '#dc2626' },
+        { key: 'IN_PROGRESS',   label: 'In Progress',    color: '#3b82f6' },
+        { key: 'MITIGATED',     label: 'Mitigated',      color: '#16a34a' },
+        { key: 'RESOLVED',      label: 'Resolved',       color: '#6366f1' },
+        { key: 'ACCEPTED',      label: 'Risk Accepted',  color: '#ca8a04' },
+        { key: 'FALSE_POSITIVE',label: 'False Positive', color: '#94a3b8' },
+    ],
+
+    /**
      * Initialize remediation chart (doughnut)
      */
     initRemediationChart() {
@@ -444,15 +458,10 @@ OpenMonitor.dashboard = {
         this.charts.remediation = new Chart(ctx, {
             type: 'doughnut',
             data: {
-                labels: ['Open', 'Mitigated', 'False Positive', 'Risk Accepted'],
+                labels: this.REMEDIATION_STATUSES.map(s => s.label),
                 datasets: [{
-                    data: [0, 0, 0, 0],
-                    backgroundColor: [
-                        '#dc2626', // Open (Red)
-                        '#16a34a', // Mitigated (Green)
-                        '#94a3b8', // False Positive (Gray)
-                        '#ca8a04'  // Risk Accepted (Yellow)
-                    ],
+                    data: this.REMEDIATION_STATUSES.map(() => 0),
+                    backgroundColor: this.REMEDIATION_STATUSES.map(s => s.color),
                     borderWidth: 0,
                     hoverOffset: 8
                 }]
@@ -476,29 +485,25 @@ OpenMonitor.dashboard = {
     async loadRemediationData() {
         try {
             const data = await OpenMonitor.api.get('/analytics/api/remediation-status');
-            
+
             if (this.charts.remediation && data.by_status) {
                 const breakdown = data.by_status;
-                const chartData = [
-                    breakdown.OPEN || 0,
-                    breakdown.MITIGATED || 0,
-                    breakdown.FALSE_POSITIVE || 0,
-                    breakdown.RISK_ACCEPTED || 0
-                ];
-                
+                // Mapeia os valores na mesma ordem que REMEDIATION_STATUSES
+                const chartData = this.REMEDIATION_STATUSES.map(s => breakdown[s.key] || 0);
+
                 this.charts.remediation.data.datasets[0].data = chartData;
                 this.charts.remediation.update();
-                
+
                 this.updateRemediationLegend(breakdown);
             }
-            
+
             // Update stats
             const overdueEl = document.getElementById('remediation-overdue');
             if (overdueEl) overdueEl.textContent = data.overdue || 0;
-            
+
             const slaEl = document.getElementById('remediation-sla');
             if (slaEl) slaEl.textContent = data.upcoming_due || 0;
-            
+
         } catch (error) {
             console.error('Failed to load remediation:', error);
         }
@@ -510,16 +515,13 @@ OpenMonitor.dashboard = {
     updateRemediationLegend(breakdown) {
         const legend = document.getElementById('remediationLegend');
         if (!legend) return;
-        
-        const total = Object.values(breakdown).reduce((a, b) => a + b, 0) || 1;
-        
-        const items = [
-            { label: 'Open', value: breakdown.OPEN || 0, color: '#dc2626' },
-            { label: 'Mitigated', value: breakdown.MITIGATED || 0, color: '#16a34a' },
-            { label: 'False Positive', value: breakdown.FALSE_POSITIVE || 0, color: '#94a3b8' },
-            { label: 'Risk Accepted', value: breakdown.RISK_ACCEPTED || 0, color: '#ca8a04' }
-        ];
-        
+
+        const items = this.REMEDIATION_STATUSES.map(s => ({
+            label: s.label,
+            value: breakdown[s.key] || 0,
+            color: s.color
+        }));
+
         legend.innerHTML = `
             <div class="d-flex flex-wrap gap-3 justify-content-center">
                 ${items.map(item => `
@@ -549,7 +551,7 @@ OpenMonitor.dashboard = {
             }
             
             if (!data.matrix || data.matrix.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-muted">No high risk assets found</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-muted">Nenhum ativo de alto risco encontrado</td></tr>`;
                 return;
             }
             
@@ -659,7 +661,7 @@ OpenMonitor.dashboard = {
      */
     async exportData() {
         try {
-            OpenMonitor.ui.showLoading('Exporting data...');
+            OpenMonitor.ui.showLoading('Exportando dados…');
             
             const timeRange = this.getTimeRange();
             
@@ -686,10 +688,10 @@ OpenMonitor.dashboard = {
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
 
-            OpenMonitor.ui.toast('Export completed', 'success');
+            OpenMonitor.ui.toast('Exportação concluída', 'success');
         } catch (error) {
             console.error('Export failed:', error);
-            OpenMonitor.ui.toast('Export failed', 'error');
+            OpenMonitor.ui.toast('Falha na exportação', 'error');
         } finally {
             OpenMonitor.ui.hideLoading();
         }
@@ -711,9 +713,24 @@ OpenMonitor.dashboard = {
     }
 };
 
+// Wait for Chart.js to be available then initialize
+function waitForChartJs(timeout) {
+    return new Promise((resolve) => {
+        if (typeof Chart !== 'undefined') { resolve(true); return; }
+        const start = Date.now();
+        const check = () => {
+            if (typeof Chart !== 'undefined') { resolve(true); }
+            else if (Date.now() - start < (timeout || 8000)) { setTimeout(check, 50); }
+            else { console.warn('Chart.js did not load in time'); resolve(false); }
+        };
+        check();
+    });
+}
+
 // Initialize dashboard when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     if (document.querySelector('[data-page="dashboard"]')) {
+        await waitForChartJs(8000);
         OpenMonitor.dashboard.init();
     }
 });

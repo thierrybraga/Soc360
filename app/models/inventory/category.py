@@ -1,5 +1,5 @@
 """
-Open-Monitor Asset Category Model
+SOC360 Asset Category Model
 Model para categorias customizáveis de ativos.
 """
 from sqlalchemy import Column, String, Integer, Text, ForeignKey

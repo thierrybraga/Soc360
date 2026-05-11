@@ -1,5 +1,5 @@
 """
-Open-Monitor Utils Package
+SOC360 Utils Package
 Utility modules for database, security, and other common functionality.
 """
 

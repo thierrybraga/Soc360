@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}{{ org.organization_name }} — Umbrella — SOC360{% endblock %}
+
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/umbrella.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/umbrella.css') }}">
+{% endblock %}
+{% block content %}
+
+<div class="page-shell page-shell--wide" data-page="umbrella-org">
+    <!-- Header -->
+    <div class="page-header">
+        <div class="page-header__content">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-2">
+                    <li class="breadcrumb-item"><a href="{{ url_for('umbrella.dashboard') }}">Umbrella</a></li>
+                    <li class="breadcrumb-item active">{{ org.organization_name }}</li>
+                </ol>
+            </nav>
+            <h1 class="page-header__title">
+                <i class="fas fa-building me-2"></i>{{ org.organization_name }}
+            </h1>
+            <p class="page-header__subtitle">
+                ID: {{ org.organization_id }} | 
+                Status: <span class="status-badge {% if org.status == 'active' %}status-active{% else %}status-inactive{% endif %}">
+                    <i class="fas fa-circle umb-status-dot"></i> {{ org.status|title }}
+                </span>
+            </p>
+        </div>
+        <div class="page-header__actions d-flex flex-wrap gap-2">
+            <button class="btn btn-primary btn-sm" id="btn-generate-report">
+                <i class="fas fa-file-alt me-1"></i> Gerar Relatório
+            </button>
+            <a href="{{ url_for('umbrella.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i> Voltar
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card h-100">
+                <div class="card-body text-center">
+                    <h3 class="mb-1">{{ networks | length }}</h3>
+                    <p class="text-muted mb-0">Networks</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card h-100">
+                <div class="card-body text-center">
+                    <h3 class="mb-1">{{ roaming | length }}</h3>
+                    <p class="text-muted mb-0">Roaming Computers</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card h-100">
+                <div class="card-body text-center">
+                    <h3 class="mb-1">{{ vas | length }}</h3>
+                    <p class="text-muted mb-0">Virtual Appliances</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card h-100">
+                <div class="card-body text-center">
+                    <h3 class="mb-1">{{ reports | length }}</h3>
+                    <p class="text-muted mb-0">Relatórios</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Networks -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0"><i class="fas fa-network-wired me-2"></i>Networks</h5>
+        </div>
+        <div class="table-container">
+            {% if networks %}
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>IP/CIDR</th>
+                        <th>Status</th>
+                        <th>Dinâmica</th>
+                        <th>Política</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for net in networks %}
+                    <tr>
+                        <td>{{ net.name or '-' }}</td>
+                        <td><code>{{ net.ip_address or '-' }}</code></td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if net.status == 'active' else 'secondary' }}">
+                                {{ net.status|title }}
+                            </span>
+                        </td>
+                        <td>{{ 'Sim' if net.is_dynamic else 'Não' }}</td>
+                        <td>{{ net.primary_policy or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <i class="fas fa-inbox mb-2"></i>
+                <p>Nenhuma network encontrada</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Roaming Computers -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0"><i class="fas fa-laptop me-2"></i>Roaming Computers</h5>
+        </div>
+        <div class="table-container">
+            {% if roaming %}
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Device ID</th>
+                        <th>Status</th>
+                        <th>Última Sincronia</th>
+                        <th>SO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for comp in roaming %}
+                    <tr>
+                        <td>{{ comp.name or '-' }}</td>
+                        <td><code>{{ comp.device_id or '-' }}</code></td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if comp.status == 'active' else 'secondary' }}">
+                                {{ comp.status|title }}
+                            </span>
+                        </td>
+                        <td>{{ comp.last_sync.strftime('%Y-%m-%d %H:%M') if comp.last_sync else '-' }}</td>
+                        <td>{{ comp.os_version or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <i class="fas fa-inbox mb-2"></i>
+                <p>Nenhum roaming computer encontrado</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Virtual Appliances -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0"><i class="fas fa-server me-2"></i>Virtual Appliances</h5>
+        </div>
+        <div class="table-container">
+            {% if vas %}
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>VA ID</th>
+                        <th>Status</th>
+                        <th>IP Address</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for va in vas %}
+                    <tr>
+                        <td>{{ va.name or '-' }}</td>
+                        <td><code>{{ va.va_id or '-' }}</code></td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if va.status == 'active' else 'secondary' }}">
+                                {{ va.status|title }}
+                            </span>
+                        </td>
+                        <td><code>{{ va.ip_address or '-' }}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <i class="fas fa-inbox mb-2"></i>
+                <p>Nenhum virtual appliance encontrado</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Reports History -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0"><i class="fas fa-file-alt me-2"></i>Histórico de Relatórios</h5>
+        </div>
+        <div class="table-container">
+            {% if reports %}
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Período</th>
+                        <th>Status</th>
+                        <th>Gerado em</th>
+                        <th class="text-end">Download</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in reports %}
+                    <tr>
+                        <td>{{ report.period_start.strftime('%Y-%m-%d') }} → {{ report.period_end.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if report.status == 'completed' else ('info' if report.status == 'docx_only' else 'secondary') }}">
+                                {{ report.status }}
+                            </span>
+                        </td>
+                        <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') if report.created_at else '-' }}</td>
+                        <td class="text-end">
+                            {% if report.docx_filename %}
+                            <a href="{{ url_for('umbrella.download_file', filename=report.docx_filename) }}" class="btn btn-sm btn-outline-light me-1" title="DOCX">
+                                <i class="fas fa-file-word"></i>
+                            </a>
+                            {% endif %}
+                            {% if report.pdf_filename %}
+                            <a href="{{ url_for('umbrella.download_file', filename=report.pdf_filename) }}" class="btn btn-sm btn-outline-light" title="PDF">
+                                <i class="fas fa-file-pdf"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <i class="fas fa-inbox mb-2"></i>
+                <p>Nenhum relatório gerado ainda</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Report Modal -->
+<div class="modal fade" id="reportModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-alt me-1"></i> Gerar Relatório</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="reportForm">
+                    <input type="hidden" id="report-org-id" name="organization_id" value="{{ org.organization_id }}">
+                    <div class="mb-3">
+                        <label class="form-label">Organização</label>
+                        <input type="text" class="form-control" id="report-org-name" value="{{ org.organization_name }}" readonly>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Início</label>
+                            <input type="date" class="form-control" id="report-start" name="period_start" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Fim</label>
+                            <input type="date" class="form-control" id="report-end" name="period_end" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button class="btn btn-primary" id="btn-submit-report" type="button">
+                    <i class="fas fa-cog me-1"></i> Gerar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce() }}">
+(function() {
+    // Set default dates
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - 30);
+    document.getElementById('report-end').value = end.toISOString().split('T')[0];
+    document.getElementById('report-start').value = start.toISOString().split('T')[0];
+    
+    // Report modal
+    window.openReportModal = function(orgId, orgName) {
+        new bootstrap.Modal(document.getElementById('reportModal')).show();
+    };
+    
+    // Button to open modal from header
+    document.getElementById('btn-generate-report').addEventListener('click', function() {
+        new bootstrap.Modal(document.getElementById('reportModal')).show();
+    });
+    
+    // Submit report
+    document.getElementById('btn-submit-report').addEventListener('click', async function() {
+        const btn = this;
+        const payload = {
+            organization_id: parseInt(document.getElementById('report-org-id').value),
+            organization_name: document.getElementById('report-org-name').value,
+            period_start: document.getElementById('report-start').value,
+            period_end: document.getElementById('report-end').value,
+        };
+        
+        if (!payload.period_start || !payload.period_end) {
+            alert('Informe o período');
+            return;
+        }
+        
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Gerando...';
+        
+        try {
+            const res = await fetch('/integrations/umbrella/api/generate-report', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                bootstrap.Modal.getInstance(document.getElementById('reportModal')).hide();
+                if (confirm('Relatório gerado! Deseja fazer o download?')) {
+                    window.location.href = data.docx_url || data.pdf_url;
+                }
+                location.reload();
+            } else {
+                alert(data.error || 'Erro ao gerar relatório');
+            }
+        } catch (e) {
+            alert('Erro ao gerar relatório');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-cog me-1"></i> Gerar';
+        }
+    });
+})();
+</script>
+{% endblock %}

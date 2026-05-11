@@ -19,7 +19,7 @@ class MitreFetcher(BaseFetcher):
     BASE_URL = "https://cveawg.mitre.org/api/"
     
     def __init__(self, timeout: int = 30):
-        super().__init__(timeout, user_agent='Open-Monitor/1.0 (Internal Tool)')
+        super().__init__(timeout, user_agent='SOC360/1.0 (Internal Tool)')
         # Additional headers if needed
         self.session.headers.update({
             'Accept': 'application/json'

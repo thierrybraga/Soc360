@@ -1,5 +1,5 @@
 """
-Open-Monitor Encryption Service
+SOC360 Encryption Service
 Encryption for sensitive data at rest.
 """
 import os

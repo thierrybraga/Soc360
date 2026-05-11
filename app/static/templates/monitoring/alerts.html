@@ -1,18 +1,58 @@
 {% extends "base.html" %}
 
-{% block title %}Alerts - Open-Monitor{% endblock %}
+{% block title %}Alertas de Segurança — SOC360{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/monitoring.css') }}">
+{% endblock %}
 
 {% block content %}
 <div class="page-shell page-shell--wide" data-page="monitoring-alerts">
     <div class="page-header">
         <div class="page-header__content">
-            <h1 class="page-header__title">Security Alerts</h1>
+            <h1 class="page-header__title">Alertas de Segurança</h1>
             <p class="page-header__subtitle">Triagem centralizada dos alertas gerados por regras de monitoramento com filtros, status e ações consistentes.</p>
         </div>
         <div class="page-header__actions">
             <button class="btn btn-outline-secondary btn-sm" id="refresh-btn">
-                <i class="fas fa-sync-alt"></i> Refresh
+                <i class="fas fa-sync-alt"></i> Atualizar
             </button>
+        </div>
+    </div>
+
+    <!-- Summary Counters -->
+    <div class="row g-3 mb-3" id="alerts-summary">
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small text-uppercase">Novos</div>
+                    <div class="h3 mb-0 text-danger" id="summary-new">–</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small text-uppercase">Reconhecidos</div>
+                    <div class="h3 mb-0 text-warning" id="summary-ack">–</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small text-uppercase">Resolvidos</div>
+                    <div class="h3 mb-0 text-success" id="summary-resolved">–</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small text-uppercase">Descartados</div>
+                    <div class="h3 mb-0 text-secondary" id="summary-dismissed">–</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -21,14 +61,14 @@
         <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
             <h3 class="card-title mb-0"><i class="fas fa-list"></i> Alertas</h3>
             <div class="d-flex gap-2">
-                <select class="form-select form-select-sm" id="filter-status" style="width: 150px;">
+                <select class="form-select form-select-sm" id="filter-status">
                     <option value="">Status</option>
                     <option value="NEW">Novo</option>
                     <option value="ACKNOWLEDGED">Reconhecido</option>
                     <option value="RESOLVED">Resolvido</option>
                     <option value="DISMISSED">Descartado</option>
                 </select>
-                <select class="form-select form-select-sm" id="filter-severity" style="width: 150px;">
+                <select class="form-select form-select-sm" id="filter-severity">
                     <option value="">Severidade</option>
                     <option value="CRITICAL">Crítico</option>
                     <option value="HIGH">Alto</option>
@@ -46,12 +86,13 @@
             <table class="table table-hover" id="alerts-table" style="display: none;">
                 <thead>
                     <tr>
-                        <th style="width: 100px;">Severidade</th>
-                        <th style="width: 120px;">Status</th>
+                        <th class="col-sev">Severidade</th>
+                        <th class="col-status">Status</th>
                         <th>Título</th>
-                        <th>Regra</th>
-                        <th style="width: 150px;">Data</th>
-                        <th style="width: 120px;" class="text-end">Ações</th>
+                        <th class="col-cve">CVE</th>
+                        <th class="col-rule">Regra</th>
+                        <th class="col-date">Data</th>
+                        <th class="col-actions text-end">Ações</th>
                     </tr>
                 </thead>
                 <tbody id="alerts-table-body">
@@ -89,6 +130,8 @@
                 </div>
                 <h4 class="h5" id="modal-title"></h4>
                 <p class="text-muted mb-3" id="modal-description"></p>
+                <dl class="row small mb-3" id="modal-meta"></dl>
+                <h6 class="text-muted small text-uppercase">Detalhes técnicos</h6>
                 <pre class="bg-dark text-light rounded p-3 small mb-0" id="modal-details"></pre>
             </div>
             <div class="modal-footer justify-content-between">

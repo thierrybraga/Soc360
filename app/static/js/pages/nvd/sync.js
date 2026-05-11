@@ -74,6 +74,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 sync: document.getElementById('btn-mitre-attack-sync'),
                 map:  document.getElementById('btn-mitre-attack-map')
             }
+        },
+        d3fend: {
+            icon:         document.getElementById('d3fend-status-icon'),
+            text:         document.getElementById('d3fend-status-text'),
+            details:      document.getElementById('d3fend-status-details'),
+            container:    document.getElementById('d3fend-progress-container'),
+            bar:          document.getElementById('d3fend-progress-bar'),
+            lastSync:     document.getElementById('d3fend-last-sync'),
+            techniques:   document.getElementById('d3fend-techniques'),
+            correlations: document.getElementById('d3fend-correlations'),
+            inserted:     document.getElementById('d3fend-inserted'),
+            updated:      document.getElementById('d3fend-updated'),
+            errors:       document.getElementById('d3fend-errors'),
+            btns: {
+                sync:      document.getElementById('btn-d3fend-sync'),
+                correlate: document.getElementById('btn-d3fend-correlate')
+            }
         }
     };
 
@@ -263,12 +280,16 @@ document.addEventListener('DOMContentLoaded', function () {
         const el = elements.euvd;
         if (!el.lastSync) return;
 
-        el.lastSync.textContent  = data.last_sync
-            ? new Date(data.last_sync).toLocaleString('pt-BR') : 'Nunca';
-        if (el.processed) el.processed.textContent = data.stats?.processed || 0;
-        if (el.inserted)  el.inserted.textContent  = data.stats?.inserted  || 0;
-        if (el.updated)   el.updated.textContent   = data.stats?.updated   || 0;
-        if (el.errors)    el.errors.textContent    = data.stats?.errors    || 0;
+        // Backend returns BaseSyncService.get_progress() — a flat dict:
+        // { status, processed, total, inserted, updated, errors, skipped,
+        //   last_updated, message, error, ... }
+        const tsRaw = data.last_updated || data.last_sync;
+        el.lastSync.textContent  = tsRaw
+            ? new Date(tsRaw).toLocaleString('pt-BR') : 'Nunca';
+        if (el.processed) el.processed.textContent = data.processed || 0;
+        if (el.inserted)  el.inserted.textContent  = data.inserted  || 0;
+        if (el.updated)   el.updated.textContent   = data.updated   || 0;
+        if (el.errors)    el.errors.textContent    = data.errors    || 0;
 
         const status = (data.status || 'idle').toLowerCase();
 
@@ -280,8 +301,9 @@ document.addEventListener('DOMContentLoaded', function () {
             el.text.textContent    = 'Sincronização em Andamento';
             el.details.textContent = data.message || 'Processando...';
             el.container.classList.remove('d-none');
-            const pct = (data.stats?.total > 0) ? (data.stats.processed / data.stats.total) * 100 : 0;
+            const pct = (data.total > 0) ? Math.round((data.processed / data.total) * 100) : 0;
             el.bar.style.width = `${pct}%`;
+            el.bar.textContent = `${pct}%`;
             if (el.btn) el.btn.disabled = true;
             startPolling('euvd');
 
@@ -315,12 +337,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const el = elements.mitre;
         if (!el.lastSync) return;
 
-        el.lastSync.textContent  = data.last_sync
-            ? new Date(data.last_sync).toLocaleString('pt-BR') : 'Nunca';
-        if (el.processed) el.processed.textContent = data.stats?.processed || 0;
-        if (el.updated)   el.updated.textContent   = data.stats?.updated   || 0;
-        if (el.skipped)   el.skipped.textContent   = data.stats?.skipped   || 0;
-        if (el.errors)    el.errors.textContent    = data.stats?.errors    || 0;
+        // Flat shape from BaseSyncService.get_progress()
+        const tsRaw = data.last_updated || data.last_sync;
+        el.lastSync.textContent  = tsRaw
+            ? new Date(tsRaw).toLocaleString('pt-BR') : 'Nunca';
+        if (el.processed) el.processed.textContent = data.processed || 0;
+        if (el.updated)   el.updated.textContent   = data.updated   || 0;
+        if (el.skipped)   el.skipped.textContent   = data.skipped   || 0;
+        if (el.errors)    el.errors.textContent    = data.errors    || 0;
 
         const status = (data.status || 'idle').toLowerCase();
 
@@ -332,8 +356,9 @@ document.addEventListener('DOMContentLoaded', function () {
             el.text.textContent    = 'Enriquecimento em Andamento';
             el.details.textContent = data.message || 'Processando...';
             el.container.classList.remove('d-none');
-            const pct = (data.stats?.total > 0) ? (data.stats.processed / data.stats.total) * 100 : 0;
+            const pct = (data.total > 0) ? Math.round((data.processed / data.total) * 100) : 0;
             el.bar.style.width = `${pct}%`;
+            el.bar.textContent = `${pct}%`;
             if (el.btn) el.btn.disabled = true;
             startPolling('mitre');
 
@@ -414,14 +439,71 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 9. STATUS CHECK
+    // 9. D3FEND STATUS UPDATER
+    // ─────────────────────────────────────────────────────────────
+
+    function updateD3fendUI(data) {
+        const el = elements.d3fend;
+        if (!el.lastSync) return;
+
+        const tsRaw = data.last_updated || data.last_sync;
+        el.lastSync.textContent  = tsRaw
+            ? new Date(tsRaw).toLocaleString('pt-BR') : 'Nunca';
+        if (el.techniques)   el.techniques.textContent   = data.processed || 0;
+        if (el.inserted)     el.inserted.textContent     = data.inserted  || 0;
+        if (el.updated)      el.updated.textContent      = data.updated   || 0;
+        if (el.errors)       el.errors.textContent       = data.errors    || 0;
+
+        const status = (data.status || 'idle').toLowerCase();
+
+        el.container.classList.add('d-none');
+        if (el.btns.sync) el.btns.sync.disabled = false;
+        if (el.btns.correlate) el.btns.correlate.disabled = false;
+
+        if (status === 'running') {
+            el.icon.innerHTML      = '<i class="fas fa-sync fa-spin fa-3x text-success"></i>';
+            el.text.textContent    = 'Sincronização em Andamento';
+            el.details.textContent = data.message || 'Processando...';
+            el.container.classList.remove('d-none');
+            const pct = (data.total > 0) ? Math.round((data.processed / data.total) * 100) : 0;
+            el.bar.style.width = `${pct}%`;
+            el.bar.textContent = `${pct}%`;
+            if (el.btns.sync) el.btns.sync.disabled = true;
+            if (el.btns.correlate) el.btns.correlate.disabled = true;
+            startPolling('d3fend');
+
+        } else if (status === 'completed') {
+            el.icon.innerHTML      = '<i class="fas fa-check-circle fa-3x text-success animate-popIn"></i>';
+            el.text.textContent    = 'Concluído';
+            el.details.textContent = data.message || 'Dados atualizados.';
+            stopPolling('d3fend');
+            showToast('Sincronização D3FEND concluída!', 'success');
+
+        } else if (status === 'failed') {
+            el.icon.innerHTML      = '<i class="fas fa-times-circle fa-3x text-danger animate-popIn"></i>';
+            el.text.textContent    = 'Erro';
+            el.details.textContent = data.message || 'Falha na sincronização.';
+            stopPolling('d3fend');
+            showToast('Erro ao sincronizar D3FEND.', 'error', 6000);
+
+        } else {
+            el.icon.innerHTML      = '<i class="fas fa-clock fa-3x text-muted"></i>';
+            el.text.textContent    = 'Aguardando';
+            el.details.textContent = 'Nenhuma sincronização em andamento.';
+            stopPolling('d3fend');
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 10. STATUS CHECK
     // ─────────────────────────────────────────────────────────────
 
     const STATUS_URLS = {
         nvd:         '/vulnerabilities/api/sync/status',
         euvd:        '/api/euvd/sync/status',
         mitre:       '/api/mitre/sync/status',
-        mitreAttack: '/vulnerabilities/api/mitre-attack/status'
+        mitreAttack: '/vulnerabilities/api/mitre-attack/status',
+        d3fend:      '/api/d3fend/sync/status'
     };
 
     async function checkStatus(type) {
@@ -431,6 +513,7 @@ document.addEventListener('DOMContentLoaded', function () {
             else if (type === 'euvd')        updateEuvdUI(data);
             else if (type === 'mitre')       updateMitreUI(data);
             else if (type === 'mitreAttack') updateMitreAttackUI(data);
+            else if (type === 'd3fend')      updateD3fendUI(data);
         } catch (err) {
             console.error(`[Sync] ${type} status error:`, err);
             const el = elements[type];
@@ -450,8 +533,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const START_URLS = {
         nvd:         '/vulnerabilities/api/sync/start',
         euvd:        '/api/euvd/sync/latest',
-        mitre:       '/api/mitre/sync',
-        mitreAttack: '/vulnerabilities/api/mitre-attack/sync'
+        mitre:       '/api/mitre/enrich',
+        mitreAttack: '/vulnerabilities/api/mitre-attack/sync',
+        d3fend:      '/api/d3fend/sync',
+        d3fendCorrelate: '/api/d3fend/sync/correlate'
     };
 
     async function startSync(type, mode) {
@@ -469,13 +554,23 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!confirmed) return;
 
         try {
-            const body = mode ? { mode } : {};
-            await api.post(START_URLS[type], body);
+            // Construir body conforme o tipo de sync
+            let body = {};
+            if (type === 'nvd') {
+                body = { mode: mode || 'incremental' };
+            } else if (type === 'euvd') {
+                body = {}; // EUVD não precisa de modo, usa sync/latest
+            } else if (type === 'mitre') {
+                body = {}; // MITRE não precisa de modo
+            } else if (type === 'mitreAttack') {
+                body = {}; // MITRE ATT&CK não precisa de modo
+            }
+            
+            const response = await api.post(START_URLS[type], body);
             showToast('Operação iniciada!', 'success');
             await checkStatus(type);
             startPolling(type);
         } catch (err) {
-            console.error(`[Sync] Error starting ${type}:`, err);
             showToast(err.message || `Erro ao iniciar ${type}`, 'error', 6000);
         }
     }
@@ -498,7 +593,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Backend-supported cancel endpoints. Sources without an entry here cannot
+    // be cancelled mid-run and the UI should not expose a cancel control.
+    const CANCEL_URLS = {
+        nvd: '/vulnerabilities/api/sync/cancel'
+    };
+
     async function cancelSync(type) {
+        const url = CANCEL_URLS[type];
+        if (!url) {
+            showToast(`Cancelamento não suportado para ${type}.`, 'warning');
+            return;
+        }
         const confirmed = await showConfirmModal(
             'Deseja cancelar a sincronização em andamento?',
             'Cancelar Operação'
@@ -506,9 +612,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!confirmed) return;
 
         try {
-            const url = type === 'nvd'
-                ? '/vulnerabilities/api/sync/cancel'
-                : `/api/${type}/sync/cancel`;
             await api.post(url, {});
             showToast('Cancelamento solicitado.', 'info');
             await checkStatus(type);
@@ -522,7 +625,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // 11. POLLING
     // ─────────────────────────────────────────────────────────────
 
-    const intervals = { nvd: null, euvd: null, mitre: null, mitreAttack: null };
+    const intervals = { nvd: null, euvd: null, mitre: null, mitreAttack: null, d3fend: null };
 
     function startPolling(type) {
         if (!intervals[type]) {
@@ -556,15 +659,67 @@ document.addEventListener('DOMContentLoaded', function () {
     elements.mitreAttack.btns.sync?.addEventListener('click', () => startSync('mitreAttack'));
     elements.mitreAttack.btns.map?.addEventListener('click',  () => startMitreAttackMap());
 
+    // D3FEND
+    elements.d3fend.btns.sync?.addEventListener('click', () => startD3fendSync());
+    elements.d3fend.btns.correlate?.addEventListener('click', () => startD3fendCorrelate());
+
+    async function startD3fendSync() {
+        const confirmed = await showConfirmModal(
+            'Deseja sincronizar o framework D3FEND?',
+            'Confirmar Sincronização'
+        );
+        if (!confirmed) return;
+
+        try {
+            await api.post(START_URLS.d3fend, {});
+            showToast('Sincronização D3FEND iniciada!', 'success');
+            await checkStatus('d3fend');
+            startPolling('d3fend');
+        } catch (err) {
+            showToast(err.message || 'Erro ao iniciar D3FEND', 'error', 6000);
+        }
+    }
+
+    async function startD3fendCorrelate() {
+        const confirmed = await showConfirmModal(
+            'Deseja correlacionar CVEs com D3FEND?',
+            'Confirmar Correlação'
+        );
+        if (!confirmed) return;
+
+        try {
+            await api.post(START_URLS.d3fendCorrelate, { limit: 1000 });
+            showToast('Correlação D3FEND iniciada!', 'success');
+            await checkStatus('d3fend');
+            startPolling('d3fend');
+        } catch (err) {
+            showToast(err.message || 'Erro ao iniciar correlação D3FEND', 'error', 6000);
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────
     // 13. INITIALISATION
     // ─────────────────────────────────────────────────────────────
 
-    ['nvd', 'euvd', 'mitre', 'mitreAttack'].forEach(checkStatus);
+    ['nvd', 'euvd', 'mitre', 'mitreAttack', 'd3fend'].forEach(checkStatus);
 
     window.addEventListener('beforeunload', () => {
         Object.keys(intervals).forEach(stopPolling);
     });
 
-    console.log('[Sync Page] Ready.');
+    // ─────────────────────────────────────────────────────────────
+    // 14. LIVE CLOCK — ticks the server-time badge every second
+    // ─────────────────────────────────────────────────────────────
+    const clockEl = document.getElementById('server-time');
+    if (clockEl) {
+        function tickClock() {
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            clockEl.textContent =
+                `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())} ` +
+                `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())} UTC`;
+        }
+        tickClock();
+        setInterval(tickClock, 60000); // update every minute
+    }
 });

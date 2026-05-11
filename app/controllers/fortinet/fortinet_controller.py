@@ -1,5 +1,5 @@
 """
-Open-Monitor Fortinet Controller
+SOC360 Fortinet Controller
 Rotas especializadas para dispositivos Fortinet.
 """
 import logging
@@ -145,7 +145,7 @@ def api_list_cves():
 
         query = query.order_by(
             Vulnerability.is_in_cisa_kev.desc(),
-            Vulnerability.cvss_score.desc().nullslast(),
+            Vulnerability.cvss_score.desc().nulls_last(),
             Vulnerability.published_date.desc()
         )
 
@@ -494,7 +494,7 @@ def api_asset_vulnerabilities(asset_id):
     assocs = AssetVulnerability.query.filter_by(
         asset_id=asset_id
     ).order_by(
-        AssetVulnerability.contextual_risk_score.desc().nullslast()
+        AssetVulnerability.contextual_risk_score.desc().nulls_last()
     ).all()
 
     results = []

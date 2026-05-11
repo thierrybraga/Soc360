@@ -1,5 +1,5 @@
 """
-Open-Monitor Monitoring Schemas
+SOC360 Monitoring Schemas
 Schemas for monitoring rules serialization and validation.
 """
 from marshmallow import Schema, fields, validate

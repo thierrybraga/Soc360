@@ -1,5 +1,5 @@
 """
-Open-Monitor Risk Assessment Service
+SOC360 Risk Assessment Service
 Service for managing risk assessments.
 """
 from .assessment import RiskAssessmentService

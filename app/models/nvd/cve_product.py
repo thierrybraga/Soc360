@@ -1,5 +1,5 @@
 """
-Open-Monitor CVE Product Model
+SOC360 CVE Product Model
 Association table: Vulnerability <-> AffectedProduct (Many-to-Many).
 """
 from datetime import datetime

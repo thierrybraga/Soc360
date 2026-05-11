@@ -3,56 +3,7 @@
 {% block title %}Operações em Lote - Open Monitor{% endblock %}
 
 {% block extra_css %}
-<style>
-.operation-card {
-    transition: transform 0.2s;
-}
-
-.operation-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.file-upload-area {
-    border: 2px dashed #dee2e6;
-    border-radius: 5px;
-    padding: 40px;
-    text-align: center;
-    transition: all 0.3s;
-    cursor: pointer;
-}
-
-.file-upload-area:hover,
-.file-upload-area.dragover {
-    border-color: #007bff;
-    background-color: #f8f9ff;
-}
-
-.file-upload-area.dragover {
-    border-color: #007bff;
-    background-color: #f8f9ff;
-}
-
-.export-options {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 5px;
-    margin-top: 15px;
-}
-
-.import-result {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.progress-bar {
-    transition: width 0.3s ease;
-}
-
-.btn-operation {
-    min-width: 120px;
-}
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -146,7 +97,7 @@
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-hover">
-                            <thead class="table-light">
+                            <thead class="table-dark">
                                 <tr>
                                     <th>Data/Hora</th>
                                     <th>Operação</th>

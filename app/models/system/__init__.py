@@ -1,5 +1,5 @@
 """
-Open-Monitor System Models
+SOC360 System Models
 Models de sistema e infraestrutura.
 """
 from app.models.system.base_model import BaseModel, CoreModel, PublicModel

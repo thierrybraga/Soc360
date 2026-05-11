@@ -1,5 +1,5 @@
 """
-Open-Monitor Reports Controller
+SOC360 Reports Controller
 Rotas para geração e gerenciamento de relatórios.
 """
 import logging
@@ -154,22 +154,35 @@ def get_report(report_id):
 @reports_bp.route('/api/<int:report_id>/download')
 @login_required
 def download_report(report_id):
-    """Download do relatório em PDF."""
+    """Download do relatório em PDF (gerado sob demanda se necessário)."""
     report = Report.query.get_or_404(report_id)
-    
+
     if not current_user.is_admin and report.user_id != current_user.id:
         abort(403)
-    
+
     if report.status != ReportStatus.COMPLETED.value:
         return jsonify({'error': 'Report not ready'}), 400
-    
-    if not report.file_path or not os.path.exists(report.file_path):
+
+    # Gera PDF sob demanda se ainda não existir no disco
+    pdf_path = None
+    if report.file_path and os.path.exists(report.file_path):
+        pdf_path = report.file_path
+    else:
+        try:
+            from app.services.reports import ensure_report_pdf
+            pdf_path = ensure_report_pdf(report)
+        except Exception as e:
+            logger.error(f'Erro ao gerar PDF sob demanda para report {report_id}: {e}', exc_info=True)
+            return jsonify({'error': f'Falha ao gerar PDF: {e}'}), 500
+
+    if not pdf_path or not os.path.exists(pdf_path):
         return jsonify({'error': 'Report file not found'}), 404
-    
+
     return send_file(
-        report.file_path,
+        pdf_path,
         as_attachment=True,
-        download_name=f'{report.title.replace(" ", "_")}.pdf'
+        download_name=f'{report.title.replace(" ", "_")}.pdf',
+        mimetype='application/pdf',
     )
 
 
@@ -339,199 +352,273 @@ def detail(report_id):
 
 def _generate_report_data(report: Report) -> None:
     """
-    Gerar dados do relatório.
+    Gera dados do relatório — **escopado aos ativos cadastrados do usuário** e
+    suas CVEs associadas (via AssetVulnerability).
 
-    Esta função seria chamada de forma assíncrona em produção (Celery/thread).
-    Por hora executa inline logo após a criação do relatório.
+    Todos os tipos de relatório (EXECUTIVE, TECHNICAL, RISK_ASSESSMENT,
+    COMPLIANCE, TREND, INCIDENT) agora operam exclusivamente sobre o inventário
+    do usuário — nenhum tipo consulta o universo global de CVEs.
     """
     from app.models.nvd import Vulnerability
     from app.models.inventory import Asset, AssetVulnerability
+    from app.models.system.enums import VulnerabilityStatus
     from datetime import timedelta
-    from sqlalchemy import func as sa_func
 
     try:
         params = report.filters or {}
         time_range = int(params.get('time_range_days', 30))
         start_date = datetime.utcnow() - timedelta(days=time_range)
 
-        data = {}
+        # ------------------------------------------------------------------
+        # Contexto base: ativos do usuário + suas CVEs associadas
+        # ------------------------------------------------------------------
+        assets = Asset.query.filter_by(owner_id=report.user_id).all()
+        asset_ids = [a.id for a in assets]
+        asset_by_id = {a.id: a for a in assets}
+
+        # Pega todas as AssetVulnerability dos ativos + a Vulnerability linkada
+        av_rows = []
+        if asset_ids:
+            av_rows = (
+                db.session.query(AssetVulnerability, Vulnerability)
+                .join(Vulnerability, AssetVulnerability.cve_id == Vulnerability.cve_id)
+                .filter(AssetVulnerability.asset_id.in_(asset_ids))
+                .all()
+            )
+
+        # Agrupa CVEs únicas (um mesmo CVE pode afetar vários ativos)
+        unique_cves: dict = {}
+        # Também guarda lista de ativos afetados por CVE
+        cve_to_assets: dict = {}
+        for av, vuln in av_rows:
+            if vuln.cve_id not in unique_cves:
+                unique_cves[vuln.cve_id] = vuln
+                cve_to_assets[vuln.cve_id] = []
+            cve_to_assets[vuln.cve_id].append({
+                'asset_id': av.asset_id,
+                'asset_name': asset_by_id.get(av.asset_id).name if asset_by_id.get(av.asset_id) else 'desconhecido',
+                'status': av.status,
+                'discovered_at': av.discovered_at.isoformat() if av.discovered_at else None,
+            })
+
+        vulns = list(unique_cves.values())
+
+        def _severity_counts(filter_fn=None):
+            buckets = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0, 'UNKNOWN': 0}
+            for v in vulns:
+                if filter_fn and not filter_fn(v):
+                    continue
+                buckets[v.base_severity or 'UNKNOWN'] = buckets.get(v.base_severity or 'UNKNOWN', 0) + 1
+            return buckets
+
+        def _short(desc, n=200):
+            if not desc:
+                return ''
+            return (desc[:n] + '…') if len(desc) > n else desc
+
+        data = {
+            # metadados do inventário
+            'total_assets': len(assets),
+            'assets_with_vulns': sum(1 for a in assets if any(av.asset_id == a.id for av, _ in av_rows)),
+            'scope': 'user_assets',
+            # lista resumida dos ativos (até 50)
+            'assets_overview': [
+                {
+                    'id': a.id,
+                    'name': a.name,
+                    'criticality': a.criticality,
+                    'environment': a.environment,
+                    'exposure': a.exposure,
+                    'vulnerabilities': sum(1 for av, _ in av_rows if av.asset_id == a.id),
+                }
+                for a in assets[:50]
+            ],
+        }
+
+        # Se não há ativos, preenche estrutura vazia e deixa a IA comentar
+        if not assets:
+            data['total_cves'] = 0
+            data['by_severity'] = _severity_counts()
+            data['empty_inventory'] = True
+        else:
+            data['total_cves'] = len(vulns)
+            data['by_severity'] = _severity_counts()
 
         # ------------------------------------------------------------------
-        # Helpers
-        # ------------------------------------------------------------------
-        def _severity_counts():
-            """Retorna {SEVERITY: count} filtrando chaves None."""
-            rows = db.session.query(
-                Vulnerability.base_severity,
-                sa_func.count(Vulnerability.cve_id)
-            ).group_by(Vulnerability.base_severity).all()
-            return {(row[0] or 'UNKNOWN'): row[1] for row in rows}
-
-        def _severity_counts_since(since):
-            rows = db.session.query(
-                Vulnerability.base_severity,
-                sa_func.count(Vulnerability.cve_id)
-            ).filter(
-                Vulnerability.published_date >= since
-            ).group_by(Vulnerability.base_severity).all()
-            return {(row[0] or 'UNKNOWN'): row[1] for row in rows}
-
-        # ------------------------------------------------------------------
-        # EXECUTIVE
+        # EXECUTIVE — visão de negócio do inventário
         # ------------------------------------------------------------------
         if report.report_type == ReportType.EXECUTIVE.value:
-            data['total_cves'] = Vulnerability.query.count()
-            data['recent_cves'] = Vulnerability.query.filter(
-                Vulnerability.published_date >= start_date
-            ).count()
-            data['by_severity'] = _severity_counts()
-            data['by_severity_period'] = _severity_counts_since(start_date)
-            data['cisa_kev'] = Vulnerability.query.filter(
-                Vulnerability.is_in_cisa_kev == True
-            ).count()
-            # Top 5 CVEs críticas mais recentes
-            critical_recent = Vulnerability.query.filter(
-                Vulnerability.base_severity == 'CRITICAL',
-                Vulnerability.published_date >= start_date
-            ).order_by(Vulnerability.published_date.desc()).limit(5).all()
+            period_vulns = [v for v in vulns if v.published_date and v.published_date >= start_date]
+            data['recent_cves'] = len(period_vulns)
+            data['by_severity_period'] = _severity_counts(
+                lambda v: v.published_date and v.published_date >= start_date
+            )
+            data['cisa_kev'] = sum(1 for v in vulns if v.is_in_cisa_kev)
+
+            # Top 5 CVEs críticas mais recentes que afetam o inventário
+            critical_recent = sorted(
+                [v for v in vulns if v.base_severity == 'CRITICAL'],
+                key=lambda v: v.published_date or datetime.min,
+                reverse=True,
+            )[:5]
             data['critical_recent'] = [
                 {
                     'cve_id': v.cve_id,
                     'cvss_score': v.cvss_score,
                     'published': v.published_date.isoformat() if v.published_date else None,
-                    'description': (v.description[:200] + '…') if v.description and len(v.description) > 200 else (v.description or '')
+                    'description': _short(v.description, 200),
+                    'affected_assets': cve_to_assets.get(v.cve_id, []),
                 }
                 for v in critical_recent
             ]
 
         # ------------------------------------------------------------------
-        # TECHNICAL
+        # TECHNICAL — detalhamento técnico das CVEs do inventário
         # ------------------------------------------------------------------
         elif report.report_type == ReportType.TECHNICAL.value:
-            data['total_cves'] = Vulnerability.query.count()
-            data['period_cves'] = Vulnerability.query.filter(
-                Vulnerability.published_date >= start_date
-            ).count()
-            data['by_severity'] = _severity_counts_since(start_date)
-            data['cisa_kev'] = Vulnerability.query.filter(
-                Vulnerability.is_in_cisa_kev == True,
-                Vulnerability.published_date >= start_date
-            ).count()
-            data['with_patch'] = Vulnerability.query.filter(
-                Vulnerability.patch_available == True,
-                Vulnerability.published_date >= start_date
-            ).count()
-            data['with_exploit'] = Vulnerability.query.filter(
-                Vulnerability.exploit_available == True,
-                Vulnerability.published_date >= start_date
-            ).count()
-            # Top 10 critical/high com exploit
-            exploitable = Vulnerability.query.filter(
-                Vulnerability.exploit_available == True,
-                Vulnerability.base_severity.in_(['CRITICAL', 'HIGH']),
-                Vulnerability.published_date >= start_date
-            ).order_by(Vulnerability.cvss_score.desc()).limit(10).all()
+            period_vulns = [v for v in vulns if v.published_date and v.published_date >= start_date]
+            data['period_cves'] = len(period_vulns)
+            data['by_severity'] = _severity_counts(
+                lambda v: v.published_date and v.published_date >= start_date
+            )
+            data['cisa_kev'] = sum(1 for v in period_vulns if v.is_in_cisa_kev)
+            data['with_patch'] = sum(1 for v in period_vulns if v.patch_available)
+            data['with_exploit'] = sum(1 for v in period_vulns if v.exploit_available)
+
+            # Top 10 CVEs CRITICAL/HIGH com exploit que afetam o inventário
+            exploitable = sorted(
+                [v for v in vulns
+                 if v.exploit_available and v.base_severity in ('CRITICAL', 'HIGH')],
+                key=lambda v: v.cvss_score or 0,
+                reverse=True,
+            )[:10]
             data['exploitable_top'] = [
                 {
                     'cve_id': v.cve_id,
                     'cvss_score': v.cvss_score,
                     'base_severity': v.base_severity,
-                    'description': (v.description[:200] + '…') if v.description and len(v.description) > 200 else (v.description or '')
+                    'description': _short(v.description, 200),
+                    'patch_available': v.patch_available,
+                    'is_in_cisa_kev': v.is_in_cisa_kev,
+                    'affected_assets': cve_to_assets.get(v.cve_id, []),
                 }
                 for v in exploitable
             ]
 
         # ------------------------------------------------------------------
-        # RISK_ASSESSMENT
+        # RISK_ASSESSMENT — avaliação de risco por ativo do inventário
         # ------------------------------------------------------------------
         elif report.report_type == ReportType.RISK_ASSESSMENT.value:
-            assets = Asset.query.filter_by(owner_id=report.user_id).all()
-            data['total_assets'] = len(assets)
-            data['assets_with_vulns'] = 0
-            data['high_risk_assets'] = []
-
+            high_risk_assets = []
+            all_scored_assets = []
             for asset in assets:
-                vuln_count = AssetVulnerability.query.filter_by(asset_id=asset.id).count()
-                if vuln_count > 0:
-                    data['assets_with_vulns'] += 1
-                    risk_score = asset.calculate_risk_score() if hasattr(asset, 'calculate_risk_score') else None
-                    if risk_score is not None and risk_score > 7.0:
-                        data['high_risk_assets'].append({
-                            'name': asset.name,
-                            'risk_score': round(float(risk_score), 2),
-                            'vulnerabilities': vuln_count
-                        })
-            data['high_risk_assets'].sort(key=lambda x: x['risk_score'], reverse=True)
+                asset_avs = [av for av, _ in av_rows if av.asset_id == asset.id]
+                vuln_count = len(asset_avs)
+                max_cvss = 0.0
+                for av, vuln in av_rows:
+                    if av.asset_id == asset.id and (vuln.cvss_score or 0) > max_cvss:
+                        max_cvss = vuln.cvss_score or 0.0
+                # score contextual usando calculate_risk_score(max_cvss)
+                try:
+                    risk_score = asset.calculate_risk_score(max_cvss) if hasattr(asset, 'calculate_risk_score') else max_cvss
+                except Exception:
+                    risk_score = max_cvss
+                rec = {
+                    'id': asset.id,
+                    'name': asset.name,
+                    'criticality': asset.criticality,
+                    'environment': asset.environment,
+                    'exposure': asset.exposure,
+                    'risk_score': round(float(risk_score or 0), 2),
+                    'max_cvss': round(float(max_cvss or 0), 2),
+                    'vulnerabilities': vuln_count,
+                }
+                all_scored_assets.append(rec)
+                if vuln_count > 0 and (risk_score or 0) > 7.0:
+                    high_risk_assets.append(rec)
+
+            high_risk_assets.sort(key=lambda x: x['risk_score'], reverse=True)
+            all_scored_assets.sort(key=lambda x: x['risk_score'], reverse=True)
+            data['high_risk_assets'] = high_risk_assets
+            data['scored_assets'] = all_scored_assets[:30]
 
         # ------------------------------------------------------------------
-        # COMPLIANCE
+        # COMPLIANCE — status de remediação das AssetVulnerabilities do usuário
         # ------------------------------------------------------------------
         elif report.report_type == ReportType.COMPLIANCE.value:
-            from app.models.inventory import AssetVulnerability
-            from app.models.system.enums import VulnerabilityStatus
-
-            total_open = AssetVulnerability.query.filter(
-                AssetVulnerability.status == VulnerabilityStatus.OPEN.value
-            ).count()
-            total_mitigated = AssetVulnerability.query.filter(
-                AssetVulnerability.status == VulnerabilityStatus.MITIGATED.value
-            ).count()
-            total_accepted = AssetVulnerability.query.filter(
-                AssetVulnerability.status == VulnerabilityStatus.ACCEPTED.value
-            ).count()
-            total_resolved = AssetVulnerability.query.filter(
-                AssetVulnerability.status == VulnerabilityStatus.RESOLVED.value
-            ).count()
-            total_items = total_open + total_mitigated + total_accepted + total_resolved
+            status_counts = {
+                VulnerabilityStatus.OPEN.value: 0,
+                VulnerabilityStatus.IN_PROGRESS.value: 0,
+                VulnerabilityStatus.MITIGATED.value: 0,
+                VulnerabilityStatus.ACCEPTED.value: 0,
+                VulnerabilityStatus.RESOLVED.value: 0,
+            }
+            for av, _ in av_rows:
+                if av.status in status_counts:
+                    status_counts[av.status] += 1
+            total_items = sum(status_counts.values())
             remediation_rate = round(
-                (total_mitigated + total_resolved) / total_items * 100, 1
+                (status_counts[VulnerabilityStatus.MITIGATED.value]
+                 + status_counts[VulnerabilityStatus.RESOLVED.value]) / total_items * 100, 1
             ) if total_items > 0 else 0.0
 
-            data['total_open'] = total_open
-            data['total_mitigated'] = total_mitigated
-            data['total_accepted'] = total_accepted
-            data['total_resolved'] = total_resolved
+            data['total_open'] = status_counts[VulnerabilityStatus.OPEN.value]
+            data['total_in_progress'] = status_counts[VulnerabilityStatus.IN_PROGRESS.value]
+            data['total_mitigated'] = status_counts[VulnerabilityStatus.MITIGATED.value]
+            data['total_accepted'] = status_counts[VulnerabilityStatus.ACCEPTED.value]
+            data['total_resolved'] = status_counts[VulnerabilityStatus.RESOLVED.value]
             data['remediation_rate_pct'] = remediation_rate
-            data['by_severity'] = _severity_counts()
+
+            # amostra das CVEs em aberto (mais graves) com ativos afetados
+            open_cve_ids = {
+                av.cve_id for av, _ in av_rows
+                if av.status == VulnerabilityStatus.OPEN.value
+            }
+            open_cves_sorted = sorted(
+                [v for v in vulns if v.cve_id in open_cve_ids],
+                key=lambda v: v.cvss_score or 0,
+                reverse=True,
+            )[:10]
+            data['open_cves_sample'] = [
+                {
+                    'cve_id': v.cve_id,
+                    'cvss_score': v.cvss_score,
+                    'base_severity': v.base_severity,
+                    'status': VulnerabilityStatus.OPEN.value,
+                    'affected_assets': cve_to_assets.get(v.cve_id, []),
+                }
+                for v in open_cves_sorted
+            ]
 
         # ------------------------------------------------------------------
-        # TREND
+        # TREND — timeline das CVEs do inventário
         # ------------------------------------------------------------------
         elif report.report_type == ReportType.TREND.value:
-            from sqlalchemy import func as sfunc
-            rows = db.session.query(
-                sfunc.strftime('%Y-%m', Vulnerability.published_date).label('month'),
-                Vulnerability.base_severity,
-                sfunc.count(Vulnerability.cve_id).label('count')
-            ).filter(
-                Vulnerability.published_date >= start_date
-            ).group_by('month', Vulnerability.base_severity).order_by('month').all()
+            timeline: dict = {}
+            period_vulns = [v for v in vulns if v.published_date and v.published_date >= start_date]
+            for v in period_vulns:
+                month = v.published_date.strftime('%Y-%m') if v.published_date else 'UNKNOWN'
+                sev = v.base_severity or 'UNKNOWN'
+                timeline.setdefault(month, {})
+                timeline[month][sev] = timeline[month].get(sev, 0) + 1
 
-            timeline = {}
-            for row in rows:
-                month = row[0] or 'UNKNOWN'
-                severity = row[1] or 'UNKNOWN'
-                if month not in timeline:
-                    timeline[month] = {}
-                timeline[month][severity] = row[2]
-
-            data['timeline'] = timeline
-            data['total_period'] = Vulnerability.query.filter(
-                Vulnerability.published_date >= start_date
-            ).count()
-            data['by_severity'] = _severity_counts_since(start_date)
+            data['timeline'] = dict(sorted(timeline.items()))
+            data['total_period'] = len(period_vulns)
+            data['by_severity'] = _severity_counts(
+                lambda v: v.published_date and v.published_date >= start_date
+            )
 
         # ------------------------------------------------------------------
-        # INCIDENT
+        # INCIDENT — CVEs urgentes que afetam o inventário
         # ------------------------------------------------------------------
         elif report.report_type == ReportType.INCIDENT.value:
-            # Relatório de incidente: top CVEs críticas/altas recentes
-            recent = Vulnerability.query.filter(
-                Vulnerability.published_date >= start_date,
-                Vulnerability.base_severity.in_(['CRITICAL', 'HIGH'])
-            ).order_by(
-                Vulnerability.cvss_score.desc()
-            ).limit(20).all()
+            incident_vulns = sorted(
+                [v for v in vulns
+                 if v.base_severity in ('CRITICAL', 'HIGH')
+                 and v.published_date and v.published_date >= start_date],
+                key=lambda v: v.cvss_score or 0,
+                reverse=True,
+            )[:20]
 
             data['incident_cves'] = [
                 {
@@ -541,13 +628,14 @@ def _generate_report_data(report: Report) -> None:
                     'published': v.published_date.isoformat() if v.published_date else None,
                     'is_in_cisa_kev': v.is_in_cisa_kev,
                     'exploit_available': v.exploit_available,
-                    'description': (v.description[:300] + '…') if v.description and len(v.description) > 300 else (v.description or '')
+                    'description': _short(v.description, 300),
+                    'affected_assets': cve_to_assets.get(v.cve_id, []),
                 }
-                for v in recent
+                for v in incident_vulns
             ]
-            data['total_incident_cves'] = len(data['incident_cves'])
-            data['critical_count'] = sum(1 for v in recent if v.base_severity == 'CRITICAL')
-            data['high_count'] = sum(1 for v in recent if v.base_severity == 'HIGH')
+            data['total_incident_cves'] = len(incident_vulns)
+            data['critical_count'] = sum(1 for v in incident_vulns if v.base_severity == 'CRITICAL')
+            data['high_count'] = sum(1 for v in incident_vulns if v.base_severity == 'HIGH')
 
         # ------------------------------------------------------------------
         # Persist raw aggregated data first (so UI can show partial data
@@ -580,6 +668,18 @@ def _generate_report_data(report: Report) -> None:
             logger.warning(
                 'AI generation skipped for report %s (%s): %s',
                 report.id, report.report_type, ai_err
+            )
+
+        # ------------------------------------------------------------------
+        # Gera PDF imediatamente (cache pronto para download posterior)
+        # ------------------------------------------------------------------
+        try:
+            from app.services.reports import generate_report_pdf
+            generate_report_pdf(report)
+        except Exception as pdf_err:
+            logger.warning(
+                'PDF pre-render falhou para report %s (%s): %s',
+                report.id, report.report_type, pdf_err
             )
 
         # ------------------------------------------------------------------

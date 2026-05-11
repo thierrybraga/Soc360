@@ -1,5 +1,5 @@
 """
-Open-Monitor Auth Controller
+SOC360 Auth Controller
 Sistema de autenticação: login, logout, register, password reset, admin init.
 """
 import logging
@@ -17,6 +17,7 @@ from app.extensions import db
 from app.models.auth import User, Role
 from app.forms.auth_forms import LoginForm, RegisterForm, PasswordResetForm, InitRootForm
 from app.utils.security import validate_password_strength, admin_required
+from app.services.auth import TacacsService
 
 
 # Blueprint
@@ -42,6 +43,35 @@ def send_reset_email(user, token):
     thread.start()
 
 
+def _provision_tacacs_user(username: str, default_email_domain: str) -> 'User':
+    """Create a local mirror for a user authenticated via TACACS+.
+
+    The mirror carries a random, inaccessible password (so local login is
+    impossible) and is flagged as active. Admin membership and roles must
+    be granted separately.
+    """
+    import secrets
+    safe_user = (username or '').strip()
+    domain = (default_email_domain or 'local').strip().lower() or 'local'
+    email = f'{safe_user.lower()}@{domain}'
+    # Ensure uniqueness if the email collides
+    suffix = 0
+    while User.query.filter(func.lower(User.email) == email).first():
+        suffix += 1
+        email = f'{safe_user.lower()}+tacacs{suffix}@{domain}'
+
+    user = User(
+        username=safe_user,
+        email=email,
+        password=secrets.token_urlsafe(64),
+        is_admin=False,
+    )
+    db.session.add(user)
+    db.session.commit()
+    current_app.logger.info('Provisioned local mirror for TACACS+ user %s', safe_user)
+    return user
+
+
 # =============================================================================
 # LOGIN / LOGOUT / REGISTER
 # =============================================================================
@@ -61,33 +91,63 @@ def login():
                 func.lower(User.email) == func.lower(form.username.data)
             )
         ).first()
-        
-        if user and user.check_password(form.password.data):
+
+        # ─── TACACS+ authentication path ────────────────────────────────
+        # When enabled, TACACS+ is tried FIRST. On success, the matching
+        # local user is used (or auto-provisioned when the config allows).
+        # On network/infrastructure failure we fall through to the normal
+        # local-password path when ``fallback_local`` is set.
+        tacacs_ok = False
+        tacacs_cfg = TacacsService.load_config()
+        if tacacs_cfg.enabled and tacacs_cfg.host and tacacs_cfg.has_secret:
+            tacacs_ok, tacacs_err = TacacsService.authenticate(
+                form.username.data, form.password.data
+            )
+            if tacacs_ok:
+                if not user and tacacs_cfg.auto_create_user:
+                    user = _provision_tacacs_user(
+                        form.username.data,
+                        tacacs_cfg.default_email_domain,
+                    )
+                if not user:
+                    flash(
+                        'Autenticação TACACS+ bem-sucedida, mas não existe usuário local correspondente.'
+                        ' Contate o administrador.',
+                        'warning',
+                    )
+                    return render_template('auth/login.html', form=form)
+                current_app.logger.info('User %s authenticated via TACACS+', user.username)
+            else:
+                # Hard failure (not simple credential rejection)
+                if tacacs_err:
+                    current_app.logger.warning('TACACS+ error for %s: %s', form.username.data, tacacs_err)
+                if not tacacs_cfg.fallback_local:
+                    flash('Falha na autenticação TACACS+.', 'danger')
+                    return render_template('auth/login.html', form=form)
+
+        if tacacs_ok or (user and user.check_password(form.password.data)):
             # Check if user is active
             if not user.is_active:
-                flash('This account has been deactivated.', 'danger')
+                flash('Esta conta foi desativada.', 'danger')
                 return render_template('auth/login.html', form=form)
-            
+
             # Check if account is locked
-            if user.locked_until and user.locked_until > datetime.now(timezone.utc):
-                remaining = int((user.locked_until - datetime.now(timezone.utc)).total_seconds() / 60)
-                flash(f'Account locked. Try again in {remaining} minutes.', 'danger')
+            if user.is_locked():
+                remaining = int((user.locked_until - datetime.now(timezone.utc)).total_seconds() / 60) + 1
+                flash(f'Conta bloqueada. Tente novamente em {remaining} minuto(s).', 'danger')
                 return render_template('auth/login.html', form=form)
-            
-            # Successful login
-            user.failed_login_count = 0
-            user.locked_until = None
-            user.last_login_at = datetime.now(timezone.utc)
-            db.session.commit()
-            
+
+            # Successful login — use model method to track IP, count and timestamps
+            user.record_login(ip_address=request.remote_addr)
+
             login_user(user, remember=form.remember_me.data)
-            current_app.logger.info(f'User {user.username} logged in successfully')
-            
+            current_app.logger.info('User %s logged in successfully from %s', user.username, request.remote_addr)
+
             # Check if admin needs to reset password
             if user.is_admin and user.force_password_reset:
-                flash('Please reset your password for security reasons.', 'warning')
+                flash('Sua conta requer redefinição de senha. Acesse Configurações → Segurança.', 'warning')
                 return redirect(url_for('core.settings'))
-            
+
             # Redirect to next page or dashboard
             next_page = request.args.get('next')
             if next_page and next_page.startswith('/'):
@@ -96,17 +156,14 @@ def login():
         else:
             # Failed login
             if user:
-                user.failed_login_count = (user.failed_login_count or 0) + 1
-                if user.failed_login_count >= 5:
-                    user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
-                    flash('Account locked due to multiple failed attempts. Try again in 15 minutes.', 'danger')
-                    db.session.commit()
+                user.record_failed_login()
+                if user.is_locked():
+                    flash('Conta bloqueada após múltiplas tentativas. Tente novamente em 15 minutos.', 'danger')
                 else:
-                    flash('Invalid username or password.', 'danger')
-                    db.session.commit()
+                    flash('Usuário ou senha inválidos.', 'danger')
             else:
-                flash('Invalid username or password.', 'danger')
-            
+                flash('Usuário ou senha inválidos.', 'danger')
+
             return render_template('auth/login.html', form=form)
     
     return render_template('auth/login.html', form=form)

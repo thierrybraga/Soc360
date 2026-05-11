@@ -84,6 +84,14 @@
 .bg-light { background-color: var(--surface-1, #f8f9fa) !important; }
 .bg-dark { background-color: var(--surface-dark, #343a40) !important; }
 
+/* Semi-transparent badge variants (bg-opacity-25 fix for custom theme) */
+.bg-primary.bg-opacity-25 { background-color: rgba(0, 123, 255, 0.15) !important; }
+.bg-secondary.bg-opacity-25 { background-color: rgba(108, 117, 125, 0.15) !important; }
+.bg-success.bg-opacity-25 { background-color: rgba(40, 167, 69, 0.15) !important; }
+.bg-danger.bg-opacity-25 { background-color: rgba(220, 53, 69, 0.15) !important; }
+.bg-warning.bg-opacity-25 { background-color: rgba(255, 193, 7, 0.15) !important; }
+.bg-info.bg-opacity-25 { background-color: rgba(23, 162, 184, 0.15) !important; }
+
 /* Border utilities */
 .border { border: 1px solid var(--border-color, #dee2e6) !important; }
 .border-0 { border: 0 !important; }
@@ -382,3 +390,15 @@ html[data-theme="high-contrast"] {
 
 /* ======= UTILITÁRIOS DE HOVER ======= */
 .hover-bg-gray-800:hover { background-color: var(--gray-800); }
+
+/* === Z-index utility === */
+.z-1055 { z-index: 1055 !important; }
+/* === Badge small text === */
+.badge-sm-text { font-size: .7em; }
+/* === Column min-widths === */
+.col-min-250 { min-width: 250px; }
+/* === Profile picture size === */
+.profile-pic-sm { width: 80px; height: 80px; object-fit: cover; }
+/* === Spinner size override === */
+.spinner-lg { width: 3rem !important; height: 3rem !important; }
+

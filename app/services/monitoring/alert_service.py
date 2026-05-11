@@ -1,5 +1,5 @@
 """
-Open-Monitor Alert Service
+SOC360 Alert Service
 Serviço para geração e gerenciamento de alertas.
 """
 import logging

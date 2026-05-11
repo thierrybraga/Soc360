@@ -995,3 +995,101 @@
 .vulnerability-item:nth-child(3) { animation-delay: 100ms; }
 .vulnerability-item:nth-child(4) { animation-delay: 150ms; }
 .vulnerability-item:nth-child(5) { animation-delay: 200ms; }
+
+
+/* ==========================================================================
+   Dashboard Tables — Dark Theme Override
+   Neutraliza os defaults light do Bootstrap 5 (.table > :not(caption) > * > *)
+   usando seletores equivalentes + posição na cascata (carrega depois do Bootstrap)
+   ========================================================================== */
+
+/* Reset das variáveis Bootstrap para tema escuro nas tabelas do dashboard */
+.dash-table {
+  --bs-table-color:      #cbd5e1;          /* texto principal — cinza claro legível  */
+  --bs-table-bg:         transparent;      /* fundo das células — herda do card      */
+  --bs-table-border-color: rgba(255,255,255,0.07); /* divisórias sutis               */
+  --bs-table-striped-bg: rgba(255,255,255,0.025);
+  --bs-table-hover-color:#e2e8f0;
+  --bs-table-hover-bg:   rgba(255,255,255,0.04);
+  --bs-table-accent-bg:  transparent;
+  color: #cbd5e1;
+  border-collapse: collapse;
+}
+
+/* Cabeçalho — fundo ligeiramente mais escuro, texto muted legível */
+.dash-table thead > tr > th {
+  background-color: rgba(255,255,255,0.04) !important;
+  color: #94a3b8 !important;               /* slate-400 — claro mas secundário      */
+  border-bottom: 1px solid rgba(255,255,255,0.10) !important;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.65rem 1rem;
+  white-space: nowrap;
+}
+
+/* Células de dados — sobrepõe Bootstrap com mesma especificidade + ordem */
+.dash-table > :not(caption) > * > * {
+  background-color: transparent !important;
+  color: inherit;
+  border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+  box-shadow: none !important;
+  padding: 0.75rem 1rem;
+}
+
+/* Linhas do body */
+.dash-table tbody > tr {
+  color: #cbd5e1;
+  transition: background-color 0.15s ease;
+}
+
+.dash-table tbody > tr:hover {
+  background-color: rgba(255,255,255,0.04) !important;
+  color: #e2e8f0;
+}
+
+.dash-table tbody > tr:last-child > td {
+  border-bottom: none !important;
+}
+
+/* Texto secundário dentro das células (datas, IPs, labels) */
+.dash-table td {
+  vertical-align: middle;
+}
+
+.dash-table td small,
+.dash-table td .text-muted {
+  color: #64748b !important;               /* slate-500 — muted mas ainda legível   */
+}
+
+/* Badge de CVSS — já tem cor própria, garante legibilidade */
+.dash-table .badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  min-width: 2rem;
+  text-align: center;
+}
+
+/* Tabela de Ativos em Risco — coluna de risco */
+#risk-matrix-table td .progress,
+#risk-matrix-table .risk-bar {
+  background-color: rgba(255,255,255,0.08);
+}
+
+/* Estado vazio / skeleton dentro das tabelas */
+.dash-table .skeleton-text {
+  background: rgba(255,255,255,0.08);
+  border-radius: 3px;
+  display: inline-block;
+  height: 0.85rem;
+}
+
+/* === Dashboard icon/value color helpers === */
+.dash-icon-critical  { color: var(--critical); }
+.dash-icon-warning   { color: var(--warning); }
+.dash-icon-danger    { color: var(--danger); }
+.dash-sla-value--danger  { color: var(--danger); }
+.dash-sla-value--warning { color: var(--warning); }
+.dash-time-range     { min-width: 150px; }
+

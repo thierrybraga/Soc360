@@ -1,5 +1,5 @@
 """
-Open-Monitor Database Utilities
+SOC360 Database Utilities
 Funções para inicialização e manutenção do banco de dados.
 """
 import os
@@ -23,69 +23,90 @@ def _is_postgres_available(uri: str, timeout: int = 3) -> bool:
 
 logger = logging.getLogger(__name__)
 
+def _sqlite_col_type(column) -> str:
+    """Converte o tipo SQLAlchemy de uma coluna para um tipo SQLite válido."""
+    type_str = str(column.type).upper()
+    base = type_str.split('(')[0].strip()
+
+    # Inteiros
+    if base in ('INTEGER', 'INT', 'BIGINT', 'SMALLINT', 'TINYINT'):
+        return 'INTEGER'
+    # Booleano (SQLite armazena como INTEGER 0/1)
+    if base in ('BOOLEAN', 'BOOL'):
+        return 'INTEGER'
+    # Ponto flutuante
+    if base in ('FLOAT', 'REAL', 'DOUBLE', 'DOUBLE_PRECISION', 'NUMERIC', 'DECIMAL'):
+        return 'REAL'
+    # Data/hora
+    if base in ('DATETIME', 'TIMESTAMP'):
+        return 'DATETIME'
+    if base == 'DATE':
+        return 'DATE'
+    # Strings de tamanho fixo
+    if base in ('VARCHAR', 'CHAR', 'NVARCHAR', 'NCHAR'):
+        return 'TEXT'
+    # Tudo o mais (TEXT, JSON, JSONB, INET, ARRAY, BLOB, etc.) → TEXT
+    return 'TEXT'
+
+
 def ensure_schema_up_to_date(app: Flask):
     """
     Verifica se o schema do banco de dados está atualizado.
-    Para SQLite, adiciona colunas faltantes automaticamente.
+    Para SQLite, adiciona colunas faltantes automaticamente via ALTER TABLE.
     """
     with app.app_context():
         # 1. Criar tabelas que ainda não existem
         db.create_all()
-        
+
         inspector = inspect(db.engine)
         table_names = inspector.get_table_names()
-        
+
         # Iterar sobre todos os mappers registrados no SQLAlchemy
         for mapper in db.Model.registry.mappers:
             model = mapper.class_
             if not hasattr(model, '__table__'):
                 continue
-                
+
             table_name = model.__tablename__
             if table_name not in table_names:
                 continue
-                
+
             # Obter colunas atuais do banco
             try:
-                existing_columns = [c['name'] for c in inspector.get_columns(table_name)]
+                existing_columns = {c['name'] for c in inspector.get_columns(table_name)}
             except Exception:
                 continue
-            
+
             # Verificar cada coluna do model
             for column in model.__table__.columns:
-                if column.name not in existing_columns:
-                    logger.info(f"Adicionando coluna faltante {column.name} na tabela {table_name}...")
-                    
-                    # Tipo da coluna para SQL
-                    col_type = str(column.type).split('(')[0] # Simplificado para SQLite
-                    if 'VARCHAR' in col_type.upper():
-                        col_type = 'TEXT'
-                    elif 'BOOLEAN' in col_type.upper():
-                        col_type = 'BOOLEAN'
-                    elif 'DATETIME' in col_type.upper():
-                        col_type = 'DATETIME'
-                    elif 'FLOAT' in col_type.upper():
-                        col_type = 'FLOAT'
-                    elif 'INTEGER' in col_type.upper():
-                        col_type = 'INTEGER'
-                    else:
-                        col_type = 'TEXT' # Fallback
-                        
-                    default_val = ""
-                    if column.default is not None:
-                        if hasattr(column.default, 'arg'):
-                            if isinstance(column.default.arg, bool):
-                                default_val = f" DEFAULT {1 if column.default.arg else 0}"
-                            elif isinstance(column.default.arg, (int, float)):
-                                default_val = f" DEFAULT {column.default.arg}"
-                    
-                    try:
-                        db.session.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column.name} {col_type}{default_val}"))
-                        db.session.commit()
-                        logger.info(f"Coluna {column.name} adicionada com sucesso.")
-                    except Exception as e:
-                        db.session.rollback()
-                        logger.error(f"Erro ao adicionar coluna {column.name}: {e}")
+                if column.name in existing_columns:
+                    continue
+
+                logger.info(f"Adicionando coluna faltante '{column.name}' na tabela '{table_name}'...")
+
+                col_type = _sqlite_col_type(column)
+
+                default_val = ""
+                if column.default is not None and hasattr(column.default, 'arg'):
+                    arg = column.default.arg
+                    if isinstance(arg, bool):
+                        default_val = f" DEFAULT {1 if arg else 0}"
+                    elif isinstance(arg, (int, float)):
+                        default_val = f" DEFAULT {arg}"
+                    elif isinstance(arg, str):
+                        # Escapar aspas simples para evitar SQL injection via valores defaults
+                        safe = arg.replace("'", "''")
+                        default_val = f" DEFAULT '{safe}'"
+
+                try:
+                    db.session.execute(
+                        text(f"ALTER TABLE {table_name} ADD COLUMN {column.name} {col_type}{default_val}")
+                    )
+                    db.session.commit()
+                    logger.info(f"Coluna '{column.name}' adicionada com sucesso.")
+                except Exception as e:
+                    db.session.rollback()
+                    logger.error(f"Erro ao adicionar coluna '{column.name}' em '{table_name}': {e}")
 
 def initialize_database(app: Flask):
     """
@@ -127,7 +148,7 @@ def initialize_database(app: Flask):
 def create_default_admin():
     """Cria o usuário administrador padrão (admin/admin)."""
     admin_username = 'admin'
-    admin_email = 'admin@open-monitor.local'
+    admin_email = 'admin@soc360.local'
     admin_password = 'admin' # Senha solicitada pelo usuário
     
     admin_user = User.query.filter_by(username=admin_username).first()
@@ -173,8 +194,12 @@ def check_and_init_db(app: Flask):
                 'core': 'sqlite:///' + db_path,
                 'public': 'sqlite:///' + db_path
             }
+            # StaticPool compartilha uma única conexão entre threads de forma segura,
+            # evitando "SQLite objects created in a thread can only be used in that same thread".
+            from sqlalchemy.pool import StaticPool
             app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-                'connect_args': {'check_same_thread': False}
+                'connect_args': {'check_same_thread': False},
+                'poolclass': StaticPool,
             }
             app.config['REDIS_URL'] = None
             app.config['REDIS_HOST'] = 'localhost'

@@ -1,5 +1,5 @@
 """
-Open-Monitor Redis Cache Service
+SOC360 Redis Cache Service
 Serviço de cache usando Redis com TTL e operações comuns.
 """
 import json
@@ -43,7 +43,7 @@ class RedisCacheService:
     def _connect(self):
         """Estabelecer conexão com Redis."""
         try:
-            redis_url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
+            redis_url = current_app.config.get('REDIS_URL') or 'redis://localhost:6379/0'
             
             self._client = redis.from_url(
                 redis_url,

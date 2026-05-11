@@ -1,0 +1,128 @@
+/* =============================================================================
+   Cisco Umbrella Module Styles — Open-Monitor / SOC360
+   Used by: umbrella/dashboard.html
+   ============================================================================= */
+
+/* ── Scoped Bootstrap component overrides for dark theme ────────────────────*/
+[data-page="umbrella-dashboard"] .card,
+#reportModal .modal-content,
+#downloadModal .modal-content {
+    background-color: var(--bg-card, var(--bg-secondary));
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+#reportModal .modal-header,
+#reportModal .modal-footer,
+#downloadModal .modal-header,
+#downloadModal .modal-footer {
+    border-color: var(--border-color);
+}
+
+#reportModal .form-select,
+#reportModal .form-control {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+#reportModal .form-select option {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+[data-page="umbrella-dashboard"] .table { color: var(--text-primary); }
+[data-page="umbrella-dashboard"] .table > :not(caption) > * > * { background: transparent; }
+
+[data-page="umbrella-dashboard"] .text-muted { color: var(--text-secondary) !important; }
+
+[data-page="umbrella-dashboard"] .alert-secondary {
+    background-color: var(--bg-secondary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* Organization card link styling */
+[data-page="umbrella-dashboard"] .card-title a { color: var(--text-primary); }
+[data-page="umbrella-dashboard"] .card-title a:hover { color: var(--primary); }
+
+/* Ensure Bootstrap modal-content always has a solid background */
+#reportModal .modal-content,
+#downloadModal .modal-content {
+    background-color: var(--bg-card, var(--bg-secondary)) !important;
+}
+
+/* ── Reports table dark-theme variables ──────────────────────────────────────*/
+#reports-table {
+    --bs-table-color:        #cbd5e1;
+    --bs-table-bg:           transparent;
+    --bs-table-border-color: rgba(255,255,255,0.07);
+    --bs-table-hover-color:  #e2e8f0;
+    --bs-table-hover-bg:     rgba(255,255,255,0.04);
+    --bs-table-accent-bg:    transparent;
+    color: #cbd5e1;
+}
+
+#reports-table thead > tr > th {
+    background-color: rgba(255,255,255,0.04) !important;
+    color: #94a3b8 !important;
+    border-bottom: 1px solid rgba(255,255,255,0.10) !important;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+#reports-table > :not(caption) > * > * {
+    background-color: transparent !important;
+    color: inherit;
+    border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+    box-shadow: none !important;
+}
+
+#reports-table tbody > tr { color: #cbd5e1; }
+#reports-table tbody > tr:hover { background-color: rgba(255,255,255,0.04) !important; }
+#reports-table tbody > tr:last-child > td { border-bottom: none !important; }
+
+/* Download modal success header */
+#downloadModal .modal-header.bg-success { background-color: #198754 !important; }
+
+/* ── Success icon size ───────────────────────────────────────────────────────*/
+.umbrella-success-icon { font-size: 4rem; }
+
+/* === Organization Detail page === */
+[data-page="umbrella-org"] .card {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+[data-page="umbrella-org"] .table { color: var(--text-primary); }
+[data-page="umbrella-org"] .table > :not(caption) > * > * { background: transparent; }
+[data-page="umbrella-org"] .stat-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+[data-page="umbrella-org"] .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+[data-page="umbrella-org"] .status-active { background: rgba(16,185,129,.2); color: #10b981; }
+[data-page="umbrella-org"] .status-inactive { background: rgba(239,68,68,.2); color: #ef4444; }
+[data-page="umbrella-org"] code {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+}
+[data-page="umbrella-org"] .text-muted { color: var(--text-secondary) !important; }
+#reportModal .modal-content { background-color: var(--card-bg); color: var(--text-primary); border-color: var(--border-color); }
+#reportModal .modal-header,
+#reportModal .modal-footer { border-color: var(--border-color); }
+#reportModal .form-control { background-color: var(--input-bg, var(--card-bg)); color: var(--text-primary); border-color: var(--border-color); }
+/* Status indicator dot icon */
+.umb-status-dot { font-size: 0.5rem; }
+

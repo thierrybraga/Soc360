@@ -320,7 +320,7 @@ class AssetCorrelationService:
         all_filters = vendor_filters + product_filters
         if all_filters:
             query = query.filter(db.or_(*all_filters))
-        potential = query.order_by(Vulnerability.cvss_score.desc().nullslast()).limit(1500).all()
+        potential = query.order_by(Vulnerability.cvss_score.desc().nulls_last()).limit(1500).all()
         matches = []
         for vuln in potential:
             vendor_hit = self._vendor_match(vuln, candidates['vendors'])

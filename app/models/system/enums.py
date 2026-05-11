@@ -1,5 +1,5 @@
 """
-Open-Monitor Enums
+SOC360 Enums
 Enumerações utilizadas em todo o sistema.
 """
 from enum import Enum

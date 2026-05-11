@@ -1,0 +1,329 @@
+/* =============================================================================
+   Inventory Module Styles — Open-Monitor / SOC360
+   Used by: inventory/detail.html · inventory/index.html · inventory/form.html
+   ============================================================================= */
+
+/* ── Form layout helpers (inventory/form.html) ───────────────────────────────*/
+.inv-form-max {
+    width: 100%;
+    max-width: 900px;
+}
+
+.inv-form-section {
+    margin-bottom: 2rem;
+}
+
+/* Section heading: small-caps title with border-bottom separator */
+.inv-section-heading {
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    padding-bottom: .5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Section header row: heading on left, action button on right */
+.inv-section-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: .5rem;
+    padding-bottom: .5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.inv-section-row .inv-section-heading {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+/* Form footer actions bar */
+.inv-form-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* ── Page header helpers ─────────────────────────────────────────────────────*/
+.asset-type-icon {
+    font-size: 1.1rem;
+    color: var(--primary-500);
+}
+
+.asset-page-title {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.asset-meta-line {
+    margin: 0;
+    font-size: .82rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Gradient primary button (correlate CVEs) */
+.btn-gradient-primary {
+    background: var(--gradient-primary);
+    color: white !important;
+    border: none;
+}
+.btn-gradient-primary:hover {
+    opacity: .9;
+}
+
+/* ── Icon accent ─────────────────────────────────────────────────────────────*/
+.icon-accent { color: var(--primary-500); }
+
+/* ── Badge size helpers ──────────────────────────────────────────────────────*/
+.badge-xs   { font-size: .68rem; }
+.badge-sm   { font-size: .72rem; }
+.badge-dot  { font-size: .5rem;  margin-right: .25rem; }
+
+/* ── Card section titles ─────────────────────────────────────────────────────*/
+.card-section-title {
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+}
+
+.card-section-title-sm {
+    font-size: .85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: .85rem;
+}
+
+/* Tight card header padding */
+.card-header-tight { padding: .85rem 1rem; }
+
+/* ── Detail label / value ────────────────────────────────────────────────────*/
+/* Label: small all-caps descriptive text above a value */
+.detail-label {
+    font-size: .72rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: .04em;
+}
+
+/* Base value line */
+.detail-value {
+    margin-top: .25rem;
+    color: var(--text-primary);
+    font-size: .88rem;
+}
+
+/* Metadata-style labels (right sidebar) */
+.meta-label {
+    font-size: .75rem;
+    display: block;
+    color: var(--text-muted);
+}
+
+/* Metadata-style values */
+.meta-value {
+    font-size: .82rem;
+    color: var(--text-primary);
+}
+
+/* Description paragraph */
+.detail-desc {
+    margin-top: .3rem;
+    color: var(--text-secondary);
+    font-size: .88rem;
+    line-height: 1.6;
+}
+
+/* Section divider with top border */
+.section-divider {
+    border-top: 1px solid var(--border-color);
+    padding-top: .85rem;
+    margin-top: .5rem;
+}
+
+/* ── Tag / software badges ───────────────────────────────────────────────────*/
+.tag-badge {
+    background: rgba(59,130,246,.15);
+    color: var(--primary-400);
+    border: 1px solid rgba(59,130,246,.25);
+    font-size: .75rem;
+}
+
+.sw-badge {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    font-size: .76rem;
+    font-weight: 500;
+}
+
+.sw-badge .sw-version { opacity: .65; }
+
+/* ── BIA (Business Impact Analysis) ─────────────────────────────────────────*/
+.bia-subtitle {
+    font-size: .8rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: .5rem;
+}
+
+.bia-score-label {
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.bia-progress-track {
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 9px;
+    overflow: hidden;
+}
+
+.bia-stat-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+
+.bia-stat-value {
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+
+/* ── Vulnerability table ─────────────────────────────────────────────────────*/
+.vuln-table { font-size: .83rem; }
+
+.vuln-table-head { background: var(--bg-secondary); }
+
+.vuln-th {
+    padding: .6rem .85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: .7rem;
+    letter-spacing: .04em;
+    white-space: nowrap;
+}
+.vuln-th--wide   { padding-left:  1rem; padding-right: 1rem; }
+.vuln-th--center { text-align: center; }
+.vuln-th--right  { text-align: right; }
+
+.vuln-td         { padding: .65rem .85rem; white-space: nowrap; }
+.vuln-td--wide   { padding-left: 1rem; }
+.vuln-td--center { text-align: center; }
+.vuln-td--right  { text-align: right;  padding-right: 1rem; }
+
+/* Row highlight for overdue items */
+.vuln-row--overdue { background: rgba(239,68,68,.04) !important; }
+
+/* CVE link in table */
+.vuln-cve-link {
+    color: var(--primary-400);
+    font-weight: 600;
+    font-family: monospace;
+    font-size: .82rem;
+}
+
+/* KEV inline badge */
+.kev-badge-sm {
+    margin-left: .3rem;
+    font-size: .65rem;
+    background: rgba(239,68,68,.15);
+    color: var(--danger);
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-weight: 700;
+}
+
+/* Overdue icon */
+.overdue-icon {
+    margin-left: .2rem;
+    color: var(--danger);
+    font-size: .75rem;
+}
+
+/* Vuln action button */
+.btn-vuln-action {
+    padding: .2rem .5rem !important;
+    font-size: .75rem !important;
+}
+
+/* ── Vuln status badges ───────────────────────────────────────────────────────*/
+.vuln-status-open         { background: rgba(239,68,68,.15);    color: var(--danger);    border: 1px solid rgba(239,68,68,.25);    font-size: .72rem; }
+.vuln-status-in-progress  { background: rgba(245,158,11,.15);   color: var(--warning);   border: 1px solid rgba(245,158,11,.25);   font-size: .72rem; }
+.vuln-status-resolved     { background: rgba(16,185,129,.15);   color: var(--success);   border: 1px solid rgba(16,185,129,.25);   font-size: .72rem; }
+.vuln-status-mitigated    { background: rgba(59,130,246,.15);   color: var(--info);      border: 1px solid rgba(59,130,246,.25);   font-size: .72rem; }
+.vuln-status-accepted     { background: rgba(148,163,184,.15);  color: var(--text-muted); border: 1px solid var(--border-color);  font-size: .72rem; }
+.vuln-status-false-pos    { background: rgba(148,163,184,.12);  color: var(--text-muted); border: 1px solid var(--border-color);  font-size: .72rem; }
+.vuln-status-default      { background: var(--bg-tertiary);     color: var(--text-muted); font-size: .72rem; }
+
+/* ── Status distribution list ────────────────────────────────────────────────*/
+.list-row-bordered {
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* ── Chart containers (shared with wazuh.css) ────────────────────────────────*/
+/* Defined here for inventory; wazuh.css has same classes */
+.chart-container-sm { position: relative; height: 220px; }
+.chart-container-md { position: relative; height: 260px; }
+
+/* ── Utility: flex min-width guard ──────────────────────────────────────────*/
+.mw-0 { min-width: 0; }
+
+/* ── Criticality badge in detail view ───────────────────────────────────────*/
+.badge-detail { font-size: .8rem; padding: .35em .7em; }
+
+/* ── BIA score value display ─────────────────────────────────────────────────*/
+.bia-score-value { font-size: .8rem; font-weight: 700; }
+
+/* ── BIA stat value (large number in stat card) ─────────────────────────────*/
+/* .bia-stat-value already defined above — covers 1.2rem/800 variant */
+/* Override font-size for cost card (.bia-stat-value with 1rem) is kept inline */
+
+/* ── Severity distribution helpers ──────────────────────────────────────────*/
+/* Count badge on the right */
+.sev-count {
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+/* Mini progress track (5px, thinner than BIA) */
+.sev-bar-track {
+    height: 5px;
+    background: var(--bg-tertiary);
+    border-radius: 9px;
+    overflow: hidden;
+}
+
+/* ── Risk score large display ────────────────────────────────────────────────*/
+.risk-score-value {
+    font-size: 1.8rem;
+    font-weight: 900;
+    margin-top: .2rem;
+}
+
+/* ── Severity distribution — label (left) and count badge (right) ───────────*/
+.sev-label {
+    font-size: .78rem;
+    font-weight: 600;
+    /* color is set inline via Jinja2 {{ color }} */
+}
+
+/* Status distribution count badge (transparent bg, colored text) */
+.status-cnt-badge {
+    background: transparent;
+    font-weight: 700;
+    font-size: .82rem;
+    /* color is set inline via Jinja2 {{ st_color }} */
+}

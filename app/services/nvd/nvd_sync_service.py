@@ -1,5 +1,5 @@
 """
-Open-Monitor NVD Sync Service
+SOC360 NVD Sync Service
 Orquestrador de sincronização com NVD.
 """
 import logging

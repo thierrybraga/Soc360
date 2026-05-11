@@ -72,16 +72,16 @@ function addSoftwareRow(vendor = '', product = '', version = '') {
     row.innerHTML = `
         <div class="flex-grow-1 row g-2">
             <div class="col-md-4">
-                <input type="text" class="form-input software-vendor" placeholder="Vendor" value="${vendor}" required>
+                <input type="text" class="form-input software-vendor" placeholder="Fabricante" value="${vendor}" required>
             </div>
             <div class="col-md-4">
-                <input type="text" class="form-input software-product" placeholder="Product" value="${product}" required>
+                <input type="text" class="form-input software-product" placeholder="Produto" value="${product}" required>
             </div>
             <div class="col-md-4">
-                <input type="text" class="form-input software-version" placeholder="Version" value="${version}">
+                <input type="text" class="form-input software-version" placeholder="Versão" value="${version}">
             </div>
         </div>
-        <button type="button" class="btn btn-icon btn-ghost text-danger btn-remove-software" title="Remove">
+        <button type="button" class="btn btn-icon btn-ghost text-danger btn-remove-software" title="Remover">
             <i class="fas fa-trash"></i>
         </button>
     `;
@@ -101,7 +101,7 @@ async function saveAsset(e) {
     }
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Salvando…';
     
     // Collect software data
     const software = [];
@@ -160,13 +160,13 @@ async function saveAsset(e) {
         const result = await response.json();
 
         if (response.ok) {
-            window.OpenMonitor?.showToast(result.message || 'Asset created successfully', 'success');
-            
+            window.OpenMonitor?.showToast(result.message || 'Ativo criado com sucesso!', 'success');
+
             // Log correlation results if any
             if (result.correlation) {
                 console.log('Correlation results:', result.correlation);
                 if (result.correlation.matched_cves > 0) {
-                    window.OpenMonitor?.showToast(`Found ${result.correlation.matched_cves} matching CVEs`, 'info');
+                    window.OpenMonitor?.showToast(`${result.correlation.matched_cves} CVE(s) correspondente(s) encontrada(s).`, 'info');
                 }
             }
             
@@ -175,7 +175,7 @@ async function saveAsset(e) {
                 window.location.href = '/assets/';
             }, 2000);
         } else {
-            throw new Error(result.error || result.message || 'Failed to create asset');
+            throw new Error(result.error || result.message || 'Falha ao criar ativo.');
         }
     } catch (error) {
         console.error('Error saving asset:', error);

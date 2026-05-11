@@ -3,47 +3,7 @@
 {% block title %}Configurações de Notificação - Open Monitor{% endblock %}
 
 {% block extra_css %}
-<style>
-.channel-config {
-    display: none;
-    margin-top: 15px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 5px;
-    border-left: 4px solid #007bff;
-}
-
-.channel-toggle:checked + .channel-config {
-    display: block;
-}
-
-.event-setting-card .card-header {
-    background: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.form-check-inline {
-    margin-right: 20px;
-}
-
-.test-notification-form .form-group {
-    margin-bottom: 15px;
-}
-
-.loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(255, 255, 255, 0.8);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    display: none;
-}
-</style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 {% endblock %}
 
 {% block content %}

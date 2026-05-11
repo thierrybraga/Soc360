@@ -1,5 +1,5 @@
 """
-Open-Monitor CVSS Metric Model
+SOC360 CVSS Metric Model
 Model para métricas CVSS detalhadas.
 """
 from sqlalchemy import Column, String, Float, ForeignKey, Text, Integer, UniqueConstraint

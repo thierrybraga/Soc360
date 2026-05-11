@@ -1,5 +1,5 @@
 """
-Open-Monitor Jobs Package
+SOC360 Jobs Package
 Background jobs and data fetchers.
 """
 
