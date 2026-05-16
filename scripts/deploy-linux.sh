@@ -685,13 +685,22 @@ verify_deployment() {
     fi
 
     # ----- 4. Redis reachable from app (usa lib redis do Python, que ESTÁ na imagem) -----
+    # NOTA: `docker exec` NÃO executa o entrypoint.sh, então REDIS_PASSWORD
+    # (exportado lá a partir de REDIS_PASSWORD_FILE) não existe neste processo.
+    # Espelhamos a lógica do entrypoint: ler o secret file como fallback.
     if docker exec soc360-app python -c "
 import os, sys
 try:
     import redis
+    pw = os.environ.get('REDIS_PASSWORD')
+    if not pw:
+        pw_file = os.environ.get('REDIS_PASSWORD_FILE')
+        if pw_file and os.path.isfile(pw_file):
+            with open(pw_file) as f:
+                pw = f.read().strip()
     r = redis.Redis(host=os.environ.get('REDIS_HOST','redis'),
                      port=int(os.environ.get('REDIS_PORT','6379')),
-                     password=os.environ.get('REDIS_PASSWORD'),
+                     password=pw or None,
                      socket_connect_timeout=5)
     sys.exit(0 if r.ping() else 1)
 except Exception as e:
