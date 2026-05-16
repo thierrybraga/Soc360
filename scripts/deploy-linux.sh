@@ -270,9 +270,14 @@ check_env_file() {
         log_success ".env file exists"
     fi
     
-    # Check SECRET_KEY
-    if ! grep -q "SECRET_KEY=" "$PROJECT_ROOT/.env" || grep -q "SECRET_KEY=$" "$PROJECT_ROOT/.env" 2>/dev/null; then
-        log_warn "SECRET_KEY not set in .env. Please configure it."
+    # NOTA: o deploy containerizado lê SECRET_KEY do Docker secret
+    # (secrets/secret_key.txt → /run/secrets/secret_key via SECRET_KEY_FILE),
+    # NÃO do .env. init_secrets() cuida disso. Aqui só validamos vars de
+    # runtime opcionais que realmente vêm do .env.
+    if grep -qE '^OPENAI_API_KEY=.+' "$PROJECT_ROOT/.env" 2>/dev/null; then
+        log_success "OPENAI_API_KEY configurada (.env) — IA com respostas reais"
+    else
+        log_info "OPENAI_API_KEY não definida — IA em modo demo (esperado se não usar OpenAI)"
     fi
 }
 
@@ -297,15 +302,21 @@ validate_secret_key() {
 }
 
 secure_secrets() {
-    # Definir permissões restritas nos arquivos de secrets
+    # Proteção em camadas: o diretório fica 700 (só root no host pode listar/abrir
+    # os arquivos), mas os ARQUIVOS ficam 644. Motivo: docker compose (não-swarm)
+    # faz bind-mount dos secrets em /run/secrets/ preservando dono/modo do host.
+    # Os containers app/celery rodam como UID 1000 (openmonitor) e precisam LER
+    # /run/secrets/secret_key — com 600 root:root o cat falha ("Permission denied"),
+    # SECRET_KEY fica vazio e o container entra em restart loop (unhealthy).
+    # O dir 700 mantém a proteção no host; 644 só vale dentro do bind-mount.
     if [ -d "$PROJECT_ROOT/secrets" ]; then
         chmod 700 "$PROJECT_ROOT/secrets" 2>/dev/null || true
         for secret_file in "$PROJECT_ROOT/secrets"/*.txt; do
             if [ -f "$secret_file" ]; then
-                chmod 600 "$secret_file" 2>/dev/null || true
+                chmod 644 "$secret_file" 2>/dev/null || true
             fi
         done
-        log_success "Secrets secured with restrictive permissions (600)"
+        log_success "Secrets protegidos (dir 700 / arquivos 644 — legíveis pelo container UID 1000)"
     fi
 }
 
@@ -402,6 +413,19 @@ configure_selinux() {
     fi
 
     log_info "SELinux detectado ($(getenforce)), configurando contextos..."
+
+    # semanage/restorecon vêm de policycoreutils-python-utils — não estão no OL9 minimal.
+    # Sem eles, os bind-mounts ficam sem container_file_t e os containers NÃO conseguem ler.
+    if ! command -v semanage &> /dev/null || ! command -v restorecon &> /dev/null; then
+        log_error "SELinux está ENFORCING mas 'semanage'/'restorecon' não estão instalados."
+        log_error "Os containers NÃO conseguirão acessar os volumes bind-mount."
+        log_info  "Instale: sudo dnf install -y policycoreutils-python-utils"
+        log_info  "Ou desabilite temporariamente: sudo setenforce 0 (NÃO recomendado em prod)"
+        if ! confirm "Continuar mesmo assim (containers podem falhar)?"; then
+            exit 1
+        fi
+        return 0
+    fi
 
     # Persistent context for secrets/
     sudo semanage fcontext -a -t container_file_t "$PROJECT_ROOT/secrets(/.*)?" 2>/dev/null || true
@@ -505,31 +529,59 @@ build_container() {
 
     log_info "Executando build (pode levar vários minutos)..."
 
-    if ! $COMPOSE_CMD $compose_args build --parallel 2>&1 | tee "$build_log"; then
-        local exit_code=$?
+    # Captura o exit code REAL do docker build (PIPESTATUS[0]), não o do 'tee'
+    # nem o da negação do 'if'. set +e temporário para não abortar via set -e.
+    set +e
+    $COMPOSE_CMD $compose_args build --parallel 2>&1 | tee "$build_log"
+    local exit_code=${PIPESTATUS[0]}
+    set -e
+
+    if [ "$exit_code" -ne 0 ]; then
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         local minutes=$((duration / 60))
         local seconds=$((duration % 60))
         
         log_error "Build failed with exit code $exit_code after ${minutes}m ${seconds}s"
-        
+
         # Mostrar últimos erros do log
         if [ -f "$build_log" ]; then
             log_error "Últimos erros do build:"
-            tail -20 "$build_log" | grep -i "error\|failed\|cannot" | tail -5 || tail -5 "$build_log"
+            tail -50 "$build_log" | grep -i "error\|failed\|cannot\|no match\|unable to find" | tail -8 || tail -10 "$build_log"
+
+            # Diagnóstico específico para erros conhecidos do OL9
+            if grep -qi "no match for argument.*\(liberation-fonts\|dejavu-fonts-ttf\)" "$build_log" 2>/dev/null; then
+                echo ""
+                log_error "ERRO CONHECIDO OL9: pacotes 'liberation-fonts' / 'dejavu-fonts-ttf' não existem no Oracle Linux 9."
+                log_info "Estes são nomes Debian. Os corretos no OL9 são:"
+                log_info "  liberation-sans-fonts, dejavu-sans-fonts, etc."
+                log_info "Atualize seu Dockerfile.ol9 ou puxe o fix mais recente do repositório."
+            elif grep -qi "no match for argument.*python3.11" "$build_log" 2>/dev/null; then
+                echo ""
+                log_error "ERRO CONHECIDO OL9: python3.11 não disponível."
+                log_info "Verifique se ol9_appstream está habilitado: sudo dnf repolist"
+                log_info "Habilitar: sudo dnf config-manager --enable ol9_appstream"
+            elif grep -qi "no match for argument" "$build_log" 2>/dev/null; then
+                echo ""
+                log_error "ERRO: pacote inexistente no microdnf. Veja o nome no log acima."
+                log_info "Consulte: docker run --rm oraclelinux:9 microdnf repoquery <pacote>"
+            elif grep -qi "could not resolve host\|temporary failure in name resolution" "$build_log" 2>/dev/null; then
+                echo ""
+                log_error "ERRO DE REDE: container não consegue resolver DNS."
+                log_info "Verificar /etc/docker/daemon.json (dns: [\"8.8.8.8\"]) e reiniciar Docker."
+            fi
             rm -f "$build_log"
         fi
-        
-        # Sugerir correções comuns
+
         echo ""
-        log_info "Sugestões de correção:"
-        echo "  1. Verificar se Docker daemon está rodando: sudo systemctl status docker"
-        echo "  2. Limpar cache e tentar novamente: docker system prune -f"
-        echo "  3. Verificar permissões: sudo chown -R \$USER:\$USER ."
-        echo "  4. Tentar build sem cache: $COMPOSE_CMD -f $COMPOSE_FILE build --no-cache"
+        log_info "Sugestões gerais:"
+        echo "  1. Docker daemon rodando: sudo systemctl status docker"
+        echo "  2. Limpar cache: docker system prune -af"
+        echo "  3. Build sem cache: $COMPOSE_CMD $compose_args build --no-cache"
+        echo "  4. Verificar requirements.txt: cat requirements.txt | grep -v '^#'"
+        echo "  5. Doctor: $0 doctor"
         echo ""
-        
+
         exit 1
     fi
     
@@ -632,11 +684,23 @@ verify_deployment() {
         failed=1
     fi
 
-    # ----- 4. Redis reachable from app -----
-    if docker exec soc360-app sh -c 'redis-cli -h "$REDIS_HOST" -a "$REDIS_PASSWORD" ping 2>/dev/null | grep -q PONG' 2>/dev/null; then
+    # ----- 4. Redis reachable from app (usa lib redis do Python, que ESTÁ na imagem) -----
+    if docker exec soc360-app python -c "
+import os, sys
+try:
+    import redis
+    r = redis.Redis(host=os.environ.get('REDIS_HOST','redis'),
+                     port=int(os.environ.get('REDIS_PORT','6379')),
+                     password=os.environ.get('REDIS_PASSWORD'),
+                     socket_connect_timeout=5)
+    sys.exit(0 if r.ping() else 1)
+except Exception as e:
+    print(e, file=sys.stderr); sys.exit(1)
+" 2>/dev/null; then
         log_success "Redis reachable from app"
     else
-        log_warn "Redis ping from app failed (may be expected if redis-cli not in app image)"
+        log_error "Redis NÃO acessível pelo app — verifique senha/secret e container redis"
+        failed=1
     fi
 
     # ----- 5. DB writable -----
@@ -657,7 +721,6 @@ verify_deployment() {
 }
 
 doctor() {
-    print_banner
     log_info "Running diagnostics..."
     echo ""
 
@@ -839,23 +902,36 @@ update_images() {
 # ============================================
 
 main() {
-    local command="${POSITIONAL_ARGS[0]:-start}"
+    # Acesso seguro a array possivelmente vazio sob 'set -u' (compat. bash <4.4)
+    local command="start"
+    [ "${#POSITIONAL_ARGS[@]}" -gt 0 ] && command="${POSITIONAL_ARGS[0]}"
 
     cd "$PROJECT_ROOT"
     print_banner
 
-    [ "$WITH_OLLAMA"  = true ] && log_info "Overlay: Ollama habilitado"
-    [ "$WITH_AIRFLOW" = true ] && log_info "Overlay: Airflow habilitado"
-
+    # Docker/Compose são necessários para QUALQUER comando
     check_docker
     check_compose
-    check_disk_space
-    check_ports
-    check_env_file
-    init_secrets
-    setup_directories
-    configure_selinux
-    configure_firewalld
+
+    # Preflight pesado (secrets, chown via sudo, SELinux, firewalld) só faz
+    # sentido para comandos que (re)criam a stack. Comandos somente-leitura
+    # ou de parada NÃO devem mutar permissões/firewall do host.
+    case "$command" in
+        start|restart|rebuild|update|rollback)
+            [ "$WITH_OLLAMA"  = true ] && log_info "Overlay: Ollama habilitado"
+            [ "$WITH_AIRFLOW" = true ] && log_info "Overlay: Airflow habilitado"
+            check_disk_space
+            check_ports
+            check_env_file
+            init_secrets
+            setup_directories
+            configure_selinux
+            configure_firewalld
+            ;;
+        *)
+            # stop|logs|status|clean|init|doctor|verify — sem mutações no host
+            ;;
+    esac
 
     local compose_args
     compose_args=$(build_compose_args)
@@ -885,7 +961,9 @@ main() {
             show_status
             ;;
         logs)
-            show_logs "${POSITIONAL_ARGS[1]:-app}"
+            local log_svc="app"
+            [ "${#POSITIONAL_ARGS[@]}" -gt 1 ] && log_svc="${POSITIONAL_ARGS[1]}"
+            show_logs "$log_svc"
             ;;
         status)
             show_status

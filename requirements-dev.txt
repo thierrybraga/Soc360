@@ -1,0 +1,32 @@
+# Open-Monitor v3.0 — DEVELOPMENT / TEST requirements
+# Uso local:  pip install -r requirements-dev.txt
+#
+# Inclui todas as dependências de produção + ferramentas de teste/lint.
+# A imagem Docker de produção instala APENAS requirements.txt — estas
+# ferramentas (pytest, black, ipython, etc.) NÃO devem ir para produção
+# (bloat de imagem + superfície de CVE numa plataforma de segurança).
+
+-r requirements.txt
+
+# ==========================================
+# TESTING
+# ==========================================
+pytest==7.4.3
+pytest-cov==4.1.0
+pytest-flask==1.3.0
+pytest-asyncio==0.23.0
+factory-boy==3.3.0
+
+# ==========================================
+# LINT / FORMAT / TYPES
+# ==========================================
+flake8==6.1.0
+black==23.12.1
+isort==5.13.0
+mypy==1.7.0
+
+# ==========================================
+# DEV TOOLING
+# ==========================================
+ipython==8.18.0
+watchdog==3.0.0

@@ -42,7 +42,10 @@ generate_secret_key() {
         # Fallback
         head -c 64 /dev/urandom | xxd -p -c 64 | head -1 > "$SECRETS_DIR/secret_key.txt"
     fi
-    chmod 600 "$SECRETS_DIR/secret_key.txt"
+    # 644 (não 600): docker compose bind-monta o secret preservando dono/modo;
+    # o container roda como UID 1000 e precisa ler /run/secrets/secret_key.
+    # O diretório 700 mantém a proteção no host.
+    chmod 644 "$SECRETS_DIR/secret_key.txt"
     log_success "New SECRET_KEY generated"
 }
 
@@ -55,7 +58,7 @@ generate_redis_password() {
         # Fallback - strong password
         tr -dc 'a-zA-Z0-9!@#$%^&*' < /dev/urandom | head -c 48 > "$SECRETS_DIR/redis_password.txt"
     fi
-    chmod 600 "$SECRETS_DIR/redis_password.txt"
+    chmod 644 "$SECRETS_DIR/redis_password.txt"
     log_success "New Redis password generated"
 }
 
@@ -67,7 +70,7 @@ generate_db_password() {
     else
         tr -dc 'a-zA-Z0-9!@#$%^&*' < /dev/urandom | head -c 48 > "$SECRETS_DIR/db_password.txt"
     fi
-    chmod 600 "$SECRETS_DIR/db_password.txt"
+    chmod 644 "$SECRETS_DIR/db_password.txt"
     log_success "New Database password generated"
 }
 
@@ -100,8 +103,9 @@ generate_secret_key
 generate_redis_password
 generate_db_password
 
-# Set permissions
-chmod 600 "$SECRETS_DIR"/*
+# Set permissions: arquivos 644 (legíveis pelo container UID 1000 via
+# bind-mount), diretório 700 (protege no host — só root lista/abre).
+chmod 644 "$SECRETS_DIR"/*
 chmod 700 "$SECRETS_DIR"
 
 echo ""

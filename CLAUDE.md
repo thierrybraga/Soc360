@@ -26,13 +26,17 @@ docker compose -f docker-compose.yml -f docker-compose.airflow.yml up -d  # + Ai
 ./scripts/deploy-linux.sh start --with-ollama           # + Ollama
 ./scripts/deploy-linux.sh start --with-airflow          # + Airflow
 
-# Tests
+# Install (dev/test inclui tudo de produção + ferramentas)
+pip install -r requirements-dev.txt    # dev local
+pip install -r requirements.txt        # produção (Docker usa este)
+
+# Tests (requer requirements-dev.txt)
 pytest tests/
 pytest tests/unit/
 pytest tests/integration/
 pytest --cov=app tests/
 
-# Code quality (run before committing)
+# Code quality (run before committing — requer requirements-dev.txt)
 black app/ tests/
 isort app/ tests/
 flake8 app/ tests/

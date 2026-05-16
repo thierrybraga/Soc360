@@ -14,23 +14,30 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Instalação de dependências de build
+# OL9: python3.11-pip (NOT python3-pip — that one installs for Python 3.9)
+# make/pkgconfig needed por wheels que compilam (cryptography, lxml, etc)
 RUN microdnf install -y --setopt=install_weak_deps=False \
+    python3.11 \
     python3.11-devel \
+    python3.11-pip \
     gcc \
     gcc-c++ \
+    make \
+    pkgconf-pkg-config \
+    libffi-devel \
     libpq-devel \
     openssl-devel \
-    python3-pip && \
-    microdnf clean all && \
-    rm -rf /var/cache/yum/*
+    && microdnf clean all \
+    && rm -rf /var/cache/yum/* /var/cache/dnf/*
 
 RUN python3.11 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /build
 COPY requirements.txt .
-RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements.txt
+# Garante que pip do venv seja usado (ordem do PATH); falha rápida se quebrar
+RUN /opt/venv/bin/python -m pip install --upgrade pip setuptools wheel && \
+    /opt/venv/bin/python -m pip install --no-cache-dir -r requirements.txt
 
 # ==========================================
 # PRODUCTION STAGE (Oracle Linux 9)
@@ -51,7 +58,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_DEBUG=0 \
     PORT=5000
 
-# Dependências de runtime (Oracle Linux)
+# Dependências de runtime (Oracle Linux 9)
+# WeasyPrint requer: pango + cairo + gdk-pixbuf2 + harfbuzz + libffi + fontconfig + freetype
+# IMPORTANTE: OL9 NÃO tem os pacotes "liberation-fonts" nem "dejavu-fonts-ttf"
+# (nomes Debian). Os corretos são "*-sans-fonts" / "*-serif-fonts" / "*-mono-fonts".
 RUN microdnf install -y --setopt=install_weak_deps=False \
     python3.11 \
     postgresql-libs \
@@ -62,23 +72,28 @@ RUN microdnf install -y --setopt=install_weak_deps=False \
     cairo \
     gdk-pixbuf2 \
     gobject-introspection \
+    harfbuzz \
     libffi \
     freetype \
     fontconfig \
-    && microdnf clean all && \
-    rm -rf /var/cache/yum/*
+    shared-mime-info \
+    dejavu-sans-fonts \
+    dejavu-serif-fonts \
+    dejavu-sans-mono-fonts \
+    liberation-sans-fonts \
+    liberation-serif-fonts \
+    liberation-mono-fonts \
+    && microdnf clean all \
+    && rm -rf /var/cache/yum/* /var/cache/dnf/*
 
-# Instalação de fontes para PDF
-RUN microdnf install -y --setopt=install_weak_deps=False \
-    liberation-fonts \
-    dejavu-fonts-ttf && \
-    microdnf clean all
-
-# Criação de usuário não-root (UID/GID fixos para Oracle Linux)
-RUN groupadd --gid 1000 ${APP_USER} || true && \
-    useradd --uid 1000 --gid ${APP_USER} --shell /bin/bash --create-home ${APP_USER} || true && \
-    mkdir -p ${APP_HOME}/{logs,uploads,reports,instance} && \
-    chown -R ${APP_USER}:${APP_USER} ${APP_HOME}
+# Criação de usuário não-root (UID/GID fixos)
+# OL9 base não tem shadow-utils preinstalado — instala primeiro
+RUN microdnf install -y --setopt=install_weak_deps=False shadow-utils \
+    && microdnf clean all \
+    && groupadd --gid 1000 ${APP_USER} \
+    && useradd --uid 1000 --gid ${APP_USER} --shell /bin/bash --create-home ${APP_USER} \
+    && mkdir -p ${APP_HOME}/logs ${APP_HOME}/uploads ${APP_HOME}/reports ${APP_HOME}/instance \
+    && chown -R ${APP_USER}:${APP_USER} ${APP_HOME}
 
 # Copia venv otimizada do builder
 COPY --from=builder /opt/venv /opt/venv

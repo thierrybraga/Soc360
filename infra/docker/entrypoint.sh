@@ -21,9 +21,23 @@ log_error() {
     echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
 
-# Load SECRET_KEY from file if provided, otherwise use environment variable
+# Load SECRET_KEY from file if provided, otherwise use environment variable.
+# IMPORTANTE: verificar se o conteúdo foi REALMENTE lido. Se o arquivo existe
+# mas não é legível pelo usuário do container (ex.: secret 600 root:root e
+# container roda como UID 1000), o cat falha e SECRET_KEY fica vazio — não
+# basta checar [ -f ]. Falhar aqui com a causa real evita "SECRET_KEY too short"
+# enganoso e o restart loop silencioso.
 if [ -n "$SECRET_KEY_FILE" ] && [ -f "$SECRET_KEY_FILE" ]; then
+    if [ ! -r "$SECRET_KEY_FILE" ]; then
+        log_error "SECRET_KEY_FILE existe mas não é legível: $SECRET_KEY_FILE"
+        log_error "Permissão do secret no host impede leitura pelo UID $(id -u). Use 'chmod 644 secrets/*.txt'."
+        exit 1
+    fi
     export SECRET_KEY=$(cat "$SECRET_KEY_FILE")
+    if [ -z "$SECRET_KEY" ]; then
+        log_error "SECRET_KEY_FILE legível porém vazio ou cat falhou: $SECRET_KEY_FILE"
+        exit 1
+    fi
     log_success "SECRET_KEY loaded from file"
 elif [ -z "$SECRET_KEY" ]; then
     log_error "SECRET_KEY not provided (use SECRET_KEY or SECRET_KEY_FILE)"
@@ -32,6 +46,10 @@ fi
 
 # Load REDIS_PASSWORD from file if provided
 if [ -n "$REDIS_PASSWORD_FILE" ] && [ -f "$REDIS_PASSWORD_FILE" ]; then
+    if [ ! -r "$REDIS_PASSWORD_FILE" ]; then
+        log_error "REDIS_PASSWORD_FILE existe mas não é legível: $REDIS_PASSWORD_FILE (verifique permissão do secret)"
+        exit 1
+    fi
     export REDIS_PASSWORD=$(cat "$REDIS_PASSWORD_FILE")
     log_success "REDIS_PASSWORD loaded from file"
 fi
