@@ -1,0 +1,210 @@
+# Open-Monitor v3.0 - Shared location blocks
+# Included by the HTTPS server in openmonitor.conf.
+# Upstream `openmonitor_app` is defined in nginx.conf (http block).
+
+# ==========================================================================
+# Security Settings
+# ==========================================================================
+
+# Block access to hidden files
+location ~ /\. {
+    deny all;
+    access_log off;
+    log_not_found off;
+}
+
+# Block Vite development requests
+location ~* ^/(@vite|dev-sw\.js|__vite_ping) {
+    return 404;
+    access_log off;
+    log_not_found off;
+}
+
+# Block access to backup files
+location ~ ~$ {
+    deny all;
+    access_log off;
+    log_not_found off;
+}
+
+# ==========================================================================
+# Health Check Endpoints
+# ==========================================================================
+
+location = /nginx-health {
+    access_log off;
+    return 200 "healthy\n";
+    add_header Content-Type text/plain;
+}
+
+location = /health {
+    proxy_pass http://openmonitor_app;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout 5s;
+    access_log off;
+}
+
+# ==========================================================================
+# Static Files - Served directly by NGINX
+# ==========================================================================
+
+location /static/ {
+    alias /app/app/static/;
+    expires 30d;
+    add_header Cache-Control "public, immutable";
+    add_header X-Content-Type-Options "nosniff";
+
+    gzip_static on;
+
+    location ~* \.(eot|ttf|woff|woff2)$ {
+        add_header Access-Control-Allow-Origin *;
+        expires 30d;
+    }
+}
+
+location = /favicon.ico {
+    alias /app/app/static/images/favicon.ico;
+    access_log off;
+    log_not_found off;
+    expires 30d;
+}
+
+location = /robots.txt {
+    alias /app/app/static/robots.txt;
+    access_log off;
+    log_not_found off;
+}
+
+# ==========================================================================
+# Authentication Endpoints (rate limited)
+# ==========================================================================
+
+location /auth/login {
+    limit_req zone=login burst=5 nodelay;
+    limit_conn conn_limit 10;
+
+    proxy_pass http://openmonitor_app;
+    include /etc/nginx/conf.d/proxy_params.inc;
+}
+
+location /auth/register {
+    limit_req zone=login burst=3 nodelay;
+    limit_conn conn_limit 5;
+
+    proxy_pass http://openmonitor_app;
+    include /etc/nginx/conf.d/proxy_params.inc;
+}
+
+location /auth/forgot-password {
+    limit_req zone=login burst=3 nodelay;
+
+    proxy_pass http://openmonitor_app;
+    include /etc/nginx/conf.d/proxy_params.inc;
+}
+
+# ==========================================================================
+# API Endpoints (rate limited)
+# ==========================================================================
+
+location /api/ {
+    limit_req zone=api burst=50 nodelay;
+    limit_conn conn_limit 50;
+
+    proxy_pass http://openmonitor_app;
+    include /etc/nginx/conf.d/proxy_params.inc;
+
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+}
+
+# NVD Sync API (longer timeout)
+location /api/nvd/sync/ {
+    limit_req zone=api burst=10 nodelay;
+
+    proxy_pass http://openmonitor_app;
+    include /etc/nginx/conf.d/proxy_params.inc;
+
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+}
+
+# Report generation (longer timeout)
+location /api/reports/generate {
+    limit_req zone=api burst=5 nodelay;
+
+    proxy_pass http://openmonitor_app;
+    include /etc/nginx/conf.d/proxy_params.inc;
+
+    proxy_read_timeout 300s;
+    proxy_send_timeout 300s;
+}
+
+# ==========================================================================
+# WebSocket Support (for real-time updates)
+# ==========================================================================
+
+location /ws/ {
+    proxy_pass http://openmonitor_app;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    proxy_read_timeout 86400s;
+    proxy_send_timeout 86400s;
+}
+
+# ==========================================================================
+# Main Application - Proxy to Flask/Gunicorn
+# ==========================================================================
+
+location = / {
+    proxy_pass http://openmonitor_app/dashboard;
+    include /etc/nginx/conf.d/proxy_params.inc;
+
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 60s;
+}
+
+location / {
+    limit_req zone=general burst=100 nodelay;
+    limit_conn conn_limit 100;
+
+    proxy_pass http://openmonitor_app;
+    include /etc/nginx/conf.d/proxy_params.inc;
+
+    proxy_connect_timeout 30s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 60s;
+}
+
+# ==========================================================================
+# Error Pages
+# ==========================================================================
+
+error_page 500 502 503 504 /50x.html;
+location = /50x.html {
+    root /usr/share/nginx/html;
+    internal;
+}
+
+error_page 404 /404.html;
+location = /404.html {
+    root /usr/share/nginx/html;
+    internal;
+}
+
+error_page 429 /429.html;
+location = /429.html {
+    root /usr/share/nginx/html;
+    internal;
+}

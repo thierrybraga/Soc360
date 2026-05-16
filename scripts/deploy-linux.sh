@@ -651,29 +651,39 @@ verify_deployment() {
         fi
     done
 
-    # ----- 2. HTTP endpoint reachable -----
+    # ----- 2. HTTPS endpoint reachable (app servido apenas via TLS) -----
     local http_port="${HTTP_PORT:-80}"
+    local https_port="${HTTPS_PORT:-443}"
     local max_attempts=12 attempt=1
-    local http_ok=false
+    local https_ok=false
     while [ $attempt -le $max_attempts ]; do
-        local http_code
-        http_code=$(curl -sk -o /dev/null -w "%{http_code}" "http://localhost:${http_port}/health" 2>/dev/null || echo "000")
-        case "$http_code" in
+        local https_code
+        https_code=$(curl -sk -o /dev/null -w "%{http_code}" "https://localhost:${https_port}/health" 2>/dev/null || echo "000")
+        case "$https_code" in
             200|301|302)
-                log_success "HTTP endpoint OK: http://localhost:${http_port}/health → ${http_code}"
-                http_ok=true
+                log_success "HTTPS endpoint OK: https://localhost:${https_port}/health → ${https_code}"
+                https_ok=true
                 break
                 ;;
             *)
-                log_info "Waiting for endpoint ($attempt/$max_attempts, got HTTP $http_code)..."
+                log_info "Waiting for endpoint ($attempt/$max_attempts, got HTTPS $https_code)..."
                 sleep 5
                 attempt=$((attempt + 1))
                 ;;
         esac
     done
-    if [ "$http_ok" = false ]; then
-        log_error "HTTP endpoint não respondeu após $((max_attempts * 5))s"
+    if [ "$https_ok" = false ]; then
+        log_error "HTTPS endpoint não respondeu após $((max_attempts * 5))s"
         failed=1
+    fi
+
+    # ----- 2b. HTTP deve redirecionar para HTTPS (301) -----
+    local redir_code
+    redir_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${http_port}/" 2>/dev/null || echo "000")
+    if [ "$redir_code" = "301" ] || [ "$redir_code" = "308" ]; then
+        log_success "HTTP redireciona para HTTPS (HTTP $redir_code)"
+    else
+        log_warn "HTTP / não retornou redirect 301 (got $redir_code) — verifique nginx"
     fi
 
     # ----- 3. App-internal sanity checks (catches missing libs) -----
@@ -800,7 +810,7 @@ show_status() {
     $COMPOSE_CMD $compose_args ps
     echo ""
     echo -e "${BOLD}Services:${NC}"
-    echo "  App:    http://localhost"
+    echo "  App:    https://localhost  (HTTP redireciona para HTTPS)"
     [ "$WITH_AIRFLOW" = true ] && echo "  Airflow: http://localhost:${AIRFLOW_PORT:-8080}"
     if [ "$WITH_OLLAMA" = true ]; then
         if [ "$OL9_MODE" = true ]; then
